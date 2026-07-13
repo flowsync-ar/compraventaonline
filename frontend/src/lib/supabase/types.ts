@@ -513,7 +513,7 @@ export type Database = {
     Enums: {
       ad_placement: "HOME_BANNER" | "SIDEBAR" | "LISTING_PAGE"
       currency_code: "ARS" | "USD"
-      listing_status: "ACTIVE" | "PAUSED" | "SOLD" | "DELETED"
+      listing_status: "ACTIVE" | "APPROVED" | "PAUSED" | "SOLD" | "DELETED"
       question_status: "PENDING" | "ANSWERED"
       report_reason: "SPAM" | "FRAUD" | "INAPPROPRIATE" | "DUPLICATE" | "OTHER"
       reward_type: "HIGHLIGHT" | "DISCOUNT" | "FREE_LISTING"
@@ -647,7 +647,7 @@ export const Constants = {
     Enums: {
       ad_placement: ["HOME_BANNER", "SIDEBAR", "LISTING_PAGE"],
       currency_code: ["ARS", "USD"],
-      listing_status: ["ACTIVE", "PAUSED", "SOLD", "DELETED"],
+      listing_status: ["ACTIVE", "APPROVED", "PAUSED", "SOLD", "DELETED"],
       question_status: ["PENDING", "ANSWERED"],
       report_reason: ["SPAM", "FRAUD", "INAPPROPRIATE", "DUPLICATE", "OTHER"],
       reward_type: ["HIGHLIGHT", "DISCOUNT", "FREE_LISTING"],

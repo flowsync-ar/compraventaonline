@@ -93,8 +93,8 @@ export default function LoginPage() {
           throw new Error("No se pudo crear la cuenta. Intentá de nuevo.")
         }
 
-        // 2. Update seller row with additional fields not in trigger metadata.
-        //    The trigger already created the row — we just update it.
+        // The trigger handle_new_user creates sellers + terms_acceptances automatically.
+        // We only update document_number here if provided (non-fatal, can be done later).
         if (documentNumber) {
           const { error: sellerError } = await getSupabase()
             .from("sellers")
@@ -102,24 +102,8 @@ export default function LoginPage() {
             .eq("user_id", data.user.id)
 
           if (sellerError) {
-            // Non-fatal: profile can be completed later
             console.warn("Could not update seller document_number:", sellerError.message)
           }
-        }
-
-        // 3. Record terms acceptance.
-        //    We need the seller id for the FK. Fetch it from the trigger-created row.
-        const { data: sellerData } = await getSupabase()
-          .from("sellers")
-          .select("id")
-          .eq("user_id", data.user.id)
-          .single()
-
-        if (sellerData) {
-          await getSupabase().from("terms_acceptances").insert({
-            seller_id: sellerData.id,
-            version: "1.0",
-          })
         }
 
         setSuccessMsg("¡Registro exitoso! Redireccionando...")

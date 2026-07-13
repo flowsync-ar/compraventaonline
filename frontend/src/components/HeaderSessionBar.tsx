@@ -78,8 +78,10 @@ export default function HeaderSessionBar() {
     }
   }
 
-  // Load seller profile for the authenticated user
-  const loadProfile = async (userId: string) => {
+  // Load seller profile — retries up to 5 times with backoff.
+  // Needed because the DB trigger may not have committed yet when the
+  // auth confirmation callback fires (e.g. clicking the email link).
+  const loadProfile = async (userId: string, attempt = 1) => {
     const { data, error } = await getSupabase()
       .from("sellers")
       .select("*")
@@ -87,7 +89,11 @@ export default function HeaderSessionBar() {
       .single()
 
     if (error || !data) {
-      setProfile(null)
+      if (attempt < 5) {
+        setTimeout(() => loadProfile(userId, attempt + 1), attempt * 800)
+      } else {
+        setProfile(null)
+      }
       return
     }
     setProfile(data)

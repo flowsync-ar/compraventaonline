@@ -22,6 +22,8 @@ export default function LoginPage() {
   const [errorMsg, setErrorMsg] = useState("")
   const [successMsg, setSuccessMsg] = useState("")
   const [loading, setLoading] = useState(false)
+  const [showConfirmModal, setShowConfirmModal] = useState(false)
+  const [registeredEmail, setRegisteredEmail] = useState("")
 
   // Form fields
   const [email, setEmail] = useState("")
@@ -106,11 +108,9 @@ export default function LoginPage() {
           }
         }
 
-        setSuccessMsg("¡Registro exitoso! Redireccionando...")
-        setTimeout(() => {
-          router.push("/dashboard")
-          router.refresh()
-        }, 1000)
+        setRegisteredEmail(email)
+        setShowConfirmModal(true)
+        setLoading(false)
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Ocurrió un error inesperado."
@@ -120,6 +120,34 @@ export default function LoginPage() {
   }
 
   return (
+    <>
+    {showConfirmModal && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
+        <div className="bg-card-bg border border-card-border rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl flex flex-col gap-5">
+          <div className="flex flex-col items-center gap-3">
+            <span className="text-5xl">📬</span>
+            <h2 className="font-heading text-xl font-extrabold text-foreground">
+              ¡Revisá tu correo!
+            </h2>
+          </div>
+          <p className="text-sm text-text-muted leading-relaxed">
+            Te enviamos un email de confirmación a{" "}
+            <span className="text-foreground font-bold">{registeredEmail}</span>.
+            <br /><br />
+            Hacé clic en el enlace del email para activar tu cuenta y empezar a usar CompraVentaOnline.
+          </p>
+          <p className="text-xs text-text-muted">
+            ¿No lo encontrás? Revisá la carpeta de <span className="text-accent-gold font-bold">Spam</span> o Promociones.
+          </p>
+          <button
+            onClick={() => { setShowConfirmModal(false); setIsLogin(true) }}
+            className="w-full rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover py-3 text-xs font-extrabold text-background shadow-md hover:opacity-95 transition-all cursor-pointer"
+          >
+            Entendido, volver al inicio de sesión
+          </button>
+        </div>
+      </div>
+    )}
     <div className="mx-auto max-w-md px-4 py-16 w-full flex flex-col gap-6">
       <div className="text-center">
         <span className="text-4xl">🌾</span>
@@ -304,5 +332,6 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+    </>
   )
 }

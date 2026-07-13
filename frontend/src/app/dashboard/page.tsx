@@ -187,7 +187,7 @@ export default function DashboardPage() {
         // 1. Fetch seller profile for this auth user
         const { data: profileData, error: profileError } = await supabase
           .from("sellers")
-          .select("id, name, type, score, tier, plan, user_id")
+          .select("id, name, type, score, tier, user_id")
           .eq("user_id", userId!)
           .single();
 

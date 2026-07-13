@@ -204,8 +204,10 @@ export type Database = {
       }
       listings: {
         Row: {
+          condition: string
           created_at: string
           currency_id: string | null
+          featured_plan: string
           id: string
           image_url: string | null
           price: number
@@ -216,8 +218,10 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          condition?: string
           created_at?: string
           currency_id?: string | null
+          featured_plan?: string
           id?: string
           image_url?: string | null
           price: number
@@ -228,8 +232,10 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          condition?: string
           created_at?: string
           currency_id?: string | null
+          featured_plan?: string
           id?: string
           image_url?: string | null
           price?: number
@@ -307,25 +313,31 @@ export type Database = {
       }
       products: {
         Row: {
+          brand: string | null
           category_id: string | null
           created_at: string
           description: string | null
           id: string
+          images: string[] | null
           name: string
           updated_at: string
         }
         Insert: {
+          brand?: string | null
           category_id?: string | null
           created_at?: string
           description?: string | null
           id?: string
+          images?: string[] | null
           name: string
           updated_at?: string
         }
         Update: {
+          brand?: string | null
           category_id?: string | null
           created_at?: string
           description?: string | null
+          images?: string[] | null
           id?: string
           name?: string
           updated_at?: string
@@ -442,6 +454,8 @@ export type Database = {
           location: string | null
           name: string
           rating: number | null
+          score: number
+          tier: string
           type: Database["public"]["Enums"]["seller_type"]
           updated_at: string
           user_id: string
@@ -455,6 +469,8 @@ export type Database = {
           location?: string | null
           name: string
           rating?: number | null
+          score?: number
+          tier?: string
           type?: Database["public"]["Enums"]["seller_type"]
           updated_at?: string
           user_id: string
@@ -468,6 +484,8 @@ export type Database = {
           location?: string | null
           name?: string
           rating?: number | null
+          score?: number
+          tier?: string
           type?: Database["public"]["Enums"]["seller_type"]
           updated_at?: string
           user_id?: string

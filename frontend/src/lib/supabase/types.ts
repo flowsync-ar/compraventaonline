@@ -660,6 +660,39 @@ export type CompositeTypes<
     ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
     : never
 
+// ─── Convenience types ────────────────────────────────────────────────────────
+
+export type SellerRow = Database["public"]["Tables"]["sellers"]["Row"]
+
+export type QuestionWithBuyer =
+  Database["public"]["Tables"]["questions"]["Row"] & {
+    buyer: Pick<SellerRow, "id" | "name" | "avatar_url"> | null
+    listing:
+      | (Pick<Database["public"]["Tables"]["listings"]["Row"], "id"> & {
+          product: Pick<Database["public"]["Tables"]["products"]["Row"], "name"> | null
+        })
+      | null
+  }
+
+export type ListingWithDetails =
+  Database["public"]["Tables"]["listings"]["Row"] & {
+    products:
+      | (Database["public"]["Tables"]["products"]["Row"] & {
+          categories: Pick<
+            Database["public"]["Tables"]["categories"]["Row"],
+            "id" | "name" | "slug"
+          > | null
+        })
+      | null
+    sellers: Pick<SellerRow, "id" | "name" | "score" | "tier" | "location"> | null
+    currencies: Pick<
+      Database["public"]["Tables"]["currencies"]["Row"],
+      "id" | "code" | "symbol"
+    > | null
+  }
+
+// ──────────────────────────────────────────────────────────────────────────────
+
 export const Constants = {
   public: {
     Enums: {

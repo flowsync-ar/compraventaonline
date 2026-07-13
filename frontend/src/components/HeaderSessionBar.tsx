@@ -542,11 +542,11 @@ export default function HeaderSessionBar() {
                           <div className="flex-1">
                             <span className="text-[9px] font-bold text-text-muted block uppercase">Publicación:</span>
                             <Link
-                              href={`/listings/${n.listing.id}`}
+                              href={`/listings/${n.listing?.id ?? "#"}`}
                               onClick={() => setShowNotifications(false)}
                               className="font-bold text-foreground hover:text-accent-gold transition-colors line-clamp-1"
                             >
-                              {n.listing.product.name}
+                              {n.listing?.product?.name ?? "Publicación"}
                             </Link>
                           </div>
                           <span className="text-[9px] text-text-muted shrink-0">
@@ -555,7 +555,7 @@ export default function HeaderSessionBar() {
                         </div>
 
                         <div className="bg-background/40 p-2.5 rounded-lg border border-card-border/40">
-                          <span className="text-[9px] font-bold text-text-muted block mb-0.5">{n.buyer.name} pregunta:</span>
+                          <span className="text-[9px] font-bold text-text-muted block mb-0.5">{n.buyer?.name ?? "Comprador"} pregunta:</span>
                           <p className="text-foreground leading-relaxed italic">&quot;{n.question}&quot;</p>
                         </div>
 

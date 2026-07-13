@@ -1,7 +1,9 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 interface FavoriteButtonProps {
   listingId: string;
@@ -12,66 +14,59 @@ export default function FavoriteButton({ listingId }: FavoriteButtonProps) {
   const [isFavorite, setIsFavorite] = useState(false);
   const [loading, setLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
+
+  const supabaseRef = useRef<SupabaseClient | null>(null);
+  const getSupabase = () => {
+    if (!supabaseRef.current) {
+      supabaseRef.current = createClient();
+    }
+    return supabaseRef.current;
+  };
 
   useEffect(() => {
     setMounted(true);
-    const token = localStorage.getItem("token");
-    if (!token) return;
+    const supabase = getSupabase();
 
-    async function checkFavoriteStatus() {
-      try {
-        const res = await fetch(`http://localhost:3001/api/favorites/listing/${listingId}/status`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setIsFavorite(data.isFavorite);
-        }
-      } catch (err) {
-        console.error("Error checking favorite status:", err);
-      }
-    }
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      const uid = session?.user?.id ?? null;
+      setUserId(uid);
+      if (uid) checkFavoriteStatus(uid, supabase);
+    });
 
-    checkFavoriteStatus();
-  }, [listingId]);
-
-  // Listen to external updates (e.g. from the favorites page or details page)
-  useEffect(() => {
-    const handleFavoritesUpdated = () => {
-      const token = localStorage.getItem("token");
-      if (!token) {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      const uid = session?.user?.id ?? null;
+      setUserId(uid);
+      if (uid) {
+        checkFavoriteStatus(uid, supabase);
+      } else {
         setIsFavorite(false);
-        return;
       }
-      fetch(`http://localhost:3001/api/favorites/listing/${listingId}/status`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
-        .then((res) => {
-          if (res.ok) return res.json();
-        })
-        .then((data) => {
-          if (data) setIsFavorite(data.isFavorite);
-        })
-        .catch((err) => console.error("Error updating favorite status:", err));
-    };
+    });
 
-    window.addEventListener("favorites-updated", handleFavoritesUpdated);
-    return () => {
-      window.removeEventListener("favorites-updated", handleFavoritesUpdated);
-    };
+    return () => subscription.unsubscribe();
   }, [listingId]);
+
+  async function checkFavoriteStatus(uid: string, supabase: SupabaseClient) {
+    try {
+      const { data } = await supabase
+        .from("favorites")
+        .select("id")
+        .eq("listing_id", listingId)
+        .eq("user_id", uid)
+        .maybeSingle();
+
+      setIsFavorite(!!data);
+    } catch (err) {
+      console.error("Error checking favorite status:", err);
+    }
+  }
 
   const handleToggleFavorite = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
 
-    const token = localStorage.getItem("token");
-    if (!token) {
-      // Redirect to login
+    if (!userId) {
       const redirectPath = window.location.pathname + window.location.search;
       router.push(`/login?redirect=${encodeURIComponent(redirectPath)}`);
       return;
@@ -79,31 +74,26 @@ export default function FavoriteButton({ listingId }: FavoriteButtonProps) {
 
     if (loading) return;
 
+    const supabase = getSupabase();
     try {
       setLoading(true);
       if (isFavorite) {
-        // Remove from favorites
-        const res = await fetch(`http://localhost:3001/api/favorites/listing/${listingId}`, {
-          method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-        if (res.ok) {
+        const { error } = await supabase
+          .from("favorites")
+          .delete()
+          .eq("listing_id", listingId)
+          .eq("user_id", userId);
+
+        if (!error) {
           setIsFavorite(false);
           window.dispatchEvent(new Event("favorites-updated"));
         }
       } else {
-        // Add to favorites
-        const res = await fetch("http://localhost:3001/api/favorites", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ listingId }),
-        });
-        if (res.ok) {
+        const { error } = await supabase
+          .from("favorites")
+          .insert({ listing_id: listingId, user_id: userId });
+
+        if (!error) {
           setIsFavorite(true);
           window.dispatchEvent(new Event("favorites-updated"));
         }
@@ -153,4 +143,3 @@ export default function FavoriteButton({ listingId }: FavoriteButtonProps) {
     </button>
   );
 }
-

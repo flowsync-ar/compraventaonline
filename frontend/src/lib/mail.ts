@@ -1,0 +1,110 @@
+import "server-only"
+import nodemailer from "nodemailer"
+
+const HOST = process.env.SMTP_HOST ?? "smtp.gmail.com"
+const PORT = Number(process.env.SMTP_PORT ?? 587)
+const USER = process.env.SMTP_USER
+const PASS = process.env.SMTP_PASSWORD
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;")
+}
+
+export function isMailConfigured(): boolean {
+  return Boolean(USER && PASS)
+}
+
+function createMailTransporter() {
+  return nodemailer.createTransport({
+    host: HOST,
+    port: PORT,
+    secure: PORT === 465,
+    auth: { user: USER!, pass: PASS! },
+  })
+}
+
+function fromAddress() {
+  return `"CompraVentaOnline" <${USER}>`
+}
+
+export type SendResult = { sent: true } | { sent: false; reason: string }
+
+export async function sendConfirmationEmail(params: {
+  to: string
+  fullName: string
+  confirmUrl: string
+}): Promise<SendResult> {
+  if (!isMailConfigured()) {
+    console.warn("[mail] SMTP not configured: set SMTP_USER and SMTP_PASSWORD")
+    return { sent: false, reason: "SMTP not configured" }
+  }
+
+  const { to, fullName, confirmUrl } = params
+  const safeName = escapeHtml(fullName)
+
+  try {
+    const transporter = createMailTransporter()
+    await transporter.sendMail({
+      from: fromAddress(),
+      to,
+      subject: "Confirmá tu cuenta en CompraVentaOnline",
+      text: [
+        `Hola ${fullName},`,
+        ``,
+        `Gracias por registrarte en CompraVentaOnline.`,
+        `Para activar tu cuenta, hacé clic en el siguiente enlace:`,
+        ``,
+        confirmUrl,
+        ``,
+        `Si no creaste esta cuenta, ignorá este correo.`,
+      ].join("\n"),
+      html: `
+        <div style="font-family:sans-serif;max-width:560px;margin:0 auto;background:#ffffff;border-radius:14px;overflow:hidden;border:1px solid #f3e0c2;">
+          <div style="background-color:#0f172a;padding:36px 48px;text-align:center;">
+            <span style="font-size:24px;">🌾</span>
+            <div style="color:#f8fafc;font-weight:800;font-size:18px;margin-top:8px;">CompraVentaOnline</div>
+          </div>
+
+          <div style="padding:32px;">
+            <h2 style="color:#d97706;margin-top:0;font-size:22px;">
+              ¡Revisá tu correo!
+            </h2>
+            <p style="color:#374151;font-size:15px;line-height:1.6;margin-bottom:8px;">
+              Hola ${safeName},
+            </p>
+            <p style="color:#374151;font-size:15px;line-height:1.6;">
+              Gracias por registrarte en <strong>CompraVentaOnline</strong>.
+              Hacé clic en el botón para activar tu cuenta y empezar a publicar:
+            </p>
+            <div style="margin:28px 0;text-align:center;">
+              <a
+                href="${confirmUrl}"
+                style="background-color:#d97706;color:#ffffff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:700;display:inline-block;font-size:15px;letter-spacing:0.02em;"
+              >
+                Confirmar mi cuenta
+              </a>
+            </div>
+            <p style="color:#6B7280;font-size:12px;line-height:1.5;">
+              Si el botón no funciona, copiá este enlace en tu navegador:<br/>
+              <a href="${confirmUrl}" style="color:#d97706;word-break:break-all;">${confirmUrl}</a>
+            </p>
+          </div>
+
+          <div style="background:#fef6e7;padding:16px 32px;border-top:1px solid #f3e0c2;text-align:center;">
+            <p style="color:#9CA3AF;font-size:11px;margin:0;">
+              Si no creaste esta cuenta, ignorá este correo.<br/>© 2026 CompraVentaOnline · La Pampa
+            </p>
+          </div>
+        </div>
+      `,
+    })
+    return { sent: true }
+  } catch (err) {
+    return { sent: false, reason: err instanceof Error ? err.message : String(err) }
+  }
+}

@@ -32,6 +32,7 @@ export default function LoginPage() {
   const [fullName, setFullName] = useState("")
   const [sellerType, setSellerType] = useState<"PERSONAL_SELLER" | "BUSINESS_SELLER">("PERSONAL_SELLER")
   const [documentNumber, setDocumentNumber] = useState("")
+  const [phone, setPhone] = useState("")
   const [acceptTerms, setAcceptTerms] = useState(false)
 
   // Redirect if already logged in
@@ -74,38 +75,26 @@ export default function LoginPage() {
           throw new Error("Debes aceptar los términos y condiciones de la comunidad.")
         }
 
-        // 1. Create auth user + trigger creates sellers row automatically.
-        //    Pass metadata so the trigger can set name and seller_type.
-        const { data, error: signUpError } = await getSupabase().auth.signUp({
-          email,
-          password,
-          options: {
-            data: {
-              full_name: fullName,
-              seller_type: sellerType,
-            },
-          },
+        // Create auth user + send confirmation email server-side (own Zoho SMTP,
+        // not Supabase's shared mailer). The trigger handle_new_user creates
+        // sellers + terms_acceptances automatically from the metadata below.
+        const res = await fetch("/api/auth/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email,
+            password,
+            fullName,
+            sellerType,
+            documentNumber,
+            phone,
+          }),
         })
 
-        if (signUpError) {
-          throw new Error(signUpError.message)
-        }
+        const result = await res.json()
 
-        if (!data.user) {
-          throw new Error("No se pudo crear la cuenta. Intentá de nuevo.")
-        }
-
-        // The trigger handle_new_user creates sellers + terms_acceptances automatically.
-        // We only update document_number here if provided (non-fatal, can be done later).
-        if (documentNumber) {
-          const { error: sellerError } = await getSupabase()
-            .from("sellers")
-            .update({ document_number: documentNumber })
-            .eq("user_id", data.user.id)
-
-          if (sellerError) {
-            console.warn("Could not update seller document_number:", sellerError.message)
-          }
+        if (!res.ok) {
+          throw new Error(result.error ?? "No se pudo crear la cuenta. Intentá de nuevo.")
         }
 
         setRegisteredEmail(email)
@@ -275,6 +264,21 @@ export default function LoginPage() {
                   placeholder={sellerType === "PERSONAL_SELLER" ? "Ej. 20-35444333-8" : "Ej. 30-71112223-9"}
                   className="w-full bg-background border border-card-border rounded-xl px-4 py-3 text-xs text-foreground focus:outline-none focus:border-accent-gold"
                 />
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-bold text-foreground">Celular</label>
+                <input
+                  type="tel"
+                  required
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="Ej. 2954123456"
+                  className="w-full bg-background border border-card-border rounded-xl px-4 py-3 text-xs text-foreground focus:outline-none focus:border-accent-gold"
+                />
+                <p className="text-[10px] text-text-muted">
+                  Lo vamos a compartir solo con compradores que ya iniciaron sesión, para coordinar la entrega.
+                </p>
               </div>
 
               <div className="flex items-start gap-2.5 mt-2">

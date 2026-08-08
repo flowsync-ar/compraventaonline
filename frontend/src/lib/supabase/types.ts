@@ -453,6 +453,7 @@ export type Database = {
           id: string
           location: string | null
           name: string
+          phone: string | null
           rating: number | null
           score: number
           tier: string
@@ -468,6 +469,7 @@ export type Database = {
           id?: string
           location?: string | null
           name: string
+          phone?: string | null
           rating?: number | null
           score?: number
           tier?: string
@@ -483,6 +485,7 @@ export type Database = {
           id?: string
           location?: string | null
           name?: string
+          phone?: string | null
           rating?: number | null
           score?: number
           tier?: string

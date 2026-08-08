@@ -133,6 +133,9 @@ export default function ListingDetailPage() {
   // Auth state
   const [userId, setUserId] = useState<string | null>(null);
 
+  // Seller phone — only fetched (and only fetchable, per RLS) for logged-in users
+  const [sellerPhone, setSellerPhone] = useState<string | null>(null);
+
   useEffect(() => {
     const supabase = getSupabase();
 
@@ -252,6 +255,30 @@ export default function ListingDetailPage() {
 
     checkFavoriteStatus();
   }, [userId, id]);
+
+  // Fetch the seller's real phone — only possible while logged in (RLS
+  // revokes SELECT on sellers.phone for anon).
+  useEffect(() => {
+    const sellerId = listing?.sellers?.id;
+    if (!userId || !sellerId) return;
+
+    async function fetchSellerPhone() {
+      const supabase = getSupabase();
+      try {
+        const { data } = await supabase
+          .from("sellers")
+          .select("phone")
+          .eq("id", sellerId!)
+          .single();
+
+        setSellerPhone(data?.phone ?? null);
+      } catch (err) {
+        console.error("Error fetching seller phone:", err);
+      }
+    }
+
+    fetchSellerPhone();
+  }, [userId, listing?.sellers?.id]);
 
   const handleToggleFavorite = async () => {
     if (!userId) {
@@ -418,9 +445,20 @@ export default function ListingDetailPage() {
 
   const currencySymbol = listing.currencies?.symbol ?? "$";
 
-  const formattedWhatsAppUrl = `https://wa.me/5492954000000?text=${encodeURIComponent(
-    `Hola! Te contacto desde CompraVentaOnline.com.ar por el artículo "${product?.name}" (${currencySymbol}${Number(listing.price).toLocaleString("es-AR")}). Sigue disponible?`
-  )}`;
+  // sellerPhone is whatever the seller typed at registration — strip non-digits
+  // and make sure it carries the AR country code that wa.me expects.
+  const sellerPhoneDigits = sellerPhone?.replace(/\D/g, "") ?? "";
+  const sellerWhatsAppNumber = sellerPhoneDigits
+    ? sellerPhoneDigits.startsWith("549")
+      ? sellerPhoneDigits
+      : `549${sellerPhoneDigits.replace(/^54/, "")}`
+    : null;
+
+  const formattedWhatsAppUrl = sellerWhatsAppNumber
+    ? `https://wa.me/${sellerWhatsAppNumber}?text=${encodeURIComponent(
+        `Hola! Te contacto desde CompraVentaOnline.com.ar por el artículo "${product?.name}" (${currencySymbol}${Number(listing.price).toLocaleString("es-AR")}). Sigue disponible?`
+      )}`
+    : null;
 
   return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 w-full">
@@ -657,14 +695,20 @@ export default function ListingDetailPage() {
                   <div className="bg-accent-green/10 border border-accent-green/30 text-accent-green rounded-2xl p-4 text-xs font-medium text-center animate-in fade-in duration-300">
                     ✓ ¡Pago acreditado con éxito! Comunicate con el vendedor por WhatsApp para coordinar el envío.
                   </div>
-                  <a
-                    href={formattedWhatsAppUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="w-full rounded-xl bg-gradient-to-r from-accent-green to-emerald-600 px-6 py-4 text-xs font-extrabold text-white text-center shadow-md hover:scale-[1.01] transition-all flex items-center justify-center gap-2 cursor-pointer"
-                  >
-                    <span>💬 Contactar por WhatsApp</span>
-                  </a>
+                  {formattedWhatsAppUrl ? (
+                    <a
+                      href={formattedWhatsAppUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full rounded-xl bg-gradient-to-r from-accent-green to-emerald-600 px-6 py-4 text-xs font-extrabold text-white text-center shadow-md hover:scale-[1.01] transition-all flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <span>💬 Contactar por WhatsApp</span>
+                    </a>
+                  ) : (
+                    <p className="text-xs text-text-muted text-center">
+                      El vendedor no cargó un celular de contacto. Usá &quot;Preguntar al Vendedor&quot; para coordinar.
+                    </p>
+                  )}
                 </>
               ) : (
                 <div className="grid grid-cols-2 gap-3">
@@ -679,7 +723,13 @@ export default function ListingDetailPage() {
                     {addedToCart ? <><span>✓</span> ¡Agregado!</> : <><span>🛒</span> Agregar al Carrito</>}
                   </button>
                   <button
-                    onClick={() => setShowCheckoutModal(true)}
+                    onClick={() => {
+                      if (!userId) {
+                        router.push("/login?redirect=" + encodeURIComponent(`/listings/${id}`));
+                      } else {
+                        setShowCheckoutModal(true);
+                      }
+                    }}
                     className="rounded-xl bg-gradient-to-r from-accent-blue to-blue-600 px-4 py-4 text-xs font-extrabold text-white text-center shadow-md hover:scale-[1.01] active:scale-[0.99] transition-all cursor-pointer flex items-center justify-center gap-2"
                   >
                     <span>⚡</span> Comprar Ahora

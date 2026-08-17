@@ -3,24 +3,10 @@
   "version": "1.0.0",
   "private": true,
   "workspaces": [
-    "frontend",
-    "backend"
+    "frontend"
   ],
   "scripts": {
-    "dev": "concurrently -n \"backend,frontend\" -c \"blue,green\" \"npm run dev:backend\" \"npm run dev:frontend\"",
-    "dev:frontend": "npm run dev -w frontend",
-    "dev:backend": "npm run start:dev -w backend",
-    "build:frontend": "npm run build -w frontend",
-    "build:backend": "npm run build -w backend"
-  },
-  "devDependencies": {
-    "@types/pg": "^8.20.0",
-    "concurrently": "^10.0.3"
-  },
-  "dependencies": {
-    "@prisma/adapter-pg": "^7.8.0",
-    "@prisma/client": "^7.2.0",
-    "pg": "^8.22.0",
-    "prisma": "^7.2.0"
+    "dev": "npm run dev -w frontend",
+    "build": "npm run build -w frontend"
   }
 }

@@ -523,7 +523,7 @@ ON CONFLICT (code) DO NOTHING;
 
 -- Categories
 INSERT INTO categories (name, slug, icon) VALUES
-  ('Autos y Vehículos',     'autos-y-vehiculos',     '🚗'),
+  ('Autos y Motos',     'autos-y-motos',     '🚗'),
   ('Inmuebles',              'inmuebles',              '🏠'),
   ('Electrónica',            'electronica',            '💻'),
   ('Ropa y Accesorios',      'ropa-y-accesorios',      '👗'),

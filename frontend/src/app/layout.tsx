@@ -119,12 +119,6 @@ export default function RootLayout({
                     className="h-full w-full object-contain"
                   />
                 </div>
-                <ThemedImage
-                  lightSrc="/solotexto.png"
-                  darkSrc="/solotexto-dark.png"
-                  alt="CompraVentaOnline"
-                  className="h-8 w-auto object-contain shrink-0"
-                />
               </Link>
 
               {/* Barra de Sesión + Tema */}

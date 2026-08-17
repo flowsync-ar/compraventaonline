@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import CustomDropdown from "@/components/CustomDropdown";
 import ConfirmModal from "@/components/ConfirmModal";
+import { createClient } from "@/lib/supabase/client";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 interface Listing {
   id: string;
@@ -12,10 +14,27 @@ interface Listing {
   condition: string;
   stock: number;
   status: string;
-  featuredPlan: string;
-  currencyId: string;
+  featured_plan: string;
+  currency_id: string;
+  image_url?: string | null;
   images?: string[];
-  product: {
+  products: {
+    id: string;
+    name: string;
+    brand: string;
+    description: string;
+    category_id: string;
+    images?: string[];
+    attributes?: Record<string, any>;
+  } | null;
+}
+
+// Legacy alias used in the form handlers that reference listing.product.*
+// We keep camelCase fields as optional for compatibility with the edit flow
+type ListingWithLegacy = Listing & {
+  featuredPlan?: string;
+  currencyId?: string;
+  product?: {
     id: string;
     name: string;
     brand: string;
@@ -24,7 +43,7 @@ interface Listing {
     images?: string[];
     attributes?: Record<string, any>;
   };
-}
+};
 
 interface SellerProfile {
   id: string;
@@ -33,6 +52,7 @@ interface SellerProfile {
   score: number;
   tier: string;
   plan: string;
+  user_id: string;
 }
 
 interface BackendCategory {
@@ -44,9 +64,18 @@ interface BackendCategory {
 
 export default function DashboardPage() {
   const router = useRouter();
-  
+
+  // Supabase client (lazy init via ref — safe for prerender)
+  const supabaseRef = useRef<SupabaseClient | null>(null);
+  const getSupabase = () => {
+    if (!supabaseRef.current) {
+      supabaseRef.current = createClient();
+    }
+    return supabaseRef.current;
+  };
+
   // Auth state
-  const [token, setToken] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
   const [pageLoading, setPageLoading] = useState(true);
 
@@ -115,12 +144,23 @@ export default function DashboardPage() {
   // Check auth and mount
   useEffect(() => {
     setMounted(true);
-    const savedToken = localStorage.getItem("token");
-    if (!savedToken) {
-      router.push("/login");
-    } else {
-      setToken(savedToken);
-    }
+    const supabase = getSupabase();
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) {
+        router.push("/login");
+        return;
+      }
+      setUserId(session.user.id);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session) {
+        router.push("/login");
+        return;
+      }
+      setUserId(session.user.id);
+    });
 
     // Parse URL query parameter for active tab
     const params = new URLSearchParams(window.location.search);
@@ -128,6 +168,8 @@ export default function DashboardPage() {
     if (tab === "publish" || tab === "inventory" || tab === "rewards" || tab === "summary") {
       setActiveTab(tab as any);
     }
+
+    return () => subscription.unsubscribe();
   }, [router]);
 
   // Reset page when tab or search query changes
@@ -135,77 +177,75 @@ export default function DashboardPage() {
     setCurrentPage(1);
   }, [inventorySearch, activeTab]);
 
-  // Load profile and categories once token is available
+  // Load profile and dashboard data once userId is available
   useEffect(() => {
-    if (!token) return;
+    if (!userId) return;
 
     async function loadDashboardData() {
+      const supabase = getSupabase();
       try {
-        // 1. Fetch Profile
-        const profileRes = await fetch("http://localhost:3001/api/sellers/me", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        
-        if (!profileRes.ok) {
-          if (profileRes.status === 401 || profileRes.status === 403) {
-            localStorage.removeItem("token");
-            window.dispatchEvent(new Event("auth-change"));
-            router.push("/login");
-            return;
-          }
+        // 1. Fetch seller profile for this auth user
+        const { data: profileData, error: profileError } = await supabase
+          .from("sellers")
+          .select("id, name, type, score, tier, user_id")
+          .eq("user_id", userId!)
+          .single();
+
+        if (profileError || !profileData) {
           throw new Error("No pudimos encontrar tu perfil de vendedor.");
         }
-        
-        const profileData = await profileRes.json();
-        setSellerProfile(profileData);
 
-        // 2. Fetch Categories
-        const catRes = await fetch("http://localhost:3001/api/products/categories");
-        if (catRes.ok) {
-          const catData = await catRes.json();
-          // Mapeamos tanto raíces como subcategorías en una sola lista plana para facilitar la selección
-          const flatCategories: BackendCategory[] = [];
-          catData.forEach((cat: any) => {
-            flatCategories.push({ id: cat.id, name: cat.name, slug: cat.slug, attributesSchema: cat.attributesSchema });
-            if (cat.subCategories && cat.subCategories.length > 0) {
-              cat.subCategories.forEach((sub: any) => {
-                flatCategories.push({ id: sub.id, name: `↳ ${sub.name}`, slug: sub.slug, attributesSchema: sub.attributesSchema });
-              });
-            }
-          });
+        setSellerProfile(profileData as SellerProfile);
+
+        // 2. Fetch Categories (flat list)
+        const { data: catData } = await supabase
+          .from("categories")
+          .select("id, name, slug")
+          .order("name", { ascending: true });
+
+        if (catData && catData.length > 0) {
+          const flatCategories: BackendCategory[] = catData.map((c) => ({
+            id: c.id,
+            name: c.name,
+            slug: c.slug,
+          }));
           setCategories(flatCategories);
-          if (flatCategories.length > 0) {
-            setCategoryId(flatCategories[0].id);
-          }
+          setCategoryId(flatCategories[0].id);
         }
 
-        // 3. Fetch Seller Listings
-        const listingsRes = await fetch(`http://localhost:3001/api/listings?seller_id=${profileData.id}`);
-        if (listingsRes.ok) {
-          const listingsData = await listingsRes.json();
-          setMyListings(listingsData);
+        // 3. Fetch this seller's listings
+        const { data: listingsData } = await supabase
+          .from("listings")
+          .select(`
+            id, price, condition, stock, status, featured_plan, currency_id, image_url,
+            products ( id, name, brand, description, category_id, images, attributes )
+          `)
+          .eq("seller_id", profileData.id)
+          .order("created_at", { ascending: false });
+
+        if (listingsData) {
+          setMyListings(listingsData as unknown as Listing[]);
         }
 
-        // 4. Fetch Rewards
-        const rewardsRes = await fetch("http://localhost:3001/api/rewards/my-rewards", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (rewardsRes.ok) {
-          const rewardsData = await rewardsRes.json();
-          setRewards(rewardsData);
-        }
+        // 4. Fetch seller rewards
+        const { data: rewardsData } = await supabase
+          .from("seller_rewards")
+          .select("*")
+          .eq("seller_id", profileData.id)
+          .order("created_at", { ascending: false });
 
-        // 5. Fetch Currencies
-        const currRes = await fetch("http://localhost:3001/api/listings/currencies");
-        if (currRes.ok) {
-          const currData = await currRes.json();
+        if (rewardsData) setRewards(rewardsData);
+
+        // 5. Fetch currencies
+        const { data: currData } = await supabase
+          .from("currencies")
+          .select("id, code, symbol, name")
+          .order("code", { ascending: true });
+
+        if (currData && currData.length > 0) {
           setCurrencies(currData);
-          const pesos = currData.find((c: any) => c.code === 'ARS');
-          if (pesos) {
-            setCurrencyId(pesos.id);
-          } else if (currData.length > 0) {
-            setCurrencyId(currData[0].id);
-          }
+          const pesos = currData.find((c) => c.code === "ARS");
+          setCurrencyId(pesos ? pesos.id : currData[0].id);
         }
       } catch (err: any) {
         setErrorMsg(err.message || "Error al cargar los datos del panel.");
@@ -215,7 +255,7 @@ export default function DashboardPage() {
     }
 
     loadDashboardData();
-  }, [token, router]);
+  }, [userId]);
 
   const downloadCsvTemplate = () => {
     const headers = "name,brand,description,category_slug,price,condition,stock,attributes,images\n";
@@ -241,7 +281,7 @@ export default function DashboardPage() {
   };
 
   const handleBulkPublish = async () => {
-    if (!csvFile || !token) return;
+    if (!csvFile || !sellerProfile) return;
     setLoading(true);
     setSuccessMsg("");
     setErrorMsg("");
@@ -251,11 +291,9 @@ export default function DashboardPage() {
     formData.append("file", csvFile);
 
     try {
-      const res = await fetch("http://localhost:3001/api/listings/bulk", {
+      // Route Handler handles CSV bulk upload with service_role key server-side
+      const res = await fetch("/api/listings/bulk", {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
         body: formData,
       });
 
@@ -269,42 +307,57 @@ export default function DashboardPage() {
         }
       }
 
-      setSuccessMsg(`¡Subida masiva exitosa! Se crearon con éxito ${data.count} publicaciones.`);
+      setSuccessMsg(`¡Subida masiva exitosa! Se crearon con éxito ${data.inserted} publicaciones.`);
       setCsvFile(null);
-      
-      // Actualizar listado de inventario
-      const profileRes = await fetch("http://localhost:3001/api/sellers/me", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (profileRes.ok) {
-        const profileData = await profileRes.json();
-        const listingsRes = await fetch(`http://localhost:3001/api/listings?seller_id=${profileData.id}`);
-        if (listingsRes.ok) {
-          const listingsData = await listingsRes.json();
-          setMyListings(listingsData);
-        }
-      }
+      await refreshListings();
     } finally {
       setLoading(false);
     }
   };
 
   // Funciones para la gestión de imágenes
-  const handleImageFiles = (files: FileList) => {
-    const fileArray = Array.from(files).filter(file => file.type.startsWith("image/"));
-    const promises = fileArray.map(file => {
-      return new Promise<string>((resolve) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          resolve(reader.result as string);
-        };
-        reader.readAsDataURL(file);
-      });
-    });
+  // Uploads files to Supabase Storage bucket "listings" and stores public URLs
+  const handleImageFiles = async (files: FileList) => {
+    const supabase = getSupabase();
+    const fileArray = Array.from(files).filter((file) => file.type.startsWith("image/"));
 
-    Promise.all(promises).then(newBase64s => {
-      setProductImages(prev => [...prev, ...newBase64s]);
-    });
+    if (fileArray.length === 0) return;
+
+    const sellerId = sellerProfile?.id ?? userId ?? "unknown";
+    // Use a temporary listing ID placeholder during creation; will be replaced on publish
+    const tempListingId = selectedListingToEdit?.id ?? `tmp-${Date.now()}`;
+
+    const uploadedUrls: string[] = [];
+
+    for (const file of fileArray) {
+      const ext = file.name.split(".").pop() ?? "jpg";
+      const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+      const path = `${sellerId}/${tempListingId}/${filename}`;
+
+      const { error } = await supabase.storage
+        .from("listings")
+        .upload(path, file, { upsert: false });
+
+      if (!error) {
+        const { data: urlData } = supabase.storage
+          .from("listings")
+          .getPublicUrl(path);
+
+        if (urlData?.publicUrl) {
+          uploadedUrls.push(urlData.publicUrl);
+        }
+      } else {
+        // Fallback: read as base64 for preview when storage is not yet configured
+        const base64 = await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.readAsDataURL(file);
+        });
+        uploadedUrls.push(base64);
+      }
+    }
+
+    setProductImages((prev) => [...prev, ...uploadedUrls]);
   };
 
   // Drag and Drop (reordenamiento nativo)
@@ -406,38 +459,48 @@ export default function DashboardPage() {
         productAttributes.brand = brand;
       }
 
+      const supabase = getSupabase();
+      const defaultImage = "https://images.unsplash.com/photo-1531403009284-440f080d1e12?q=80&w=600&auto=format&fit=crop";
+      const imageList = productImages.length > 0 ? productImages : [defaultImage];
+
       if (selectedListingToEdit) {
-        // Mode: EDIT
-        const res = await fetch(`http://localhost:3001/api/listings/${selectedListingToEdit.id}`, {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            name: productName,
-            brand,
-            description,
+        // Mode: EDIT — update product + listing via Supabase
+        const productId = selectedListingToEdit.products?.id;
+
+        if (productId) {
+          const { error: productError } = await supabase
+            .from("products")
+            .update({
+              name: productName,
+              brand,
+              description,
+              category_id: categoryId,
+              images: imageList,
+              attributes: productAttributes,
+            })
+            .eq("id", productId);
+
+          if (productError) throw new Error(productError.message);
+        }
+
+        const { error: listingError } = await supabase
+          .from("listings")
+          .update({
             price: parseFloat(price),
             stock: parseInt(stock),
             condition,
-            categoryId,
-            featuredPlan,
-            currencyId,
-            images: productImages.length > 0 ? productImages : ["https://images.unsplash.com/photo-1531403009284-440f080d1e12?q=80&w=600&auto=format&fit=crop"],
-            attributes: productAttributes,
+            featured_plan: featuredPlan,
+            currency_id: currencyId,
+            image_url: imageList[0] ?? null,
             status,
-          }),
-        });
+          })
+          .eq("id", selectedListingToEdit.id);
 
-        if (!res.ok) {
-          const errData = await res.json();
-          throw new Error(errData.message || "Error al actualizar la publicación.");
-        }
+        if (listingError) throw new Error(listingError.message);
 
         setSuccessMsg("¡Publicación actualizada con éxito!");
-        
-        // Reset form & Exit Edit Mode
+
+        // Reset form & exit edit mode
         setSelectedListingToEdit(null);
         setProductName("");
         setBrand("");
@@ -450,60 +513,54 @@ export default function DashboardPage() {
         setFeaturedPlan("FREE");
         setDynamicAttributes({});
         setStatus("APPROVED");
-        
+
         await refreshListings();
         setActiveTab("inventory");
       } else {
         // Mode: CREATE
-        // Step 1: Create Global Product
-        const productRes = await fetch("http://localhost:3001/api/products", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
+        // Step 1: Create product
+        const { data: productData, error: productError } = await supabase
+          .from("products")
+          .insert({
             name: productName,
-            description,
             brand,
-            categoryId,
-            images: productImages.length > 0 ? productImages : ["https://images.unsplash.com/photo-1531403009284-440f080d1e12?q=80&w=600&auto=format&fit=crop"],
+            description,
+            category_id: categoryId,
+            images: imageList,
             attributes: productAttributes,
-          }),
-        });
+          })
+          .select("id")
+          .single();
 
-        const productData = await productRes.json();
-        if (!productRes.ok) {
-          throw new Error(productData.message || "Error al registrar el producto en el catálogo.");
+        if (productError || !productData) {
+          throw new Error(productError?.message || "Error al registrar el producto.");
         }
 
-        // Step 2: Create Listing for the Product
-        const listingRes = await fetch("http://localhost:3001/api/listings", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            productId: productData.id,
+        // Step 2: Create listing
+        const { data: listingData, error: listingError } = await supabase
+          .from("listings")
+          .insert({
+            product_id: productData.id,
+            seller_id: sellerProfile!.id,
             price: parseFloat(price),
             condition,
             stock: parseInt(stock),
-            featuredPlan,
-            images: productImages.length > 0 ? productImages : ["https://images.unsplash.com/photo-1531403009284-440f080d1e12?q=80&w=600&auto=format&fit=crop"],
-            currencyId,
-          }),
-        });
+            featured_plan: featuredPlan,
+            currency_id: currencyId,
+            image_url: imageList[0] ?? null,
+            status: "APPROVED",
+          })
+          .select(`
+            id, price, condition, stock, status, featured_plan, currency_id, image_url,
+            products ( id, name, brand, description, category_id, images, attributes )
+          `)
+          .single();
 
-        const listingData = await listingRes.json();
-        if (!listingRes.ok) {
-          throw new Error(listingData.message || "Error al crear la publicación.");
-        }
+        if (listingError) throw new Error(listingError.message);
 
-        // Update local state
-        setMyListings([listingData, ...myListings]);
-        setSuccessMsg("¡Publicación creada con éxito! Pasó la moderación de contenido y ya se encuentra activa.");
-        
+        setMyListings([listingData as unknown as Listing, ...myListings]);
+        setSuccessMsg("¡Publicación creada con éxito! Ya se encuentra activa.");
+
         // Reset form
         setProductName("");
         setBrand("");
@@ -524,60 +581,77 @@ export default function DashboardPage() {
   };
 
   const handleUpdateStock = async (id: string, amount: number) => {
-    const listing = myListings.find(l => l.id === id);
+    const listing = myListings.find((l) => l.id === id);
     if (!listing) return;
 
     const newStock = Math.max(0, listing.stock + amount);
+    const supabase = getSupabase();
 
     try {
-      const res = await fetch(`http://localhost:3001/api/listings/${id}/stock`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ stock: newStock }),
-      });
+      const { error } = await supabase
+        .from("listings")
+        .update({ stock: newStock })
+        .eq("id", id);
 
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.message || "No se pudo actualizar el stock.");
-      }
+      if (error) throw new Error(error.message);
 
-      // Sync local listings state
-      setMyListings(myListings.map(l => (l.id === id ? { ...l, stock: newStock } : l)));
+      setMyListings(myListings.map((l) => (l.id === id ? { ...l, stock: newStock } : l)));
     } catch (err: any) {
       alert(err.message || "Error al actualizar stock.");
     }
   };
 
   const refreshListings = async () => {
-    if (!token || !sellerProfile) return;
+    if (!sellerProfile) return;
+    const supabase = getSupabase();
     try {
-      const res = await fetch(`http://localhost:3001/api/listings?seller_id=${sellerProfile.id}`);
-      if (res.ok) {
-        const data = await res.json();
-        setMyListings(data);
-      }
+      const { data } = await supabase
+        .from("listings")
+        .select(`
+          id, price, condition, stock, status, featured_plan, currency_id, image_url,
+          products ( id, name, brand, description, category_id, images, attributes )
+        `)
+        .eq("seller_id", sellerProfile.id)
+        .order("created_at", { ascending: false });
+
+      if (data) setMyListings(data as unknown as Listing[]);
     } catch (err) {
       console.error("Error refreshing listings:", err);
     }
   };
 
   const handleCloneListing = async (id: string) => {
-    if (!token) return;
+    if (!sellerProfile) return;
     setLoading(true);
     setErrorMsg("");
     setSuccessMsg("");
+    const supabase = getSupabase();
     try {
-      const res = await fetch(`http://localhost:3001/api/listings/${id}/clone`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.message || "Error al clonar la publicación.");
-      }
+      // Fetch original listing
+      const { data: original, error } = await supabase
+        .from("listings")
+        .select("price, condition, stock, featured_plan, currency_id, image_url, product_id")
+        .eq("id", id)
+        .single();
+
+      if (error || !original) throw new Error("No se pudo obtener la publicación original.");
+
+      const { error: cloneError } = await supabase
+        .from("listings")
+        .insert({
+          product_id: original.product_id,
+          seller_id: sellerProfile.id,
+          price: original.price,
+          condition: original.condition,
+          stock: original.stock,
+          featured_plan: "FREE",
+          currency_id: original.currency_id,
+          image_url: original.image_url,
+          status: "APPROVED",
+        });
+
+      if (cloneError) throw new Error(cloneError.message);
+
       setSuccessMsg("¡Publicación clonada con éxito!");
       await refreshListings();
     } catch (err: any) {
@@ -588,19 +662,20 @@ export default function DashboardPage() {
   };
 
   const handleDeleteListing = async (id: string) => {
-    if (!token) return;
+    if (!sellerProfile) return;
     setLoading(true);
     setErrorMsg("");
     setSuccessMsg("");
+    const supabase = getSupabase();
     try {
-      const res = await fetch(`http://localhost:3001/api/listings/${id}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.message || "Error al eliminar la publicación.");
-      }
+      const { error } = await supabase
+        .from("listings")
+        .delete()
+        .eq("id", id)
+        .eq("seller_id", sellerProfile.id);
+
+      if (error) throw new Error(error.message);
+
       setSuccessMsg("¡Publicación eliminada con éxito!");
       await refreshListings();
     } catch (err: any) {
@@ -613,25 +688,18 @@ export default function DashboardPage() {
 
   const handleUpdateStatusDirectly = async (listingId: string, newStatus: string) => {
     setActiveStatusDropdownListingId(null);
-    if (!token) return;
     setStatusUpdating(true);
     setErrorMsg("");
     setSuccessMsg("");
+    const supabase = getSupabase();
     try {
-      const res = await fetch(`http://localhost:3001/api/listings/${listingId}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          status: newStatus
-        })
-      });
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.message || "Error al actualizar el estado.");
-      }
+      const { error } = await supabase
+        .from("listings")
+        .update({ status: newStatus })
+        .eq("id", listingId);
+
+      if (error) throw new Error(error.message);
+
       setSuccessMsg("¡Estado de publicación actualizado!");
       await refreshListings();
     } catch (err: any) {
@@ -643,30 +711,30 @@ export default function DashboardPage() {
 
   const handleOpenEditModal = (listing: Listing) => {
     setSelectedListingToEdit(listing);
-    setProductName(listing.product.name);
-    setBrand(listing.product.brand);
-    setDescription(listing.product.description);
+    const product = listing.products;
+    setProductName(product?.name ?? "");
+    setBrand(product?.brand ?? "");
+    setDescription(product?.description ?? "");
     setPrice(listing.price.toString());
     setCondition(listing.condition);
     setStock(listing.stock.toString());
-    setCategoryId(listing.product.categoryId);
-    setFeaturedPlan(listing.featuredPlan);
-    setCurrencyId(listing.currencyId);
+    setCategoryId(product?.category_id ?? (categories.length > 0 ? categories[0].id : ""));
+    setFeaturedPlan(listing.featured_plan ?? "FREE");
+    setCurrencyId(listing.currency_id ?? "");
     setStatus(listing.status);
-    
-    // Set images
-    const images = listing.images || listing.product.images || [];
+
+    // Set images (prefer image_url, then product images array)
+    const images = listing.image_url
+      ? [listing.image_url]
+      : (product?.images ?? []);
     setProductImages(images);
     setSelectedImages([]);
-    
-    // Set dynamic attributes
-    setDynamicAttributes(listing.product.attributes || {});
 
-    // Clear success/error messages from prior actions
+    // Set dynamic attributes
+    setDynamicAttributes(product?.attributes ?? {});
+
     setSuccessMsg("");
     setErrorMsg("");
-
-    // Switch to publish tab
     setActiveTab("publish");
   };
 
@@ -683,34 +751,41 @@ export default function DashboardPage() {
     setLoading(true);
     setSuccessMsg("");
     setErrorMsg("");
+    const supabase = getSupabase();
     try {
-      const res = await fetch(`http://localhost:3001/api/rewards/${rewardId}/claim`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ listingId }),
-      });
+      // Mark reward as claimed
+      const { error: rewardError } = await supabase
+        .from("seller_rewards")
+        .update({ claimed: true, claimed_at: new Date().toISOString() })
+        .eq("id", rewardId);
 
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.message || "Error al reclamar la recompensa.");
+      if (rewardError) throw new Error(rewardError.message);
+
+      // Highlight the chosen listing
+      const reward = rewards.find((r) => r.id === rewardId);
+      if (reward) {
+        const endDate = new Date();
+        endDate.setDate(endDate.getDate() + (reward.duration_days ?? 30));
+
+        await supabase.from("highlighted_products").insert({
+          listing_id: listingId,
+          seller_id: sellerProfile!.id,
+          plan: reward.plan ?? "FEATURED",
+          end_date: endDate.toISOString(),
+        });
+
+        // Also update listing featured_plan
+        await supabase
+          .from("listings")
+          .update({ featured_plan: reward.plan ?? "FEATURED" })
+          .eq("id", listingId);
       }
 
       setSuccessMsg("¡Recompensa canjeada con éxito! Tu publicación ahora está destacada.");
       setSelectedRewardToClaim(null);
       setSelectedListingForReward("");
-
-      // Actualizar estado local de recompensas
-      setRewards(rewards.map(r => r.id === rewardId ? { ...r, claimed: true, claimedAt: new Date().toISOString() } : r));
-
-      // Recargar publicaciones para ver el nuevo plan destacado
-      const listingsRes = await fetch(`http://localhost:3001/api/listings?seller_id=${sellerProfile?.id}`);
-      if (listingsRes.ok) {
-        const listingsData = await listingsRes.json();
-        setMyListings(listingsData);
-      }
+      setRewards(rewards.map((r) => r.id === rewardId ? { ...r, claimed: true, claimed_at: new Date().toISOString() } : r));
+      await refreshListings();
     } catch (err: any) {
       setErrorMsg(err.message || "Ocurrió un error al canjear la recompensa.");
     } finally {
@@ -718,9 +793,9 @@ export default function DashboardPage() {
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    window.dispatchEvent(new Event("auth-change"));
+  const handleLogout = async () => {
+    const supabase = getSupabase();
+    await supabase.auth.signOut();
     router.push("/");
     router.refresh();
   };
@@ -1494,8 +1569,8 @@ export default function DashboardPage() {
             .filter((listing) => {
               const query = inventorySearch.toLowerCase();
               return (
-                listing.product.name.toLowerCase().includes(query) ||
-                listing.product.brand.toLowerCase().includes(query)
+                (listing.products?.name ?? "").toLowerCase().includes(query) ||
+                (listing.products?.brand ?? "").toLowerCase().includes(query)
               );
             })
             .sort((a, b) => {
@@ -1503,11 +1578,11 @@ export default function DashboardPage() {
               let valA: any = "";
               let valB: any = "";
               if (sortColumn === "name") {
-                valA = a.product.name.toLowerCase();
-                valB = b.product.name.toLowerCase();
+                valA = (a.products?.name ?? "").toLowerCase();
+                valB = (b.products?.name ?? "").toLowerCase();
               } else if (sortColumn === "brand") {
-                valA = a.product.brand.toLowerCase();
-                valB = b.product.brand.toLowerCase();
+                valA = (a.products?.brand ?? "").toLowerCase();
+                valB = (b.products?.brand ?? "").toLowerCase();
               } else if (sortColumn === "condition") {
                 valA = a.condition;
                 valB = b.condition;
@@ -1620,10 +1695,10 @@ export default function DashboardPage() {
                         <tr key={listing.id} className="hover:bg-card-bg/30 transition-colors">
                           <td className="py-4 pr-4 font-bold text-foreground">
                             <Link href={`/listings/${listing.id}`} className="hover:text-accent-gold transition-colors">
-                              {listing.product.name}
+                              {listing.products?.name ?? "Sin nombre"}
                             </Link>
                           </td>
-                          <td className="py-4 px-4 text-text-muted">{listing.product.brand}</td>
+                          <td className="py-4 px-4 text-text-muted">{listing.products?.brand ?? "-"}</td>
                           <td className="py-4 px-4 text-center">
                             <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
                               listing.condition === "NEW" ? "bg-accent-green/10 text-accent-green" : "bg-text-muted/10 text-text-muted"
@@ -1959,7 +2034,7 @@ export default function DashboardPage() {
                           defaultValue={selectedListingForReward}
                           onChange={setSelectedListingForReward}
                           options={myListings.filter(l => l.status === "APPROVED").map((l) => ({
-                            name: `${l.product.name} ($${l.price.toLocaleString("es-AR")})`,
+                            name: `${l.products?.name ?? "Publicación"} ($${l.price.toLocaleString("es-AR")})`,
                             value: l.id
                           }))}
                         />

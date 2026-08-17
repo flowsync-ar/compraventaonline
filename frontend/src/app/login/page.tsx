@@ -1,138 +1,142 @@
-"use client";
+"use client"
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
+import { useState, useEffect, useRef } from "react"
+import { useRouter } from "next/navigation"
+import Link from "next/link"
+import { createClient } from "@/lib/supabase/client"
+import type { SupabaseClient } from "@supabase/supabase-js"
+import type { Database } from "@/lib/supabase/types"
 
 export default function LoginPage() {
-  const router = useRouter();
-  const [isLogin, setIsLogin] = useState(true);
-  const [errorMsg, setErrorMsg] = useState("");
-  const [successMsg, setSuccessMsg] = useState("");
-  const [loading, setLoading] = useState(false);
+  const router = useRouter()
+  // Lazy client init to avoid prerender errors when env vars are missing at build time
+  const supabaseRef = useRef<SupabaseClient<Database> | null>(null)
+  const getSupabase = () => {
+    if (!supabaseRef.current) {
+      supabaseRef.current = createClient()
+    }
+    return supabaseRef.current
+  }
 
-  // Form Fields
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [fullName, setFullName] = useState("");
-  const [sellerType, setSellerType] = useState<"PERSONAL_SELLER" | "BUSINESS_SELLER">("PERSONAL_SELLER");
-  const [documentNumber, setDocumentNumber] = useState("");
-  const [acceptTerms, setAcceptTerms] = useState(false);
+  const [isLogin, setIsLogin] = useState(true)
+  const [errorMsg, setErrorMsg] = useState("")
+  const [successMsg, setSuccessMsg] = useState("")
+  const [loading, setLoading] = useState(false)
+  const [showConfirmModal, setShowConfirmModal] = useState(false)
+  const [registeredEmail, setRegisteredEmail] = useState("")
+
+  // Form fields
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
+  const [fullName, setFullName] = useState("")
+  const [sellerType, setSellerType] = useState<"PERSONAL_SELLER" | "BUSINESS_SELLER">("PERSONAL_SELLER")
+  const [documentNumber, setDocumentNumber] = useState("")
+  const [phone, setPhone] = useState("")
+  const [acceptTerms, setAcceptTerms] = useState(false)
 
   // Redirect if already logged in
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (token) {
-      router.push("/dashboard");
-    }
-  }, [router]);
+    getSupabase().auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        router.push("/dashboard")
+      }
+    })
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMsg("");
-    setSuccessMsg("");
-    setLoading(true);
+    e.preventDefault()
+    setErrorMsg("")
+    setSuccessMsg("")
+    setLoading(true)
 
     try {
       if (isLogin) {
         // --- LOGIN FLOW ---
-        const res = await fetch("http://localhost:3001/api/auth/login", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, password }),
-        });
+        const { error } = await getSupabase().auth.signInWithPassword({ email, password })
 
-        const data = await res.json();
-        if (!res.ok) {
-          throw new Error(data.message || "Error al iniciar sesión.");
+        if (error) {
+          throw new Error(
+            error.message === "Invalid login credentials"
+              ? "Email o contraseña incorrectos."
+              : error.message
+          )
         }
 
-        // Save token & redirect
-        localStorage.setItem("token", data.token);
-        window.dispatchEvent(new Event("auth-change"));
-        setSuccessMsg("¡Inicio de sesión exitoso! Redireccionando...");
+        setSuccessMsg("¡Inicio de sesión exitoso! Redireccionando...")
         setTimeout(() => {
-          router.push("/");
-          router.refresh();
-        }, 1500);
+          router.push("/dashboard")
+          router.refresh()
+        }, 1000)
 
       } else {
-        // --- REGISTER FLOW (Sequential onboarding) ---
+        // --- REGISTER FLOW ---
         if (!acceptTerms) {
-          throw new Error("Debes aceptar los términos y condiciones de la comunidad.");
+          throw new Error("Debes aceptar los términos y condiciones de la comunidad.")
         }
 
-        // 1. Auth Register
-        const regRes = await fetch("http://localhost:3001/api/auth/register", {
+        // Create auth user + send confirmation email server-side (own Zoho SMTP,
+        // not Supabase's shared mailer). The trigger handle_new_user creates
+        // sellers + terms_acceptances automatically from the metadata below.
+        const res = await fetch("/api/auth/register", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, password, fullName }),
-        });
-
-        const regData = await regRes.json();
-        if (!regRes.ok) {
-          throw new Error(regData.message || "Error al crear la cuenta.");
-        }
-
-        // 2. Auth Login (to retrieve token)
-        const logRes = await fetch("http://localhost:3001/api/auth/login", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, password }),
-        });
-
-        const logData = await logRes.json();
-        if (!logRes.ok) {
-          throw new Error("Cuenta creada, pero falló el inicio de sesión automático. Por favor inicia sesión.");
-        }
-
-        const token = logData.token;
-        localStorage.setItem("token", token);
-        window.dispatchEvent(new Event("auth-change"));
-
-        // 3. Accept Terms on DB
-        await fetch("http://localhost:3001/api/legal/accept", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ acceptedTerms: true, version: "1.0" }),
-        });
-
-        // 4. Register Seller profile
-        const sellerRes = await fetch("http://localhost:3001/api/sellers", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
           body: JSON.stringify({
-            type: sellerType,
-            name: fullName,
+            email,
+            password,
+            fullName,
+            sellerType,
             documentNumber,
+            phone,
           }),
-        });
+        })
 
-        const sellerData = await sellerRes.json();
-        if (!sellerRes.ok) {
-          throw new Error(sellerData.message || "Registro completado, pero falló la creación del perfil de vendedor.");
+        const result = await res.json()
+
+        if (!res.ok) {
+          throw new Error(result.error ?? "No se pudo crear la cuenta. Intentá de nuevo.")
         }
 
-        setSuccessMsg("¡Registro exitoso y perfil de vendedor creado! Redireccionando...");
-        setTimeout(() => {
-          router.push("/");
-          router.refresh();
-        }, 1500);
+        setRegisteredEmail(email)
+        setShowConfirmModal(true)
+        setLoading(false)
       }
-    } catch (err: any) {
-      setErrorMsg(err.message || "Ocurrió un error inesperado.");
-      setLoading(false);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Ocurrió un error inesperado."
+      setErrorMsg(message)
+      setLoading(false)
     }
-  };
+  }
 
   return (
+    <>
+    {showConfirmModal && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
+        <div className="bg-card-bg border border-card-border rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl flex flex-col gap-5">
+          <div className="flex flex-col items-center gap-3">
+            <span className="text-5xl">📬</span>
+            <h2 className="font-heading text-xl font-extrabold text-foreground">
+              ¡Revisá tu correo!
+            </h2>
+          </div>
+          <p className="text-sm text-text-muted leading-relaxed">
+            Te enviamos un email de confirmación a{" "}
+            <span className="text-foreground font-bold">{registeredEmail}</span>.
+            <br /><br />
+            Hacé clic en el enlace del email para activar tu cuenta y empezar a usar CompraVentaOnline.
+          </p>
+          <p className="text-xs text-text-muted">
+            ¿No lo encontrás? Revisá la carpeta de <span className="text-accent-gold font-bold">Spam</span> o Promociones.
+          </p>
+          <button
+            onClick={() => { setShowConfirmModal(false); setIsLogin(true) }}
+            className="w-full rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover py-3 text-xs font-extrabold text-background shadow-md hover:opacity-95 transition-all cursor-pointer"
+          >
+            Entendido, volver al inicio de sesión
+          </button>
+        </div>
+      </div>
+    )}
     <div className="mx-auto max-w-md px-4 py-16 w-full flex flex-col gap-6">
       <div className="text-center">
         <span className="text-4xl">🌾</span>
@@ -140,8 +144,8 @@ export default function LoginPage() {
           {isLogin ? "Ingresá a tu Cuenta" : "Registrate en la Plataforma"}
         </h1>
         <p className="text-text-muted text-xs mt-1">
-          {isLogin 
-            ? "Conectá con compradores y vendedores de toda La Pampa." 
+          {isLogin
+            ? "Conectá con compradores y vendedores de toda La Pampa."
             : "Creá tu perfil de vendedor y empezá a publicar gratis."
           }
         </p>
@@ -164,12 +168,12 @@ export default function LoginPage() {
           {!isLogin && (
             <div className="flex flex-col gap-2">
               <label className="text-xs font-bold text-foreground">Nombre Completo / Razón Social</label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 required
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
-                placeholder="Ej. Juan Pérez o Ferretería Luro" 
+                placeholder="Ej. Juan Pérez o Ferretería Luro"
                 className="w-full bg-background border border-card-border rounded-xl px-4 py-3 text-xs text-foreground focus:outline-none focus:border-accent-gold"
               />
             </div>
@@ -178,12 +182,12 @@ export default function LoginPage() {
           {/* Email */}
           <div className="flex flex-col gap-2">
             <label className="text-xs font-bold text-foreground">Correo Electrónico</label>
-            <input 
-              type="email" 
+            <input
+              type="email"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="nombre@correo.com" 
+              placeholder="nombre@correo.com"
               className="w-full bg-background border border-card-border rounded-xl px-4 py-3 text-xs text-foreground focus:outline-none focus:border-accent-gold"
             />
           </div>
@@ -192,13 +196,13 @@ export default function LoginPage() {
           <div className="flex flex-col gap-2">
             <label className="text-xs font-bold text-foreground">Contraseña</label>
             <div className="relative w-full">
-              <input 
-                type={showPassword ? "text" : "password"} 
+              <input
+                type={showPassword ? "text" : "password"}
                 required
                 minLength={6}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Mínimo 6 caracteres" 
+                placeholder="Mínimo 6 caracteres"
                 className="w-full bg-background border border-card-border rounded-xl pl-4 pr-11 py-3 text-xs text-foreground focus:outline-none focus:border-accent-gold"
               />
               <button
@@ -227,7 +231,7 @@ export default function LoginPage() {
               <div className="flex flex-col gap-2">
                 <label className="text-xs font-bold text-foreground">Tipo de Vendedor</label>
                 <div className="grid grid-cols-2 gap-3 bg-background border border-card-border p-1 rounded-xl">
-                  <button 
+                  <button
                     type="button"
                     onClick={() => setSellerType("PERSONAL_SELLER")}
                     className={`py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
@@ -236,7 +240,7 @@ export default function LoginPage() {
                   >
                     Particular
                   </button>
-                  <button 
+                  <button
                     type="button"
                     onClick={() => setSellerType("BUSINESS_SELLER")}
                     className={`py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
@@ -252,19 +256,34 @@ export default function LoginPage() {
                 <label className="text-xs font-bold text-foreground">
                   {sellerType === "PERSONAL_SELLER" ? "DNI / CUIL" : "CUIT"}
                 </label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   required
                   value={documentNumber}
                   onChange={(e) => setDocumentNumber(e.target.value)}
-                  placeholder={sellerType === "PERSONAL_SELLER" ? "Ej. 20-35444333-8" : "Ej. 30-71112223-9"} 
+                  placeholder={sellerType === "PERSONAL_SELLER" ? "Ej. 20-35444333-8" : "Ej. 30-71112223-9"}
                   className="w-full bg-background border border-card-border rounded-xl px-4 py-3 text-xs text-foreground focus:outline-none focus:border-accent-gold"
                 />
               </div>
 
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-bold text-foreground">Celular</label>
+                <input
+                  type="tel"
+                  required
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="Ej. 2954123456"
+                  className="w-full bg-background border border-card-border rounded-xl px-4 py-3 text-xs text-foreground focus:outline-none focus:border-accent-gold"
+                />
+                <p className="text-[10px] text-text-muted">
+                  Lo vamos a compartir solo con compradores que ya iniciaron sesión, para coordinar la entrega.
+                </p>
+              </div>
+
               <div className="flex items-start gap-2.5 mt-2">
-                <input 
-                  type="checkbox" 
+                <input
+                  type="checkbox"
                   id="terms"
                   checked={acceptTerms}
                   onChange={(e) => setAcceptTerms(e.target.checked)}
@@ -278,13 +297,13 @@ export default function LoginPage() {
           )}
 
           {/* Submit */}
-          <button 
+          <button
             type="submit"
             disabled={loading}
             className="w-full rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover py-4 text-xs font-extrabold text-background shadow-md hover:opacity-95 transition-all mt-4 disabled:opacity-50 cursor-pointer"
           >
-            {loading 
-              ? (isLogin ? "Iniciando sesión..." : "Registrando perfil...") 
+            {loading
+              ? (isLogin ? "Iniciando sesión..." : "Registrando perfil...")
               : (isLogin ? "Ingresar" : "Crear Perfil Comercial")
             }
           </button>
@@ -294,8 +313,8 @@ export default function LoginPage() {
           {isLogin ? (
             <p>
               ¿No tenés una cuenta?{" "}
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={() => setIsLogin(false)}
                 className="text-accent-gold font-bold hover:underline cursor-pointer"
               >
@@ -305,8 +324,8 @@ export default function LoginPage() {
           ) : (
             <p>
               ¿Ya estás registrado?{" "}
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={() => setIsLogin(true)}
                 className="text-accent-gold font-bold hover:underline cursor-pointer"
               >
@@ -317,5 +336,6 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
-  );
+    </>
+  )
 }

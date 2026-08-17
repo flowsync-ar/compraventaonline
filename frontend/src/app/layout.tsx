@@ -4,6 +4,7 @@ import Link from "next/link";
 import ThemeToggle from "../components/ThemeToggle";
 import HeaderSessionBar from "../components/HeaderSessionBar";
 import HeaderSearch from "../components/HeaderSearch";
+import ThemedImage from "../components/ThemedImage";
 
 export const metadata: Metadata = {
   title: "CompraVentaOnline - El Marketplace de La Pampa",
@@ -48,18 +49,18 @@ export default function RootLayout({
             {/* Logo y Nombre */}
             <Link href="/" className="ml-[5px] flex shrink-0 items-center gap-4 group">
               <div className="relative h-24 w-24 shrink-0 transition-transform group-hover:scale-105">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src="/logo-icon.png"
+                <ThemedImage
+                  lightSrc="/logo-icon.png"
+                  darkSrc="/logo-trans-dark.png"
                   alt="CompraVentaOnline La Pampa"
                   className="h-full w-full object-contain"
                 />
               </div>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src="/solotexto.png"
+              <ThemedImage
+                lightSrc="/solotexto.png"
+                darkSrc="/solotexto-dark.png"
                 alt="CompraVentaOnline"
-                className="h-14 w-auto object-contain shrink-0 dark:brightness-110"
+                className="h-14 w-auto object-contain shrink-0"
               />
             </Link>
 
@@ -111,19 +112,13 @@ export default function RootLayout({
               {/* Logo y Nombre */}
               <Link href="/" className="flex items-center gap-2 group min-w-0">
                 <div className="relative h-12 w-12 shrink-0 transition-transform group-hover:scale-105">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src="/logo-icon.png"
+                  <ThemedImage
+                    lightSrc="/logo-icon.png"
+                    darkSrc="/logo-trans-dark.png"
                     alt="CompraVentaOnline La Pampa"
                     className="h-full w-full object-contain"
                   />
                 </div>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src="/solotexto.png"
-                  alt="CompraVentaOnline"
-                  className="h-8 w-auto object-contain shrink-0 dark:brightness-110"
-                />
               </Link>
 
               {/* Barra de Sesión + Tema */}
@@ -158,9 +153,9 @@ export default function RootLayout({
               <div className="flex flex-col items-center sm:items-start gap-1">
                 <div className="flex items-center gap-2.5">
                   <div className="h-6 w-6 shrink-0">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src="/logo-icon.png"
+                    <ThemedImage
+                      lightSrc="/logo-icon.png"
+                      darkSrc="/logo-trans-dark.png"
                       alt=""
                       className="h-full w-full object-contain opacity-80"
                     />

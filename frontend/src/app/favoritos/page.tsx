@@ -1,40 +1,36 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { createClient } from "@/lib/supabase/client";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 interface FavoriteItem {
   id: string;
-  userId: string;
-  listingId: string | null;
-  cachedTitle: string;
-  cachedImage: string | null;
-  createdAt: string;
-  listing: {
+  listing_id: string | null;
+  created_at: string;
+  listings: {
     id: string;
     price: number;
     condition: "NEW" | "USED";
     stock: number;
     status: string;
-    images: string[];
-    product: {
-      id: string;
+    image_url: string | null;
+    products: {
       name: string;
       brand: string;
       description: string;
-      images: string[];
-      category: {
-        id: string;
+      images: string[] | null;
+      categories: {
         name: string;
-      };
-    };
-    seller: {
+      } | null;
+    } | null;
+    sellers: {
       id: string;
       name: string;
-    };
-    currency: {
-      id: string;
+    } | null;
+    currencies: {
       symbol: string;
       code: string;
     } | null;
@@ -43,49 +39,88 @@ interface FavoriteItem {
 
 export default function FavoritesPage() {
   const router = useRouter();
-  const [token, setToken] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [favorites, setFavorites] = useState<FavoriteItem[]>([]);
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
+  const [userId, setUserId] = useState<string | null>(null);
 
-  // Check auth and mount
+  const supabaseRef = useRef<SupabaseClient | null>(null);
+  const getSupabase = () => {
+    if (!supabaseRef.current) {
+      supabaseRef.current = createClient();
+    }
+    return supabaseRef.current;
+  };
+
+  // Mount + auth check
   useEffect(() => {
     setMounted(true);
-    const savedToken = localStorage.getItem("token");
-    if (!savedToken) {
-      router.push("/login");
-    } else {
-      setToken(savedToken);
-    }
+    const supabase = getSupabase();
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) {
+        router.push("/login");
+        return;
+      }
+      setUserId(session.user.id);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session) {
+        router.push("/login");
+        return;
+      }
+      setUserId(session.user.id);
+    });
+
+    return () => subscription.unsubscribe();
   }, [router]);
 
-  // Fetch favorites once token is available
+  // Fetch favorites once userId is available
   useEffect(() => {
-    if (!token) return;
+    if (!userId) return;
 
     async function fetchFavorites() {
+      const supabase = getSupabase();
       try {
         setLoading(true);
-        const res = await fetch("http://localhost:3001/api/favorites", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
+        const { data, error } = await supabase
+          .from("favorites")
+          .select(`
+            id,
+            listing_id,
+            created_at,
+            listings (
+              id,
+              price,
+              condition,
+              stock,
+              status,
+              image_url,
+              products (
+                name,
+                brand,
+                description,
+                images,
+                categories ( name )
+              ),
+              sellers (
+                id,
+                name
+              ),
+              currencies (
+                symbol,
+                code
+              )
+            )
+          `)
+          .eq("user_id", userId!)
+          .order("created_at", { ascending: false });
 
-        if (!res.ok) {
-          if (res.status === 401 || res.status === 403) {
-            localStorage.removeItem("token");
-            window.dispatchEvent(new Event("auth-change"));
-            router.push("/login");
-            return;
-          }
-          throw new Error("No se pudieron cargar tus favoritos.");
-        }
-
-        const data = await res.json();
-        setFavorites(data);
+        if (error) throw error;
+        setFavorites((data ?? []) as unknown as FavoriteItem[]);
       } catch (err: any) {
         setErrorMsg(err.message || "Ocurrió un error al cargar la lista.");
       } finally {
@@ -94,31 +129,22 @@ export default function FavoritesPage() {
     }
 
     fetchFavorites();
-  }, [token, router]);
+  }, [userId]);
 
-  const handleRemoveFavorite = async (favId: string, listingId: string | null) => {
-    if (!token) return;
+  const handleRemoveFavorite = async (favId: string) => {
+    const supabase = getSupabase();
     try {
       setErrorMsg("");
       setSuccessMsg("");
-      
-      // Determine endpoint based on whether listing exists or not
-      const endpoint = listingId 
-        ? `http://localhost:3001/api/favorites/listing/${listingId}`
-        : `http://localhost:3001/api/favorites/${favId}`;
 
-      const res = await fetch(endpoint, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const { error } = await supabase
+        .from("favorites")
+        .delete()
+        .eq("id", favId);
 
-      if (!res.ok) {
-        throw new Error("No se pudo quitar de favoritos.");
-      }
+      if (error) throw error;
 
-      setFavorites(prev => prev.filter(item => item.id !== favId));
+      setFavorites((prev) => prev.filter((item) => item.id !== favId));
       setSuccessMsg("Quitado de tus favoritos correctamente.");
     } catch (err: any) {
       setErrorMsg(err.message || "Error al eliminar el favorito.");
@@ -138,7 +164,7 @@ export default function FavoritesPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-10 w-full flex flex-col gap-8">
-      
+
       {/* Header */}
       <div className="flex flex-col gap-2 border-b border-card-border pb-6">
         <h1 className="font-heading text-3xl font-extrabold text-foreground flex items-center gap-2.5">
@@ -169,8 +195,8 @@ export default function FavoritesPage() {
           <p className="text-xs text-text-muted max-w-sm leading-relaxed">
             Explorá el catálogo pampeano y marcá con un corazón los productos que más te gusten para tenerlos a mano.
           </p>
-          <Link 
-            href="/search" 
+          <Link
+            href="/search"
             className="mt-2 rounded-xl bg-accent-blue hover:opacity-95 text-background font-extrabold text-xs px-6 py-3 shadow-md transition-all cursor-pointer active:scale-95"
           >
             Buscar Productos
@@ -179,30 +205,34 @@ export default function FavoritesPage() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
           {favorites.map((item) => {
-            const isAvailable = item.listing !== null;
-            const title = isAvailable ? item.listing!.product.name : item.cachedTitle;
-            const image = (isAvailable ? (item.listing!.images[0] || item.listing!.product.images?.[0]) : item.cachedImage) 
-              || "https://images.unsplash.com/photo-1531403009284-440f080d1e12?q=80&w=600&auto=format&fit=crop";
-            const price = isAvailable ? item.listing!.price : null;
-            const currencySymbol = isAvailable && item.listing!.currency ? item.listing!.currency.symbol : "$";
-            const condition = isAvailable ? (item.listing!.condition === "NEW" ? "Nuevo" : "Usado") : null;
-            const brand = isAvailable ? item.listing!.product.brand : null;
-            const sellerName = isAvailable ? item.listing!.seller.name : null;
+            const listing = item.listings;
+            const isAvailable = listing !== null && listing.status === "APPROVED";
+            const product = listing?.products;
+            const title = product?.name ?? "Producto no disponible";
+            const image =
+              listing?.image_url ??
+              product?.images?.[0] ??
+              "https://images.unsplash.com/photo-1531403009284-440f080d1e12?q=80&w=600&auto=format&fit=crop";
+            const price = listing?.price ?? null;
+            const currencySymbol = listing?.currencies?.symbol ?? "$";
+            const condition = listing?.condition === "NEW" ? "Nuevo" : listing?.condition === "USED" ? "Usado" : null;
+            const brand = product?.brand ?? null;
+            const sellerName = listing?.sellers?.name ?? null;
 
             return (
-              <div 
+              <div
                 key={item.id}
                 className={`rounded-2xl border border-card-border overflow-hidden flex flex-col justify-between transition-all group hover:-translate-y-1 shadow-sm ${
-                  isAvailable 
-                    ? "bg-card-bg hover:border-accent-blue/30" 
+                  isAvailable
+                    ? "bg-card-bg hover:border-accent-blue/30"
                     : "bg-card-bg-solid/50 border-dashed opacity-80"
                 }`}
               >
                 {/* Product Image */}
                 <div className="relative aspect-video w-full overflow-hidden bg-background">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img 
-                    src={image} 
+                  <img
+                    src={image}
                     alt={title}
                     className={`w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 ${
                       !isAvailable ? "grayscale contrast-75 brightness-75" : ""
@@ -217,7 +247,7 @@ export default function FavoritesPage() {
                   )}
                   {isAvailable && (
                     <button
-                      onClick={() => handleRemoveFavorite(item.id, item.listingId)}
+                      onClick={() => handleRemoveFavorite(item.id)}
                       className="absolute top-3 right-3 bg-black/60 hover:bg-red-500 text-white rounded-full p-2 hover:scale-110 active:scale-95 transition-all shadow-md cursor-pointer flex items-center justify-center"
                       title="Quitar de favoritos"
                     >
@@ -231,21 +261,21 @@ export default function FavoritesPage() {
                 {/* Card Content */}
                 <div className="p-5 flex flex-col flex-1 gap-3 justify-between">
                   <div className="flex flex-col gap-2">
-                    {/* Brand and Condition */}
                     {isAvailable && (
                       <div className="flex items-center gap-2 text-[10px] font-extrabold text-text-muted">
                         <span className="uppercase tracking-wider">{brand}</span>
-                        <span>•</span>
-                        <span className="bg-card-border px-1.5 py-0.5 rounded text-[9px] uppercase tracking-wide">
-                          {condition}
-                        </span>
+                        {condition && (
+                          <>
+                            <span>•</span>
+                            <span className="bg-card-border px-1.5 py-0.5 rounded text-[9px] uppercase tracking-wide">{condition}</span>
+                          </>
+                        )}
                       </div>
                     )}
 
-                    {/* Title */}
                     <h3 className="font-heading text-sm font-bold text-foreground line-clamp-2">
                       {isAvailable ? (
-                        <Link href={`/listings/${item.listingId}`} className="hover:text-accent-blue transition-colors">
+                        <Link href={`/listings/${item.listing_id}`} className="hover:text-accent-blue transition-colors">
                           {title}
                         </Link>
                       ) : (
@@ -264,8 +294,8 @@ export default function FavoritesPage() {
                             {currencySymbol} {Number(price).toLocaleString("es-AR")}
                           </span>
                         </div>
-                        <Link 
-                          href={`/listings/${item.listingId}`}
+                        <Link
+                          href={`/listings/${item.listing_id}`}
                           className="bg-card-bg-solid hover:bg-accent-blue/5 border border-card-border hover:border-accent-blue/40 text-foreground hover:text-accent-blue rounded-lg px-3.5 py-1.5 text-[10px] font-extrabold transition-all active:scale-95"
                         >
                           Ver Detalle
@@ -277,7 +307,7 @@ export default function FavoritesPage() {
                           <span>⚠️</span> Este producto ya no está más disponible para la venta.
                         </p>
                         <button
-                          onClick={() => handleRemoveFavorite(item.id, null)}
+                          onClick={() => handleRemoveFavorite(item.id)}
                           className="w-full bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 rounded-lg py-2 text-[10px] font-extrabold tracking-wider transition-all cursor-pointer text-center uppercase"
                         >
                           Quitar de Favoritos

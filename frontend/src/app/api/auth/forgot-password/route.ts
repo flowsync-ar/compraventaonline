@@ -44,7 +44,8 @@ export async function POST(request: NextRequest) {
   const mail = await sendPasswordResetEmail({
     to: email,
     resetUrl,
-    logoUrl: `${origin}/logo-transparente.png`,
+    logoIconUrl: `${origin}/logo-trans-dark.png`,
+    logoWordmarkUrl: `${origin}/solotexto-dark.png`,
   })
   if (!mail.sent) {
     console.warn("[forgot-password] Could not send email:", mail.reason)

@@ -291,7 +291,7 @@ export default function HeaderSessionBar() {
       {/* CTA Vender */}
       <Link
         href="/dashboard?tab=publish"
-        className="sell-cta-pulse hidden sm:inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-accent-green to-accent-green px-5 py-2 text-xs font-extrabold uppercase tracking-wide text-background border border-accent-green/30 hover:opacity-95 hover:scale-[1.02] active:scale-[0.98] transition-all"
+        className="sell-cta-pulse hidden sm:inline-flex w-32 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-accent-green to-accent-green py-2 text-xs font-extrabold uppercase tracking-wide text-background border border-accent-green/30 hover:opacity-95 hover:scale-[1.02] active:scale-[0.98] transition-all"
       >
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
           <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z" />
@@ -623,8 +623,13 @@ export default function HeaderSessionBar() {
         </div>
       ) : (
         /* Login CTA */
-        <Link href="/login" className="rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover px-5 py-2 text-xs font-extrabold text-background shadow-md hover:opacity-90 hover:scale-[1.02] active:scale-[0.98] transition-all">
-          Ingresar
+        <Link href="/login" className="flex w-32 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover py-2 text-xs font-extrabold text-background border border-transparent shadow-md hover:opacity-90 hover:scale-[1.02] active:scale-[0.98] transition-all">
+          <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+            <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+            <polyline points="10 17 15 12 10 7" />
+            <line x1="15" y1="12" x2="3" y2="12" />
+          </svg>
+          INGRESAR
         </Link>
       )}
     </div>

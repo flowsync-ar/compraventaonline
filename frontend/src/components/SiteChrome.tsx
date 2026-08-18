@@ -103,7 +103,7 @@ export default function SiteChrome({ children }: { children: ReactNode }) {
                 lightSrc="/solotexto.png"
                 darkSrc="/solotexto-dark.png"
                 alt="CompraVentaOnline"
-                className="h-5 w-auto object-contain min-w-0"
+                className="h-8 w-auto object-contain min-w-0"
               />
             </Link>
 

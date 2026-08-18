@@ -3,6 +3,7 @@ import Link from "next/link";
 import CategorySubcategoryFilter from "../../components/CategorySubcategoryFilter";
 import CustomDropdown from "../../components/CustomDropdown";
 import FavoriteButton from "../../components/FavoriteButton";
+import { LA_PAMPA_CITIES } from "@/lib/constants/laPampaCities";
 
 // Case- and accent-insensitive comparison ("guitarra" matches "Guitarra Acústica").
 function normalize(text: string): string {
@@ -28,6 +29,7 @@ type ListingRow = {
     name: string;
     score: number;
     tier: string;
+    location: string | null;
   } | null;
 };
 
@@ -36,6 +38,7 @@ async function searchListings(params: {
   category?: string;
   subcategory?: string;
   condition?: string;
+  location?: string;
   sort?: string;
 }): Promise<ListingRow[]> {
   try {
@@ -58,7 +61,8 @@ async function searchListings(params: {
         sellers (
           name,
           score,
-          tier
+          tier,
+          location
         )
       `)
       .eq("status", "APPROVED");
@@ -121,6 +125,11 @@ async function searchListings(params: {
       );
     }
 
+    // Client-side location filter (seller's registered city).
+    if (params.location) {
+      results = results.filter((l) => l.sellers?.location === params.location);
+    }
+
     return results;
   } catch (err) {
     console.error("[search] Unexpected error fetching listings:", err);
@@ -171,7 +180,7 @@ async function fetchCategories(): Promise<SearchCategory[]> {
 export default async function SearchPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; category?: string; subcategory?: string; condition?: string; sort?: string }>;
+  searchParams: Promise<{ q?: string; category?: string; subcategory?: string; condition?: string; location?: string; sort?: string }>;
 }) {
   const params = await searchParams;
   const [listings, categories] = await Promise.all([
@@ -200,6 +209,20 @@ export default async function SearchPage({
                 defaultValue={params.q || ""}
                 placeholder="Ej. taladro..."
                 className="w-full bg-background border border-card-border rounded-xl px-3 py-2 text-xs text-foreground focus:outline-none focus:border-accent-gold"
+              />
+            </div>
+
+            {/* Location Filter */}
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-bold text-foreground">Ubicación</label>
+              <CustomDropdown
+                name="location"
+                defaultValue={params.location || ""}
+                showSearch
+                options={[
+                  { name: "Todas las ubicaciones", value: "" },
+                  ...LA_PAMPA_CITIES.map((city) => ({ name: city, value: city })),
+                ]}
               />
             </div>
 
@@ -242,7 +265,7 @@ export default async function SearchPage({
               Aplicar Filtros
             </button>
 
-            {(params.q || params.category || params.condition || params.sort) && (
+            {(params.q || params.category || params.condition || params.location || params.sort) && (
               <Link
                 href="/search"
                 className="w-full text-center rounded-xl border border-card-border py-2.5 text-xs font-bold text-foreground hover:bg-card-border/50 hover:text-accent-gold transition-all"

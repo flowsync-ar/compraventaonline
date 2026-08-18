@@ -38,14 +38,15 @@ export async function sendConfirmationEmail(params: {
   to: string
   fullName: string
   confirmUrl: string
-  logoUrl: string
+  logoIconUrl: string
+  logoWordmarkUrl: string
 }): Promise<SendResult> {
   if (!isMailConfigured()) {
     console.warn("[mail] SMTP not configured: set SMTP_USER and SMTP_PASSWORD")
     return { sent: false, reason: "SMTP not configured" }
   }
 
-  const { to, fullName, confirmUrl, logoUrl } = params
+  const { to, fullName, confirmUrl, logoIconUrl, logoWordmarkUrl } = params
   const safeName = escapeHtml(fullName)
 
   try {
@@ -67,7 +68,16 @@ export async function sendConfirmationEmail(params: {
       html: `
         <div style="font-family:sans-serif;max-width:560px;margin:0 auto;background:#ffffff;border-radius:14px;overflow:hidden;border:1px solid #f3e0c2;">
           <div style="background-color:#0f172a;padding:32px 48px;text-align:center;">
-            <img src="${logoUrl}" alt="CompraVentaOnline" width="220" style="display:block;margin:0 auto;max-width:220px;height:auto;" />
+            <table role="presentation" align="center" style="margin:0 auto;border-collapse:collapse;">
+              <tr>
+                <td style="padding-right:12px;vertical-align:middle;">
+                  <img src="${logoIconUrl}" alt="" width="52" style="display:block;width:52px;height:auto;" />
+                </td>
+                <td style="vertical-align:middle;">
+                  <img src="${logoWordmarkUrl}" alt="CompraVentaOnline" width="170" style="display:block;width:170px;height:auto;" />
+                </td>
+              </tr>
+            </table>
           </div>
 
           <div style="padding:32px;">
@@ -112,14 +122,15 @@ export async function sendConfirmationEmail(params: {
 export async function sendPasswordResetEmail(params: {
   to: string
   resetUrl: string
-  logoUrl: string
+  logoIconUrl: string
+  logoWordmarkUrl: string
 }): Promise<SendResult> {
   if (!isMailConfigured()) {
     console.warn("[mail] SMTP not configured: set SMTP_USER and SMTP_PASSWORD")
     return { sent: false, reason: "SMTP not configured" }
   }
 
-  const { to, resetUrl, logoUrl } = params
+  const { to, resetUrl, logoIconUrl, logoWordmarkUrl } = params
 
   try {
     const transporter = createMailTransporter()
@@ -140,7 +151,16 @@ export async function sendPasswordResetEmail(params: {
       html: `
         <div style="font-family:sans-serif;max-width:560px;margin:0 auto;background:#ffffff;border-radius:14px;overflow:hidden;border:1px solid #f3e0c2;">
           <div style="background-color:#0f172a;padding:32px 48px;text-align:center;">
-            <img src="${logoUrl}" alt="CompraVentaOnline" width="220" style="display:block;margin:0 auto;max-width:220px;height:auto;" />
+            <table role="presentation" align="center" style="margin:0 auto;border-collapse:collapse;">
+              <tr>
+                <td style="padding-right:12px;vertical-align:middle;">
+                  <img src="${logoIconUrl}" alt="" width="52" style="display:block;width:52px;height:auto;" />
+                </td>
+                <td style="vertical-align:middle;">
+                  <img src="${logoWordmarkUrl}" alt="CompraVentaOnline" width="170" style="display:block;width:170px;height:auto;" />
+                </td>
+              </tr>
+            </table>
           </div>
 
           <div style="padding:32px;">

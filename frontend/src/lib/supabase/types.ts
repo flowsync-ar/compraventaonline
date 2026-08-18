@@ -497,11 +497,14 @@ export type Database = {
       sellers: {
         Row: {
           avatar_url: string | null
+          bank_alias: string | null
+          bank_cbu: string | null
           bio: string | null
           created_at: string
           document_number: string | null
           id: string
           location: string | null
+          mercadopago_connected: boolean
           name: string
           phone: string | null
           rating: number | null
@@ -514,11 +517,14 @@ export type Database = {
         }
         Insert: {
           avatar_url?: string | null
+          bank_alias?: string | null
+          bank_cbu?: string | null
           bio?: string | null
           created_at?: string
           document_number?: string | null
           id?: string
           location?: string | null
+          mercadopago_connected?: boolean
           name: string
           phone?: string | null
           rating?: number | null
@@ -531,11 +537,14 @@ export type Database = {
         }
         Update: {
           avatar_url?: string | null
+          bank_alias?: string | null
+          bank_cbu?: string | null
           bio?: string | null
           created_at?: string
           document_number?: string | null
           id?: string
           location?: string | null
+          mercadopago_connected?: boolean
           name?: string
           phone?: string | null
           rating?: number | null
@@ -545,6 +554,99 @@ export type Database = {
           type?: Database["public"]["Enums"]["seller_type"]
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      seller_mercadopago_accounts: {
+        Row: {
+          access_token: string | null
+          connected_at: string | null
+          created_at: string
+          mp_user_id: string | null
+          oauth_pending_code_verifier: string | null
+          oauth_pending_created_at: string | null
+          oauth_pending_state: string | null
+          public_key: string | null
+          refresh_token: string | null
+          seller_id: string
+          token_expires_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          access_token?: string | null
+          connected_at?: string | null
+          created_at?: string
+          mp_user_id?: string | null
+          oauth_pending_code_verifier?: string | null
+          oauth_pending_created_at?: string | null
+          oauth_pending_state?: string | null
+          public_key?: string | null
+          refresh_token?: string | null
+          seller_id: string
+          token_expires_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          access_token?: string | null
+          connected_at?: string | null
+          created_at?: string
+          mp_user_id?: string | null
+          oauth_pending_code_verifier?: string | null
+          oauth_pending_created_at?: string | null
+          oauth_pending_state?: string | null
+          public_key?: string | null
+          refresh_token?: string | null
+          seller_id?: string
+          token_expires_at?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      orders: {
+        Row: {
+          amount: number
+          buyer_id: string
+          created_at: string
+          currency_id: string | null
+          id: string
+          listing_id: string
+          mp_payment_id: string | null
+          mp_preference_id: string | null
+          paid_at: string | null
+          payment_method: Database["public"]["Enums"]["order_payment_method"]
+          seller_id: string
+          status: Database["public"]["Enums"]["order_status"]
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          buyer_id: string
+          created_at?: string
+          currency_id?: string | null
+          id?: string
+          listing_id: string
+          mp_payment_id?: string | null
+          mp_preference_id?: string | null
+          paid_at?: string | null
+          payment_method: Database["public"]["Enums"]["order_payment_method"]
+          seller_id: string
+          status?: Database["public"]["Enums"]["order_status"]
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          buyer_id?: string
+          created_at?: string
+          currency_id?: string | null
+          id?: string
+          listing_id?: string
+          mp_payment_id?: string | null
+          mp_preference_id?: string | null
+          paid_at?: string | null
+          payment_method?: Database["public"]["Enums"]["order_payment_method"]
+          seller_id?: string
+          status?: Database["public"]["Enums"]["order_status"]
+          updated_at?: string
         }
         Relationships: []
       }
@@ -588,6 +690,8 @@ export type Database = {
       ad_placement: "HOME_BANNER" | "SIDEBAR" | "LISTING_PAGE"
       currency_code: "ARS" | "USD"
       listing_status: "ACTIVE" | "APPROVED" | "PAUSED" | "SOLD" | "DELETED"
+      order_payment_method: "MERCADOPAGO" | "TRANSFER"
+      order_status: "PENDING" | "PAID" | "CANCELLED"
       question_status: "PENDING" | "ANSWERED"
       report_reason: "SPAM" | "FRAUD" | "INAPPROPRIATE" | "DUPLICATE" | "OTHER"
       reward_type: "HIGHLIGHT" | "DISCOUNT" | "FREE_LISTING"
@@ -756,6 +860,8 @@ export const Constants = {
       ad_placement: ["HOME_BANNER", "SIDEBAR", "LISTING_PAGE"],
       currency_code: ["ARS", "USD"],
       listing_status: ["ACTIVE", "APPROVED", "PAUSED", "SOLD", "DELETED"],
+      order_payment_method: ["MERCADOPAGO", "TRANSFER"],
+      order_status: ["PENDING", "PAID", "CANCELLED"],
       question_status: ["PENDING", "ANSWERED"],
       report_reason: ["SPAM", "FRAUD", "INAPPROPRIATE", "DUPLICATE", "OTHER"],
       reward_type: ["HIGHLIGHT", "DISCOUNT", "FREE_LISTING"],

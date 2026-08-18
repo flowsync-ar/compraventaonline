@@ -50,6 +50,41 @@ export async function POST(request: NextRequest) {
   const admin = createAdminClient()
   const origin = request.nextUrl.origin
 
+  // admin.generateLink({type:"signup"}) does NOT reliably error on a
+  // duplicate email: when "Confirm email" is enabled, Supabase obfuscates
+  // the response for an already-confirmed user (anti email-enumeration) and
+  // returns a fake user with no error instead of failing. So duplicates
+  // must be caught ourselves, against sellers.email / document_number.
+  const { data: existingByEmail } = await admin
+    .from("sellers")
+    .select("id")
+    .ilike("email", email)
+    .maybeSingle()
+
+  if (existingByEmail) {
+    return NextResponse.json({ error: "Ese email ya está registrado." }, { status: 400 })
+  }
+
+  if (documentNumber) {
+    // Scoped to (document_number, sellerType): the same DNI/CUIT can be
+    // reused across a PERSONAL_SELLER and a BUSINESS_SELLER account (a
+    // sole proprietor legitimately does this), but not by two accounts
+    // of the same type — see 008_seller_uniqueness.sql.
+    const { data: existingByDocument } = await admin
+      .from("sellers")
+      .select("id")
+      .eq("document_number", documentNumber)
+      .eq("type", sellerType)
+      .maybeSingle()
+
+    if (existingByDocument) {
+      return NextResponse.json(
+        { error: "Ese DNI/CUIT ya está registrado." },
+        { status: 400 },
+      )
+    }
+  }
+
   // Creates the auth user (unconfirmed) and returns a confirmation link —
   // Supabase does NOT send any email here, we send it ourselves via Zoho.
   const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({

@@ -59,6 +59,17 @@ interface SellerProfile {
   location: string | null;
   document_number: string | null;
   bio: string | null;
+  mercadopago_connected: boolean;
+  bank_cbu: string | null;
+  bank_alias: string | null;
+}
+
+interface PendingTransferOrder {
+  id: string;
+  amount: number;
+  created_at: string;
+  listings: { products: { name: string } | null } | null;
+  buyer: { name: string } | null;
 }
 
 interface BackendCategory {
@@ -119,6 +130,13 @@ export default function DashboardPage() {
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileSuccessMsg, setProfileSuccessMsg] = useState("");
   const [profileErrorMsg, setProfileErrorMsg] = useState("");
+
+  // Mis Datos — cobros (Mercado Pago + transferencia)
+  const [bankCbu, setBankCbu] = useState("");
+  const [bankAlias, setBankAlias] = useState("");
+  const [mpDisconnecting, setMpDisconnecting] = useState(false);
+  const [pendingTransferOrders, setPendingTransferOrders] = useState<PendingTransferOrder[]>([]);
+  const [confirmingOrderId, setConfirmingOrderId] = useState<string | null>(null);
 
   // Estados para edición de publicación
   const [selectedListingToEdit, setSelectedListingToEdit] = useState<Listing | null>(null);
@@ -199,6 +217,26 @@ export default function DashboardPage() {
     setCurrentPage(1);
   }, [inventorySearch, activeTab]);
 
+  // Land on a specific tab and surface the Mercado Pago OAuth callback result
+  // (redirected here as ?tab=profile&mp=connected|error&mp_msg=...).
+  useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const tab = searchParams.get("tab");
+    if (tab === "profile") setActiveTab("profile");
+
+    const mp = searchParams.get("mp");
+    if (mp === "connected") {
+      setSellerProfile((prev) => (prev ? { ...prev, mercadopago_connected: true } : prev));
+      setProfileSuccessMsg("¡Cuenta de Mercado Pago vinculada con éxito!");
+    } else if (mp === "error") {
+      setProfileErrorMsg("No se pudo vincular Mercado Pago. Probá de nuevo.");
+    }
+    if (tab || mp) {
+      router.replace("/dashboard", { scroll: false });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Load profile and dashboard data once userId is available
   useEffect(() => {
     if (!userId) return;
@@ -209,7 +247,7 @@ export default function DashboardPage() {
         // 1. Fetch seller profile for this auth user
         const { data: profileData, error: profileError } = await supabase
           .from("sellers")
-          .select("id, name, type, score, tier, user_id, phone, location, document_number, bio")
+          .select("id, name, type, score, tier, user_id, phone, location, document_number, bio, mercadopago_connected, bank_cbu, bank_alias")
           .eq("user_id", userId!)
           .single();
 
@@ -225,6 +263,21 @@ export default function DashboardPage() {
         setProfileLocation(profile.location ?? "");
         setProfileDocumentNumber(profile.document_number ?? "");
         setProfileBio(profile.bio ?? "");
+        setBankCbu(profile.bank_cbu ?? "");
+        setBankAlias(profile.bank_alias ?? "");
+
+        // Pending bank-transfer orders this seller needs to confirm manually.
+        const { data: transferOrders } = await supabase
+          .from("orders")
+          .select("id, amount, created_at, listings(products(name)), buyer:sellers!orders_buyer_id_fkey(name)")
+          .eq("seller_id", profile.id)
+          .eq("payment_method", "TRANSFER")
+          .eq("status", "PENDING")
+          .order("created_at", { ascending: false });
+
+        if (transferOrders) {
+          setPendingTransferOrders(transferOrders as unknown as PendingTransferOrder[]);
+        }
 
         // 2. Fetch Categories (flat list, subcategories carry parentId)
         const { data: catData } = await supabase
@@ -765,6 +818,8 @@ export default function DashboardPage() {
           location: profileLocation || null,
           document_number: profileDocumentNumber || null,
           bio: profileBio || null,
+          bank_cbu: bankCbu.trim() || null,
+          bank_alias: bankAlias.trim() || null,
         })
         .eq("id", sellerProfile.id);
 
@@ -778,12 +833,47 @@ export default function DashboardPage() {
         location: profileLocation || null,
         document_number: profileDocumentNumber || null,
         bio: profileBio || null,
+        bank_cbu: bankCbu.trim() || null,
+        bank_alias: bankAlias.trim() || null,
       });
       setProfileSuccessMsg("¡Datos actualizados con éxito!");
     } catch (err: any) {
       setProfileErrorMsg(err.message || "No se pudieron guardar los cambios.");
     } finally {
       setProfileSaving(false);
+    }
+  };
+
+  const handleDisconnectMercadoPago = async () => {
+    setMpDisconnecting(true);
+    try {
+      const res = await fetch("/api/mercadopago/disconnect", { method: "POST" });
+      if (!res.ok) throw new Error("No se pudo desvincular la cuenta.");
+      setSellerProfile((prev) => (prev ? { ...prev, mercadopago_connected: false } : prev));
+      setProfileSuccessMsg("Cuenta de Mercado Pago desvinculada.");
+    } catch (err: any) {
+      setProfileErrorMsg(err.message || "No se pudo desvincular la cuenta.");
+    } finally {
+      setMpDisconnecting(false);
+    }
+  };
+
+  const handleConfirmTransfer = async (orderId: string) => {
+    setConfirmingOrderId(orderId);
+    const supabase = getSupabase();
+    try {
+      const { error } = await supabase
+        .from("orders")
+        .update({ status: "PAID", paid_at: new Date().toISOString() })
+        .eq("id", orderId);
+
+      if (error) throw new Error(error.message);
+      setPendingTransferOrders((prev) => prev.filter((o) => o.id !== orderId));
+      setProfileSuccessMsg("Pago confirmado. ¡Ya podés coordinar la entrega!");
+    } catch (err: any) {
+      setProfileErrorMsg(err.message || "No se pudo confirmar el pago.");
+    } finally {
+      setConfirmingOrderId(null);
     }
   };
 
@@ -2395,6 +2485,29 @@ export default function DashboardPage() {
                 />
               </div>
 
+              <div className="border-t border-card-border/50 pt-5 flex flex-col gap-2">
+                <span className="text-xs font-bold text-foreground">Datos para transferencia bancaria</span>
+                <p className="text-[10px] text-text-muted -mt-1">
+                  Se muestran al comprador cuando elige pagarte por transferencia.
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-1">
+                  <input
+                    type="text"
+                    value={bankCbu}
+                    onChange={(e) => setBankCbu(e.target.value)}
+                    placeholder="CBU"
+                    className="w-full bg-background border border-card-border rounded-xl px-4 py-3 text-xs text-foreground focus:outline-none focus:border-accent-gold"
+                  />
+                  <input
+                    type="text"
+                    value={bankAlias}
+                    onChange={(e) => setBankAlias(e.target.value)}
+                    placeholder="Alias"
+                    className="w-full bg-background border border-card-border rounded-xl px-4 py-3 text-xs text-foreground focus:outline-none focus:border-accent-gold"
+                  />
+                </div>
+              </div>
+
               <button
                 type="submit"
                 disabled={profileSaving}
@@ -2403,6 +2516,62 @@ export default function DashboardPage() {
                 {profileSaving ? "Guardando..." : "Guardar Cambios"}
               </button>
             </form>
+
+            <div className="border-t border-card-border/50 mt-8 pt-6 flex flex-col gap-3">
+              <span className="text-xs font-bold text-foreground">Mercado Pago</span>
+              {sellerProfile.mercadopago_connected ? (
+                <div className="flex items-center justify-between gap-3 rounded-xl bg-accent-green/10 border border-accent-green/30 px-4 py-3">
+                  <span className="text-xs font-bold text-accent-green">✓ Cuenta vinculada</span>
+                  <button
+                    onClick={handleDisconnectMercadoPago}
+                    disabled={mpDisconnecting}
+                    className="text-[10px] font-bold text-text-muted hover:text-red-500 transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    {mpDisconnecting ? "Desvinculando..." : "Desvincular"}
+                  </button>
+                </div>
+              ) : (
+                <a
+                  href="/api/mercadopago/connect"
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-accent-blue to-blue-600 px-5 py-3 text-xs font-extrabold text-white shadow-md hover:scale-[1.01] transition-all w-fit"
+                >
+                  💳 Vincular Mercado Pago
+                </a>
+              )}
+              <p className="text-[10px] text-text-muted">
+                Vinculá tu cuenta para cobrar directo cuando alguien compre con Mercado Pago.
+              </p>
+            </div>
+
+            {pendingTransferOrders.length > 0 && (
+              <div className="border-t border-card-border/50 mt-8 pt-6 flex flex-col gap-3">
+                <span className="text-xs font-bold text-foreground">Transferencias por confirmar</span>
+                <div className="flex flex-col gap-2">
+                  {pendingTransferOrders.map((order) => (
+                    <div
+                      key={order.id}
+                      className="flex items-center justify-between gap-3 rounded-xl bg-background border border-card-border px-4 py-3"
+                    >
+                      <div className="text-xs">
+                        <span className="font-bold text-foreground block">
+                          {order.listings?.products?.name ?? "Publicación"}
+                        </span>
+                        <span className="text-text-muted text-[10px]">
+                          Comprador: {order.buyer?.name ?? "—"} · ${Number(order.amount).toLocaleString("es-AR")}
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => handleConfirmTransfer(order.id)}
+                        disabled={confirmingOrderId === order.id}
+                        className="rounded-lg bg-accent-green/10 border border-accent-green/30 text-accent-green px-3 py-2 text-[10px] font-bold hover:bg-accent-green/20 transition-all cursor-pointer disabled:opacity-50 shrink-0"
+                      >
+                        {confirmingOrderId === order.id ? "Confirmando..." : "Confirmar recibido"}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 

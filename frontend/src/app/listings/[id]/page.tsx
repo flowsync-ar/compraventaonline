@@ -27,6 +27,9 @@ interface Listing {
     score: number;
     tier: string;
     type: string;
+    mercadopago_connected: boolean;
+    bank_cbu: string | null;
+    bank_alias: string | null;
   } | null;
   currencies: {
     code: string;
@@ -61,10 +64,14 @@ export default function ListingDetailPage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"desc" | "seller">("desc");
 
-  // Payment Simulator States
+  // Checkout / Payment States
   const [isPaid, setIsPaid] = useState(false);
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
   const [paymentLoading, setPaymentLoading] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<"MERCADOPAGO" | "TRANSFER">("MERCADOPAGO");
+  const [orderError, setOrderError] = useState("");
+  const [transferInfo, setTransferInfo] = useState<{ cbu: string | null; alias: string | null; sellerName: string } | null>(null);
+  const [paymentPending, setPaymentPending] = useState(false);
 
   // Interactive Modals
   const [showContactModal, setShowContactModal] = useState(false);
@@ -145,7 +152,10 @@ export default function ListingDetailPage() {
               name,
               score,
               tier,
-              type
+              type,
+              mercadopago_connected,
+              bank_cbu,
+              bank_alias
             ),
             currencies (
               code,
@@ -163,6 +173,7 @@ export default function ListingDetailPage() {
           const row = data as unknown as Listing;
           setListing(row);
           setActiveImage(row.image_url ?? row.products?.images?.[0] ?? null);
+          setPaymentMethod(row.sellers?.mercadopago_connected ? "MERCADOPAGO" : "TRANSFER");
         }
       } catch (err) {
         console.error("[listing] Unexpected error fetching listing:", err);
@@ -197,6 +208,82 @@ export default function ListingDetailPage() {
     fetchListing();
     fetchQuestions();
   }, [id]);
+
+  // Handle the buyer coming back from Mercado Pago's checkout — poll the
+  // order a few times since the webhook that confirms payment can lag
+  // slightly behind the redirect.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const orderId = params.get("order");
+    const mpStatus = params.get("mp_status");
+    if (!orderId || !mpStatus) return;
+
+    window.history.replaceState({}, "", window.location.pathname);
+
+    if (mpStatus === "failure") {
+      setOrderError("El pago no se pudo completar. Podés intentar de nuevo.");
+      return;
+    }
+
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    let attempts = 0;
+    const maxAttempts = 6;
+    const poll = async () => {
+      attempts++;
+      try {
+        const res = await fetch(`/api/orders/${orderId}`);
+        const data = await res.json();
+        if (cancelled) return;
+        if (res.ok && data.order?.status === "PAID") {
+          setIsPaid(true);
+          return;
+        }
+      } catch {
+        // keep retrying
+      }
+      if (cancelled) return;
+      if (attempts < maxAttempts) {
+        timer = setTimeout(poll, 2000);
+      } else {
+        setPaymentPending(true);
+      }
+    };
+    poll();
+
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, []);
+
+  // Rehydrate "already paid" from a real order — otherwise isPaid only ever
+  // gets set inside the one-shot Mercado-Pago-redirect poll, so a buyer whose
+  // bank transfer was confirmed after they left (or who reopens the page
+  // later) would keep seeing "Comprar Ahora" despite having a paid order.
+  useEffect(() => {
+    if (!userId || !id) return;
+
+    async function checkExistingOrder() {
+      const supabase = getSupabase();
+      try {
+        const { data } = await supabase
+          .from("orders")
+          .select("id")
+          .eq("listing_id", id)
+          .eq("status", "PAID")
+          .limit(1)
+          .maybeSingle();
+
+        if (data) setIsPaid(true);
+      } catch (err) {
+        console.error("Error checking existing order:", err);
+      }
+    }
+
+    checkExistingOrder();
+  }, [userId, id]);
 
   // Check if listing is favorited
   useEffect(() => {
@@ -314,6 +401,36 @@ export default function ListingDetailPage() {
 
     setAddedToCart(true);
     setTimeout(() => setAddedToCart(false), 2000);
+  };
+
+  const handleCheckout = async () => {
+    if (!listing) return;
+    setOrderError("");
+    setPaymentLoading(true);
+    try {
+      const res = await fetch("/api/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ listingId: listing.id, paymentMethod }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setOrderError(data.error ?? "No se pudo procesar la compra.");
+        return;
+      }
+
+      if (paymentMethod === "MERCADOPAGO") {
+        window.location.href = data.checkoutUrl;
+        return;
+      }
+
+      setTransferInfo(data.bank);
+    } catch (err) {
+      console.error("[listing] checkout error:", err);
+      setOrderError("No se pudo procesar la compra. Intentá de nuevo.");
+    } finally {
+      setPaymentLoading(false);
+    }
   };
 
   const handleContactSubmit = async (e: React.FormEvent) => {
@@ -685,6 +802,16 @@ export default function ListingDetailPage() {
 
             {/* CTA Buttons */}
             <div className="flex flex-col gap-3 mt-4">
+              {orderError && (
+                <div className="bg-red-500/10 border border-red-500/30 text-red-500 rounded-2xl p-4 text-xs font-medium text-center">
+                  {orderError}
+                </div>
+              )}
+              {paymentPending && !isPaid && (
+                <div className="bg-amber-500/10 border border-amber-500/30 text-amber-500 dark:text-amber-300 rounded-2xl p-4 text-xs font-medium text-center">
+                  Estamos confirmando tu pago con Mercado Pago. Puede demorar unos segundos — actualizá la página en un momento.
+                </div>
+              )}
               {isPaid ? (
                 <>
                   <div className="bg-accent-green/10 border border-accent-green/30 text-accent-green rounded-2xl p-4 text-xs font-medium text-center animate-in fade-in duration-300">
@@ -862,86 +989,164 @@ export default function ListingDetailPage() {
       {showCheckoutModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="w-full max-w-md rounded-3xl bg-card-bg border border-card-border p-8 shadow-2xl relative animate-in zoom-in-95 duration-200 flex flex-col gap-6">
-            <button onClick={() => setShowCheckoutModal(false)} className="absolute top-4 right-4 text-text-muted hover:text-foreground text-lg cursor-pointer">✕</button>
+            <button
+              onClick={() => {
+                setShowCheckoutModal(false);
+                setTransferInfo(null);
+                setOrderError("");
+              }}
+              className="absolute top-4 right-4 text-text-muted hover:text-foreground text-lg cursor-pointer"
+            >
+              ✕
+            </button>
 
             <div className="text-left">
-              <h3 className="font-heading text-lg font-extrabold text-foreground">Completar Compra</h3>
-              <p className="text-text-muted text-xs mt-1">Simulá el pago seguro del producto para habilitar el contacto por WhatsApp.</p>
+              <h3 className="font-heading text-lg font-extrabold text-foreground">
+                {transferInfo ? "Datos para transferir" : "Completar Compra"}
+              </h3>
+              {!transferInfo && (
+                <p className="text-text-muted text-xs mt-1">Elegí cómo querés pagarle al vendedor.</p>
+              )}
             </div>
 
-            <div className="rounded-2xl bg-background border border-card-border p-4 flex items-center gap-3 text-xs">
-              <div className="h-12 w-12 rounded-lg overflow-hidden border border-card-border shrink-0">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={mainImage} alt={product?.name ?? "Producto"} className="h-full w-full object-contain" />
-              </div>
-              <div className="flex-1 min-w-0 text-left">
-                <h4 className="font-bold text-foreground truncate">{product?.name}</h4>
-                <span className="text-text-muted text-[10px] block">Vendedor: {seller?.name}</span>
-              </div>
-              <div className="text-right shrink-0">
-                <span className="font-extrabold text-foreground">{currencySymbol}{Number(listing.price).toLocaleString("es-AR")}</span>
-              </div>
-            </div>
-
-            <div className="rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-500 dark:text-amber-300 p-4 text-xs leading-relaxed text-left flex flex-col gap-1.5 animate-in fade-in duration-200">
-              <strong className="font-extrabold flex items-center gap-1 text-[11px] uppercase tracking-wider">⚠️ Importante: Compromiso de Compra</strong>
-              <p className="text-[10px] text-text-muted dark:text-slate-300">
-                Al realizar la compra de este producto asumís un <span className="font-bold text-foreground">compromiso de compra firme</span>.
-              </p>
-            </div>
-
-            <div className="flex flex-col gap-4 text-left">
-              <div className="flex flex-col gap-1.5">
-                <span className="text-xs font-bold text-foreground">Medio de Pago</span>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="border border-accent-gold bg-accent-gold/5 rounded-xl p-3 flex flex-col gap-1 cursor-pointer select-none text-xs">
-                    <span className="font-bold text-accent-gold">💳 Tarjeta</span>
-                    <span className="text-[10px] text-text-muted">Crédito o Débito</span>
+            {transferInfo ? (
+              <>
+                <div className="rounded-2xl bg-background border border-card-border p-4 flex flex-col gap-2 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-text-muted">Titular</span>
+                    <span className="font-bold text-foreground">{transferInfo.sellerName}</span>
                   </div>
-                  <div className="border border-card-border hover:border-accent-gold/40 rounded-xl p-3 flex flex-col gap-1 cursor-pointer select-none opacity-50 text-xs">
-                    <span className="font-bold text-foreground">🏦 Transferencia</span>
-                    <span className="text-[10px] text-text-muted">CBU / Alias</span>
+                  {transferInfo.cbu && (
+                    <div className="flex justify-between">
+                      <span className="text-text-muted">CBU</span>
+                      <span className="font-bold text-foreground">{transferInfo.cbu}</span>
+                    </div>
+                  )}
+                  {transferInfo.alias && (
+                    <div className="flex justify-between">
+                      <span className="text-text-muted">Alias</span>
+                      <span className="font-bold text-foreground">{transferInfo.alias}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between border-t border-card-border/30 pt-2 mt-1">
+                    <span className="text-text-muted">Monto</span>
+                    <span className="font-extrabold text-accent-gold">
+                      {currencySymbol}{Number(listing.price).toLocaleString("es-AR")}
+                    </span>
                   </div>
                 </div>
-              </div>
+                <p className="text-[10px] text-text-muted leading-relaxed">
+                  Hacé la transferencia y avisale al vendedor por WhatsApp con el comprobante. Cuando confirme la recepción, vas a poder coordinar la entrega.
+                </p>
+                <button
+                  onClick={() => {
+                    setShowCheckoutModal(false);
+                    setTransferInfo(null);
+                  }}
+                  className="w-full rounded-xl bg-gradient-to-r from-accent-blue to-blue-600 py-4 text-xs font-extrabold text-white shadow-md hover:scale-[1.01] transition-all cursor-pointer"
+                >
+                  Entendido
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="rounded-2xl bg-background border border-card-border p-4 flex items-center gap-3 text-xs">
+                  <div className="h-12 w-12 rounded-lg overflow-hidden border border-card-border shrink-0">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={mainImage} alt={product?.name ?? "Producto"} className="h-full w-full object-contain" />
+                  </div>
+                  <div className="flex-1 min-w-0 text-left">
+                    <h4 className="font-bold text-foreground truncate">{product?.name}</h4>
+                    <span className="text-text-muted text-[10px] block">Vendedor: {seller?.name}</span>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <span className="font-extrabold text-foreground">{currencySymbol}{Number(listing.price).toLocaleString("es-AR")}</span>
+                  </div>
+                </div>
 
-              <div className="flex flex-col gap-2">
-                <label className="text-xs font-bold text-foreground">Número de Tarjeta (Simulado)</label>
-                <input type="text" disabled value="••••  ••••  ••••  5829" className="w-full bg-background/50 border border-card-border rounded-xl px-4 py-3 text-xs text-foreground cursor-not-allowed" />
-              </div>
+                <div className="rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-500 dark:text-amber-300 p-4 text-xs leading-relaxed text-left flex flex-col gap-1.5 animate-in fade-in duration-200">
+                  <strong className="font-extrabold flex items-center gap-1 text-[11px] uppercase tracking-wider">⚠️ Importante: Compromiso de Compra</strong>
+                  <p className="text-[10px] text-text-muted dark:text-slate-300">
+                    Al realizar la compra de este producto asumís un <span className="font-bold text-foreground">compromiso de compra firme</span>.
+                  </p>
+                </div>
 
-              <div className="flex justify-between items-center border-t border-card-border/30 pt-4 mt-2">
-                <span className="text-xs text-text-muted">Total a Pagar:</span>
-                <span className="font-heading text-lg font-extrabold text-accent-gold">
-                  {currencySymbol}{Number(listing.price).toLocaleString("es-AR")}
-                </span>
-              </div>
-            </div>
+                <div className="flex flex-col gap-4 text-left">
+                  <div className="flex flex-col gap-1.5">
+                    <span className="text-xs font-bold text-foreground">Medio de Pago</span>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        disabled={!seller?.mercadopago_connected}
+                        onClick={() => setPaymentMethod("MERCADOPAGO")}
+                        className={`border rounded-xl p-3 flex flex-col gap-1 text-xs text-left transition-all ${
+                          !seller?.mercadopago_connected
+                            ? "border-card-border opacity-40 cursor-not-allowed"
+                            : paymentMethod === "MERCADOPAGO"
+                            ? "border-accent-gold bg-accent-gold/5 cursor-pointer"
+                            : "border-card-border hover:border-accent-gold/40 cursor-pointer"
+                        }`}
+                      >
+                        <span className={`font-bold ${paymentMethod === "MERCADOPAGO" ? "text-accent-gold" : "text-foreground"}`}>
+                          💳 Mercado Pago
+                        </span>
+                        <span className="text-[10px] text-text-muted">
+                          {seller?.mercadopago_connected ? "Tarjeta, dinero en cuenta" : "El vendedor no lo vinculó"}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        disabled={!seller?.bank_cbu && !seller?.bank_alias}
+                        onClick={() => setPaymentMethod("TRANSFER")}
+                        className={`border rounded-xl p-3 flex flex-col gap-1 text-xs text-left transition-all ${
+                          !seller?.bank_cbu && !seller?.bank_alias
+                            ? "border-card-border opacity-40 cursor-not-allowed"
+                            : paymentMethod === "TRANSFER"
+                            ? "border-accent-gold bg-accent-gold/5 cursor-pointer"
+                            : "border-card-border hover:border-accent-gold/40 cursor-pointer"
+                        }`}
+                      >
+                        <span className={`font-bold ${paymentMethod === "TRANSFER" ? "text-accent-gold" : "text-foreground"}`}>
+                          🏦 Transferencia
+                        </span>
+                        <span className="text-[10px] text-text-muted">
+                          {seller?.bank_cbu || seller?.bank_alias ? "CBU / Alias" : "El vendedor no cargó datos"}
+                        </span>
+                      </button>
+                    </div>
+                  </div>
 
-            <button
-              onClick={async () => {
-                setPaymentLoading(true);
-                setTimeout(() => {
-                  setPaymentLoading(false);
-                  setIsPaid(true);
-                  setShowCheckoutModal(false);
-                }, 1500);
-              }}
-              disabled={paymentLoading}
-              className="w-full rounded-xl bg-gradient-to-r from-accent-blue to-blue-600 py-4 text-xs font-extrabold text-white shadow-md hover:scale-[1.01] transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
-            >
-              {paymentLoading ? (
-                <>
-                  <svg className="animate-spin h-4 w-4 text-background" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Procesando pago...
-                </>
-              ) : (
-                `Pagar ${currencySymbol}${Number(listing.price).toLocaleString("es-AR")}`
-              )}
-            </button>
+                  {orderError && <p className="text-xs text-red-500 font-bold">{orderError}</p>}
+
+                  <div className="flex justify-between items-center border-t border-card-border/30 pt-4 mt-2">
+                    <span className="text-xs text-text-muted">Total a Pagar:</span>
+                    <span className="font-heading text-lg font-extrabold text-accent-gold">
+                      {currencySymbol}{Number(listing.price).toLocaleString("es-AR")}
+                    </span>
+                  </div>
+                </div>
+
+                <button
+                  onClick={handleCheckout}
+                  disabled={paymentLoading || (!seller?.mercadopago_connected && !seller?.bank_cbu && !seller?.bank_alias)}
+                  className="w-full rounded-xl bg-gradient-to-r from-accent-blue to-blue-600 py-4 text-xs font-extrabold text-white shadow-md hover:scale-[1.01] transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+                >
+                  {paymentLoading ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4 text-background" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Procesando...
+                    </>
+                  ) : paymentMethod === "MERCADOPAGO" ? (
+                    `Pagar ${currencySymbol}${Number(listing.price).toLocaleString("es-AR")} con Mercado Pago`
+                  ) : (
+                    "Ver datos para transferir"
+                  )}
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}

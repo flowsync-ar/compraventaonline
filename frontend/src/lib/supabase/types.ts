@@ -502,6 +502,7 @@ export type Database = {
           bio: string | null
           created_at: string
           document_number: string | null
+          email: string
           id: string
           location: string | null
           mercadopago_connected: boolean
@@ -522,6 +523,7 @@ export type Database = {
           bio?: string | null
           created_at?: string
           document_number?: string | null
+          email: string
           id?: string
           location?: string | null
           mercadopago_connected?: boolean
@@ -542,6 +544,7 @@ export type Database = {
           bio?: string | null
           created_at?: string
           document_number?: string | null
+          email?: string
           id?: string
           location?: string | null
           mercadopago_connected?: boolean

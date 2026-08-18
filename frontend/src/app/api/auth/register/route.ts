@@ -50,6 +50,61 @@ export async function POST(request: NextRequest) {
   const admin = createAdminClient()
   const origin = request.nextUrl.origin
 
+  // admin.generateLink({type:"signup"}) does NOT reliably error on a
+  // duplicate email: when "Confirm email" is enabled, Supabase obfuscates
+  // the response for an already-confirmed user (anti email-enumeration) and
+  // returns a fake user with no error instead of failing. So duplicates
+  // must be caught ourselves, against sellers.email / document_number.
+  // `email` is already lowercased above, and both handle_new_user and the
+  // backfill store it verbatim from auth.users (which GoTrue normalizes to
+  // lowercase), so a plain `eq` is an exact, case-safe match — unlike
+  // `ilike`, it doesn't treat `%`/`_` in the address as wildcards.
+  const { data: existingByEmail, error: emailCheckError } = await admin
+    .from("sellers")
+    .select("id")
+    .eq("email", email)
+    .maybeSingle()
+
+  if (emailCheckError) {
+    console.error("Email uniqueness check failed:", emailCheckError.message)
+    return NextResponse.json(
+      { error: "No se pudo verificar el email. Intentá de nuevo." },
+      { status: 500 },
+    )
+  }
+
+  if (existingByEmail) {
+    return NextResponse.json({ error: "Ese email ya está registrado." }, { status: 400 })
+  }
+
+  if (documentNumber) {
+    // Scoped to (document_number, sellerType): the same DNI/CUIT can be
+    // reused across a PERSONAL_SELLER and a BUSINESS_SELLER account (a
+    // sole proprietor legitimately does this), but not by two accounts
+    // of the same type — see 008_seller_uniqueness.sql.
+    const { data: existingByDocument, error: documentCheckError } = await admin
+      .from("sellers")
+      .select("id")
+      .eq("document_number", documentNumber)
+      .eq("type", sellerType)
+      .maybeSingle()
+
+    if (documentCheckError) {
+      console.error("Document uniqueness check failed:", documentCheckError.message)
+      return NextResponse.json(
+        { error: "No se pudo verificar el DNI/CUIT. Intentá de nuevo." },
+        { status: 500 },
+      )
+    }
+
+    if (existingByDocument) {
+      return NextResponse.json(
+        { error: "Ese DNI/CUIT ya está registrado." },
+        { status: 400 },
+      )
+    }
+  }
+
   // Creates the auth user (unconfirmed) and returns a confirmation link —
   // Supabase does NOT send any email here, we send it ourselves via Zoho.
   const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({
@@ -84,8 +139,12 @@ export async function POST(request: NextRequest) {
   const confirmUrl = `${origin}/auth/confirm?token_hash=${hashedToken}&type=signup&next=/dashboard`
 
   // The trigger handle_new_user already created the sellers row —
-  // fill in phone (required) and document_number (non-fatal if it fails,
-  // can be completed later from the profile).
+  // fill in phone (required) and document_number. Most failures here are
+  // non-fatal (can be completed later from the profile), but a 23505 means
+  // the pre-check above raced with a concurrent signup for the same
+  // document_number+type and lost — that one must not be swallowed, or the
+  // account ships with a document_number the uniqueness migration was
+  // supposed to guarantee is unique.
   const { error: sellerError } = await admin
     .from("sellers")
     .update({
@@ -94,6 +153,13 @@ export async function POST(request: NextRequest) {
       ...(location ? { location } : {}),
     })
     .eq("user_id", userId)
+
+  if (sellerError?.code === "23505") {
+    return NextResponse.json(
+      { error: "Ese DNI/CUIT ya está registrado." },
+      { status: 400 },
+    )
+  }
 
   if (sellerError) {
     console.warn("Could not update seller phone/document_number:", sellerError.message)

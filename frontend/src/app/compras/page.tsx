@@ -47,20 +47,7 @@ const mockPurchases: Purchase[] = [
     sellerName: "Ferretería El Pampeano",
     sellerPhone: "2954-445566",
   },
-  {
-    id: "p3",
-    date: "10 de mayo de 2026",
-    status: "ENTREGADO",
-    statusText: "Entregado",
-    productId: "l4",
-    productName: "Queso de Campo Saborizado con Hierbas",
-    brand: "Estancia El Caldén",
-    price: 11000.0,
-    quantity: 2,
-    image: "https://images.unsplash.com/photo-1486299267070-8382e214434b?q=80&w=600&auto=format&fit=crop",
-    sellerName: "Distribuidora Luro",
-    sellerPhone: "2954-778899",
-  },
+  
   {
     id: "p4",
     date: "28 de abril de 2026",
@@ -189,7 +176,7 @@ export default function PurchasesPage() {
                       <img 
                         src={purchase.image} 
                         alt={purchase.productName} 
-                        className="h-full w-full object-cover"
+                        className="h-full w-full object-contain"
                       />
                     </div>
                     <div className="flex flex-col gap-1 text-left">

@@ -23,67 +23,7 @@ type ListingRow = {
   } | null;
 };
 
-// Fallback mock listings (La Pampa themed & general)
-const mockListings = [
-  {
-    id: "l1",
-    price: 18500.0,
-    condition: "NEW",
-    featured_plan: "PREMIUM",
-    products: {
-      name: "Miel Orgánica Pura del Caldenal",
-      brand: "Pampeana Alta",
-      description: "Miel pura de abeja de flores silvestres cosechada en el caldenal pampeano. 100% natural, frasco de 1kg.",
-      images: ["https://images.unsplash.com/photo-1587049352846-4a222e784d38?q=80&w=600&auto=format&fit=crop"],
-      categories: { name: "Campo / Agro" },
-    },
-    sellers: { name: "Apicultura La Fusta", score: 98, tier: "PREMIUM" },
-  },
-  {
-    id: "l2",
-    price: 125000.0,
-    condition: "NEW",
-    featured_plan: "FEATURED",
-    products: {
-      name: "Taladro Percutor Bosch 500W",
-      brand: "Bosch",
-      description: "Taladro percutor Bosch GSB 13 RE Professional. Potente motor de 500 W, ideal para mampostería, madera y metal.",
-      images: ["https://images.unsplash.com/photo-1504148455328-c376907d081c?q=80&w=600&auto=format&fit=crop"],
-      categories: { name: "Construcción" },
-    },
-    sellers: { name: "Ferretería El Pampeano", score: 95, tier: "GOLD" },
-  },
-  {
-    id: "l3",
-    price: 85000.0,
-    condition: "USED",
-    featured_plan: "FREE",
-    products: {
-      name: "Sillón Retro Tapizado Pana Verde",
-      brand: "Vintage",
-      description: "Sillón de un cuerpo estilo retro vintage años 70. Tapizado en pana verde musgo, patas de madera de caldén en excelente estado.",
-      images: ["https://images.unsplash.com/photo-1567538096630-e0c55bd6374c?q=80&w=600&auto=format&fit=crop"],
-      categories: { name: "Hogar" },
-    },
-    sellers: { name: "Ramiro Tule (Particular)", score: 90, tier: "BRONCE" },
-  },
-  {
-    id: "l4",
-    price: 11000.0,
-    condition: "NEW",
-    featured_plan: "PREMIUM",
-    products: {
-      name: "Queso de Campo Saborizado con Hierbas",
-      brand: "Estancia El Caldén",
-      description: "Queso artesanal semi-duro saborizado con orégano y provenzal. Horma de 800g directamente de tambo pampeano.",
-      images: ["https://images.unsplash.com/photo-1486299267070-8382e214434b?q=80&w=600&auto=format&fit=crop"],
-      categories: { name: "Campo / Agro" },
-    },
-    sellers: { name: "Distribuidora Luro", score: 99, tier: "PREMIUM" },
-  },
-];
-
-async function getListings(): Promise<typeof mockListings> {
+async function getListings(): Promise<ListingRow[]> {
   try {
     const supabase = await createClient();
     const { data, error } = await supabase
@@ -110,10 +50,14 @@ async function getListings(): Promise<typeof mockListings> {
       .order("created_at", { ascending: false })
       .limit(12);
 
-    if (error || !data || data.length === 0) return mockListings;
-    return data as unknown as typeof mockListings;
-  } catch {
-    return mockListings;
+    if (error) {
+      console.error("[home] Error fetching listings:", error.message);
+      return [];
+    }
+    return (data ?? []) as unknown as ListingRow[];
+  } catch (err) {
+    console.error("[home] Unexpected error fetching listings:", err);
+    return [];
   }
 }
 
@@ -171,6 +115,13 @@ export default async function HomePage() {
           </Link>
         </div>
 
+        {listings.length === 0 ? (
+          <div className="text-center py-16 rounded-2xl glass-panel">
+            <span className="text-4xl">🌾</span>
+            <h3 className="font-heading text-lg font-bold text-foreground mt-4">Todavía no hay publicaciones</h3>
+            <p className="text-text-muted text-xs mt-1">Sé el primero en publicar un artículo en La Pampa.</p>
+          </div>
+        ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {listings.map((listing) => {
             const product = listing.products;
@@ -193,12 +144,12 @@ export default async function HomePage() {
                 )}
 
                 {/* Image Container */}
-                <div className="h-48 w-full bg-slate-950 overflow-hidden relative">
+                <div className="h-48 w-full bg-card-bg overflow-hidden relative">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={image}
                     alt={product?.name ?? "Producto"}
-                    className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                    className="h-full w-full object-contain transition-transform duration-500 group-hover:scale-105"
                   />
                 </div>
 
@@ -248,6 +199,7 @@ export default async function HomePage() {
             );
           })}
         </div>
+        )}
       </section>
 
     </div>

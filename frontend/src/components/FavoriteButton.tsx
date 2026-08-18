@@ -15,6 +15,7 @@ export default function FavoriteButton({ listingId }: FavoriteButtonProps) {
   const [loading, setLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
+  const [sellerId, setSellerId] = useState<string | null>(null);
 
   const supabaseRef = useRef<SupabaseClient | null>(null);
   const getSupabase = () => {
@@ -24,36 +25,13 @@ export default function FavoriteButton({ listingId }: FavoriteButtonProps) {
     return supabaseRef.current;
   };
 
-  useEffect(() => {
-    setMounted(true);
-    const supabase = getSupabase();
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      const uid = session?.user?.id ?? null;
-      setUserId(uid);
-      if (uid) checkFavoriteStatus(uid, supabase);
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      const uid = session?.user?.id ?? null;
-      setUserId(uid);
-      if (uid) {
-        checkFavoriteStatus(uid, supabase);
-      } else {
-        setIsFavorite(false);
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, [listingId]);
-
-  async function checkFavoriteStatus(uid: string, supabase: SupabaseClient) {
+  async function checkFavoriteStatus(sId: string, supabase: SupabaseClient) {
     try {
       const { data } = await supabase
         .from("favorites")
         .select("id")
         .eq("listing_id", listingId)
-        .eq("user_id", uid)
+        .eq("seller_id", sId)
         .maybeSingle();
 
       setIsFavorite(!!data);
@@ -61,6 +39,46 @@ export default function FavoriteButton({ listingId }: FavoriteButtonProps) {
       console.error("Error checking favorite status:", err);
     }
   }
+
+  async function resolveSellerAndCheck(uid: string, supabase: SupabaseClient) {
+    try {
+      const { data: seller } = await supabase
+        .from("sellers")
+        .select("id")
+        .eq("user_id", uid)
+        .single();
+
+      if (!seller) return;
+      setSellerId(seller.id);
+      checkFavoriteStatus(seller.id, supabase);
+    } catch (err) {
+      console.error("Error resolving seller for favorites:", err);
+    }
+  }
+
+  useEffect(() => {
+    setMounted(true);
+    const supabase = getSupabase();
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      const uid = session?.user?.id ?? null;
+      setUserId(uid);
+      if (uid) resolveSellerAndCheck(uid, supabase);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      const uid = session?.user?.id ?? null;
+      setUserId(uid);
+      if (uid) {
+        resolveSellerAndCheck(uid, supabase);
+      } else {
+        setSellerId(null);
+        setIsFavorite(false);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [listingId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleToggleFavorite = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -72,7 +90,7 @@ export default function FavoriteButton({ listingId }: FavoriteButtonProps) {
       return;
     }
 
-    if (loading) return;
+    if (loading || !sellerId) return;
 
     const supabase = getSupabase();
     try {
@@ -82,7 +100,7 @@ export default function FavoriteButton({ listingId }: FavoriteButtonProps) {
           .from("favorites")
           .delete()
           .eq("listing_id", listingId)
-          .eq("user_id", userId);
+          .eq("seller_id", sellerId);
 
         if (!error) {
           setIsFavorite(false);
@@ -91,7 +109,7 @@ export default function FavoriteButton({ listingId }: FavoriteButtonProps) {
       } else {
         const { error } = await supabase
           .from("favorites")
-          .insert({ listing_id: listingId, user_id: userId });
+          .insert({ listing_id: listingId, seller_id: sellerId });
 
         if (!error) {
           setIsFavorite(true);

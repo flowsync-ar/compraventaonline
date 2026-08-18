@@ -24,6 +24,7 @@ interface RegisterPayload {
   sellerType: "PERSONAL_SELLER" | "BUSINESS_SELLER"
   documentNumber?: string
   phone: string
+  location?: string
 }
 
 export async function POST(request: NextRequest) {
@@ -40,6 +41,7 @@ export async function POST(request: NextRequest) {
   const sellerType = body.sellerType
   const documentNumber = body.documentNumber?.trim()
   const phone = body.phone?.trim()
+  const location = body.location?.trim()
 
   if (!email || !password || !fullName || !sellerType || !phone) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
@@ -56,7 +58,6 @@ export async function POST(request: NextRequest) {
     password,
     options: {
       data: { full_name: fullName, seller_type: sellerType },
-      redirectTo: `${origin}/login`,
     },
   })
 
@@ -68,28 +69,42 @@ export async function POST(request: NextRequest) {
   }
 
   const userId = linkData.user.id
-  const confirmUrl = linkData.properties?.action_link
+  const hashedToken = linkData.properties?.hashed_token
 
-  if (!confirmUrl) {
+  if (!hashedToken) {
     return NextResponse.json(
       { error: "No se pudo generar el enlace de confirmación." },
       { status: 500 },
     )
   }
 
+  // Points at our own route (not Supabase's hosted /auth/v1/verify) so
+  // verifyOtp() runs server-side and @supabase/ssr can persist a real
+  // PKCE cookie session — see frontend/src/app/auth/confirm/route.ts.
+  const confirmUrl = `${origin}/auth/confirm?token_hash=${hashedToken}&type=signup&next=/dashboard`
+
   // The trigger handle_new_user already created the sellers row —
   // fill in phone (required) and document_number (non-fatal if it fails,
   // can be completed later from the profile).
   const { error: sellerError } = await admin
     .from("sellers")
-    .update({ phone, ...(documentNumber ? { document_number: documentNumber } : {}) })
+    .update({
+      phone,
+      ...(documentNumber ? { document_number: documentNumber } : {}),
+      ...(location ? { location } : {}),
+    })
     .eq("user_id", userId)
 
   if (sellerError) {
     console.warn("Could not update seller phone/document_number:", sellerError.message)
   }
 
-  const mail = await sendConfirmationEmail({ to: email, fullName, confirmUrl })
+  const mail = await sendConfirmationEmail({
+    to: email,
+    fullName,
+    confirmUrl,
+    logoUrl: `${origin}/logo-transparente.png`,
+  })
 
   return NextResponse.json({
     ok: true,

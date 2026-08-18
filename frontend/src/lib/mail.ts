@@ -38,13 +38,14 @@ export async function sendConfirmationEmail(params: {
   to: string
   fullName: string
   confirmUrl: string
+  logoUrl: string
 }): Promise<SendResult> {
   if (!isMailConfigured()) {
     console.warn("[mail] SMTP not configured: set SMTP_USER and SMTP_PASSWORD")
     return { sent: false, reason: "SMTP not configured" }
   }
 
-  const { to, fullName, confirmUrl } = params
+  const { to, fullName, confirmUrl, logoUrl } = params
   const safeName = escapeHtml(fullName)
 
   try {
@@ -65,9 +66,8 @@ export async function sendConfirmationEmail(params: {
       ].join("\n"),
       html: `
         <div style="font-family:sans-serif;max-width:560px;margin:0 auto;background:#ffffff;border-radius:14px;overflow:hidden;border:1px solid #f3e0c2;">
-          <div style="background-color:#0f172a;padding:36px 48px;text-align:center;">
-            <span style="font-size:24px;">🌾</span>
-            <div style="color:#f8fafc;font-weight:800;font-size:18px;margin-top:8px;">CompraVentaOnline</div>
+          <div style="background-color:#0f172a;padding:32px 48px;text-align:center;">
+            <img src="${logoUrl}" alt="CompraVentaOnline" width="220" style="display:block;margin:0 auto;max-width:220px;height:auto;" />
           </div>
 
           <div style="padding:32px;">
@@ -98,6 +98,76 @@ export async function sendConfirmationEmail(params: {
           <div style="background:#fef6e7;padding:16px 32px;border-top:1px solid #f3e0c2;text-align:center;">
             <p style="color:#9CA3AF;font-size:11px;margin:0;">
               Si no creaste esta cuenta, ignorá este correo.<br/>© 2026 CompraVentaOnline · La Pampa
+            </p>
+          </div>
+        </div>
+      `,
+    })
+    return { sent: true }
+  } catch (err) {
+    return { sent: false, reason: err instanceof Error ? err.message : String(err) }
+  }
+}
+
+export async function sendPasswordResetEmail(params: {
+  to: string
+  resetUrl: string
+  logoUrl: string
+}): Promise<SendResult> {
+  if (!isMailConfigured()) {
+    console.warn("[mail] SMTP not configured: set SMTP_USER and SMTP_PASSWORD")
+    return { sent: false, reason: "SMTP not configured" }
+  }
+
+  const { to, resetUrl, logoUrl } = params
+
+  try {
+    const transporter = createMailTransporter()
+    await transporter.sendMail({
+      from: fromAddress(),
+      to,
+      subject: "Restablecé tu contraseña de CompraVentaOnline",
+      text: [
+        `Hola,`,
+        ``,
+        `Recibimos un pedido para restablecer la contraseña de tu cuenta en CompraVentaOnline.`,
+        `Para elegir una nueva contraseña, hacé clic en el siguiente enlace:`,
+        ``,
+        resetUrl,
+        ``,
+        `Si vos no pediste esto, ignorá este correo — tu contraseña actual sigue siendo válida.`,
+      ].join("\n"),
+      html: `
+        <div style="font-family:sans-serif;max-width:560px;margin:0 auto;background:#ffffff;border-radius:14px;overflow:hidden;border:1px solid #f3e0c2;">
+          <div style="background-color:#0f172a;padding:32px 48px;text-align:center;">
+            <img src="${logoUrl}" alt="CompraVentaOnline" width="220" style="display:block;margin:0 auto;max-width:220px;height:auto;" />
+          </div>
+
+          <div style="padding:32px;">
+            <h2 style="color:#d97706;margin-top:0;font-size:22px;">
+              Restablecé tu contraseña
+            </h2>
+            <p style="color:#374151;font-size:15px;line-height:1.6;">
+              Recibimos un pedido para restablecer la contraseña de tu cuenta.
+              Hacé clic en el botón para elegir una nueva:
+            </p>
+            <div style="margin:28px 0;text-align:center;">
+              <a
+                href="${resetUrl}"
+                style="background-color:#d97706;color:#ffffff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:700;display:inline-block;font-size:15px;letter-spacing:0.02em;"
+              >
+                Elegir nueva contraseña
+              </a>
+            </div>
+            <p style="color:#6B7280;font-size:12px;line-height:1.5;">
+              Si el botón no funciona, copiá este enlace en tu navegador:<br/>
+              <a href="${resetUrl}" style="color:#d97706;word-break:break-all;">${resetUrl}</a>
+            </p>
+          </div>
+
+          <div style="background:#fef6e7;padding:16px 32px;border-top:1px solid #f3e0c2;text-align:center;">
+            <p style="color:#9CA3AF;font-size:11px;margin:0;">
+              Si vos no pediste esto, ignorá este correo.<br/>© 2026 CompraVentaOnline · La Pampa
             </p>
           </div>
         </div>

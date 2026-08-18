@@ -1,39 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createServerClient } from '@/lib/supabase/server'
-import { createClient } from '@supabase/supabase-js'
+import { createAdminClient } from '@/lib/supabase/admin'
+import type { TablesInsert } from '@/lib/supabase/types'
+import ExcelJS from 'exceljs'
 
 // ============================================================
-// Admin client — uses service role key, bypasses RLS.
-// Never exposed to the browser.
-// ============================================================
-function createAdminClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!url || !serviceKey) {
-    throw new Error('Missing Supabase admin env vars')
-  }
-  return createClient(url, serviceKey, {
-    auth: { persistSession: false },
-  })
-}
-
-// ============================================================
-// CSV field contract
-// Each row must provide these columns (header names):
-//   title, description, price, category_id, currency_id,
-//   stock, image_url, status
-// Required: title, price, category_id
+// Excel field contract (matches the template downloaded from the
+// "Subida Masiva" tab in the seller dashboard)
+// Required: name, category_slug, price
+// Optional: brand, description, condition, stock, attributes, images
 // ============================================================
 
-interface CsvRow {
-  title: string
+interface ExcelRow {
+  name: string
+  brand?: string
   description?: string
+  category_slug: string
   price: string
-  category_id: string
-  currency_id?: string
+  condition?: string
   stock?: string
-  image_url?: string
-  status?: string
+  attributes?: string
+  images?: string
 }
 
 interface FailedRow {
@@ -41,88 +28,132 @@ interface FailedRow {
   reason: string
 }
 
-function parseCSV(text: string): CsvRow[] {
-  const lines = text.trim().split(/\r?\n/)
-  if (lines.length < 2) return []
+const EXPECTED_HEADERS = [
+  'name',
+  'brand',
+  'description',
+  'category_slug',
+  'price',
+  'condition',
+  'stock',
+  'attributes',
+  'images',
+]
 
-  const headers = lines[0].split(',').map((h) => h.trim().replace(/^"|"$/g, ''))
+async function parseExcel(buffer: ArrayBuffer): Promise<ExcelRow[]> {
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.load(buffer)
+  const sheet = workbook.worksheets[0]
+  if (!sheet) return []
 
-  return lines.slice(1).map((line) => {
-    // Basic CSV parse — handles quoted fields with embedded commas
-    const values: string[] = []
-    let current = ''
-    let inQuotes = false
-
-    for (let i = 0; i < line.length; i++) {
-      const char = line[i]
-      if (char === '"') {
-        inQuotes = !inQuotes
-      } else if (char === ',' && !inQuotes) {
-        values.push(current.trim())
-        current = ''
-      } else {
-        current += char
-      }
-    }
-    values.push(current.trim())
-
-    return Object.fromEntries(
-      headers.map((header, idx) => [header, values[idx] ?? ''])
-    ) as unknown as CsvRow
+  const headerRow = sheet.getRow(1)
+  const headers: string[] = []
+  headerRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+    headers[colNumber] = String(cell.value ?? '').trim()
   })
+
+  const rows: ExcelRow[] = []
+  sheet.eachRow((row, rowNumber) => {
+    if (rowNumber === 1) return // header
+    const values: Record<string, string> = {}
+    row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+      const header = headers[colNumber]
+      if (!header) return
+      values[header] = cell.value == null ? '' : String(cell.value).trim()
+    })
+    // Skip fully blank rows (e.g. trailing empty rows in the sheet)
+    if (Object.values(values).every((v) => !v)) return
+    rows.push(values as unknown as ExcelRow)
+  })
+
+  return rows
 }
 
+function parseAttributes(raw?: string): Record<string, string> | null {
+  if (!raw?.trim()) return null
+  const attrs: Record<string, string> = {}
+  for (const pair of raw.split(';')) {
+    const [key, value] = pair.split('=')
+    if (key?.trim() && value?.trim()) attrs[key.trim()] = value.trim()
+  }
+  return Object.keys(attrs).length > 0 ? attrs : null
+}
+
+function parseImages(raw?: string): string[] {
+  if (!raw?.trim()) return []
+  return raw
+    .split(';')
+    .map((url) => url.trim())
+    .filter(Boolean)
+}
+
+type NewProduct = TablesInsert<'products'>
+type NewListing = Omit<TablesInsert<'listings'>, 'product_id' | 'seller_id'>
+
 function validateRow(
-  row: CsvRow,
-  rowIndex: number
-): { valid: true; listing: Record<string, unknown> } | { valid: false; reason: string } {
-  if (!row.title?.trim()) {
-    return { valid: false, reason: 'Missing required field: title' }
+  row: ExcelRow,
+  categoryIdBySlug: Map<string, string>
+): { valid: true; product: NewProduct; listing: NewListing } | { valid: false; reason: string } {
+  if (!row.name?.trim()) {
+    return { valid: false, reason: 'Falta el campo obligatorio: name' }
   }
 
   const price = parseFloat(row.price)
   if (isNaN(price) || price < 0) {
-    return { valid: false, reason: `Invalid price: "${row.price}"` }
+    return { valid: false, reason: `Precio inválido: "${row.price}"` }
   }
 
-  if (!row.category_id?.trim()) {
-    return { valid: false, reason: 'Missing required field: category_id' }
+  const slug = row.category_slug?.trim()
+  if (!slug) {
+    return { valid: false, reason: 'Falta el campo obligatorio: category_slug' }
+  }
+  const categoryId = categoryIdBySlug.get(slug)
+  if (!categoryId) {
+    return { valid: false, reason: `category_slug desconocido: "${slug}"` }
   }
 
-  const validStatuses = ['ACTIVE', 'PAUSED', 'SOLD', 'DELETED']
-  const status = row.status?.trim()?.toUpperCase() || 'ACTIVE'
-  if (!validStatuses.includes(status)) {
-    return { valid: false, reason: `Invalid status: "${row.status}"` }
+  const condition = (row.condition?.trim() || 'NEW').toUpperCase()
+  if (condition !== 'NEW' && condition !== 'USED') {
+    return { valid: false, reason: `Condición inválida: "${row.condition}" (debe ser NEW o USED)` }
   }
 
-  const stock = row.stock ? parseInt(row.stock, 10) : 0
+  const stock = row.stock?.trim() ? parseInt(row.stock, 10) : 0
   if (isNaN(stock) || stock < 0) {
-    return { valid: false, reason: `Invalid stock: "${row.stock}"` }
+    return { valid: false, reason: `Stock inválido: "${row.stock}"` }
   }
+
+  const images = parseImages(row.images)
 
   return {
     valid: true,
-    listing: {
-      title: row.title.trim(),
+    product: {
+      name: row.name.trim(),
+      brand: row.brand?.trim() || null,
       description: row.description?.trim() || null,
+      category_id: categoryId,
+      images: images.length > 0 ? images : null,
+      attributes: parseAttributes(row.attributes),
+    },
+    listing: {
       price,
-      category_id: row.category_id.trim(),
-      currency_id: row.currency_id?.trim() || null,
+      condition,
       stock,
-      image_url: row.image_url?.trim() || null,
-      status,
+      featured_plan: 'FREE',
+      status: 'APPROVED',
+      image_url: images[0] ?? null,
     },
   }
 }
 
 // ============================================================
 // POST /api/listings/bulk
-// Accepts: multipart/form-data with a "file" field (CSV)
+// Accepts: multipart/form-data with a "file" field (.xlsx)
+// Creates a `products` row + a `listings` row per valid data row
+// (mirrors the individual "Publicar Artículo" flow).
 // Returns: { inserted: number, failed: Array<{row, reason}> }
 // Auth: seller session required
 // ============================================================
 export async function POST(req: NextRequest) {
-  // 1. Verify the caller is an authenticated seller
   const supabase = await createServerClient()
   const {
     data: { user },
@@ -133,7 +164,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  // 2. Look up seller record for this user
   const { data: sellerRow, error: sellerError } = await supabase
     .from('sellers')
     .select('id')
@@ -141,87 +171,77 @@ export async function POST(req: NextRequest) {
     .single()
 
   if (sellerError || !sellerRow) {
-    return NextResponse.json(
-      { error: 'Only sellers can use this endpoint' },
-      { status: 403 }
-    )
+    return NextResponse.json({ error: 'Only sellers can use this endpoint' }, { status: 403 })
   }
 
   const sellerId = sellerRow.id
 
-  // 3. Parse multipart form — expect a "file" field
-  let csvText: string
+  let rows: ExcelRow[]
   try {
     const formData = await req.formData()
     const file = formData.get('file')
 
     if (!file || typeof file === 'string') {
-      return NextResponse.json(
-        { error: 'Missing "file" field in form data' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Missing "file" field in form data' }, { status: 400 })
     }
 
-    csvText = await (file as File).text()
-  } catch {
+    const buffer = await (file as File).arrayBuffer()
+    rows = await parseExcel(buffer)
+  } catch (err) {
     return NextResponse.json(
-      { error: 'Could not parse multipart form data' },
+      { error: `No pudimos leer el archivo Excel: ${err instanceof Error ? err.message : 'formato inválido'}` },
       { status: 400 }
     )
   }
 
-  if (!csvText.trim()) {
-    return NextResponse.json({ error: 'CSV file is empty' }, { status: 400 })
-  }
-
-  // 4. Parse and validate CSV rows
-  const rows = parseCSV(csvText)
   if (rows.length === 0) {
     return NextResponse.json(
-      { error: 'CSV has no data rows (only header or blank)' },
+      { error: 'El archivo Excel no tiene filas de datos (solo encabezado o está vacío)' },
       { status: 400 }
     )
   }
 
-  const validListings: Record<string, unknown>[] = []
+  const admin = createAdminClient()
+
+  // Category slug -> id lookup (small table, fetched once)
+  const { data: categories } = await admin.from('categories').select('id, slug')
+  const categoryIdBySlug = new Map((categories ?? []).map((c) => [c.slug, c.id]))
+
   const failed: FailedRow[] = []
+  let inserted = 0
 
   for (let i = 0; i < rows.length; i++) {
-    const result = validateRow(rows[i], i + 2) // row 1 is header
-    if (result.valid) {
-      // Attach the authenticated seller_id — the CSV must not control this
-      validListings.push({ ...result.listing, seller_id: sellerId })
-    } else {
-      failed.push({ row: i + 2, reason: result.reason })
+    const rowNumber = i + 2 // row 1 is header
+    const result = validateRow(rows[i], categoryIdBySlug)
+    if (!result.valid) {
+      failed.push({ row: rowNumber, reason: result.reason })
+      continue
     }
+
+    const { data: productData, error: productError } = await admin
+      .from('products')
+      .insert(result.product)
+      .select('id')
+      .single()
+
+    if (productError || !productData) {
+      failed.push({ row: rowNumber, reason: productError?.message ?? 'No se pudo crear el producto' })
+      continue
+    }
+
+    const { error: listingError } = await admin.from('listings').insert({
+      ...result.listing,
+      product_id: productData.id,
+      seller_id: sellerId,
+    })
+
+    if (listingError) {
+      failed.push({ row: rowNumber, reason: listingError.message })
+      continue
+    }
+
+    inserted++
   }
 
-  // 5. Bulk insert valid rows via admin client (bypasses RLS)
-  let inserted = 0
-  if (validListings.length > 0) {
-    const admin = createAdminClient()
-
-    // Insert in batches of 500 to stay within PostgREST limits
-    const BATCH_SIZE = 500
-    for (let offset = 0; offset < validListings.length; offset += BATCH_SIZE) {
-      const batch = validListings.slice(offset, offset + BATCH_SIZE)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error: insertError, count } = await admin
-        .from('listings')
-        .insert(batch as any[])
-        .select('id')
-
-      if (insertError) {
-        // Mark the whole batch as failed — we can't pinpoint individual rows at this point
-        const batchStart = offset + 2 // +2: 1-indexed + header row
-        for (let j = 0; j < batch.length; j++) {
-          failed.push({ row: batchStart + j, reason: insertError.message })
-        }
-      } else {
-        inserted += count ?? batch.length
-      }
-    }
-  }
-
-  return NextResponse.json({ inserted, failed })
+  return NextResponse.json({ inserted, failed, expectedHeaders: EXPECTED_HEADERS })
 }

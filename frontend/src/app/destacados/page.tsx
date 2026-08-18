@@ -24,65 +24,7 @@ type HighlightRow = {
   } | null;
 };
 
-// Fallback mock listings (La Pampa themed)
-const mockHighlights = [
-  {
-    id: "h1",
-    plan: "PREMIUM",
-    listings: {
-      id: "l1",
-      price: 18500.0,
-      condition: "NEW",
-      featured_plan: "PREMIUM",
-      products: {
-        name: "Miel Orgánica Pura del Caldenal",
-        brand: "Pampeana Alta",
-        description: "Miel pura de abeja de flores silvestres cosechada en el caldenal pampeano. 100% natural, frasco de 1kg.",
-        images: ["https://images.unsplash.com/photo-1587049352846-4a222e784d38?q=80&w=600&auto=format&fit=crop"],
-        categories: { name: "Campo / Agro" },
-      },
-      sellers: { name: "Apicultura La Fusta", score: 98, tier: "PREMIUM" },
-    },
-  },
-  {
-    id: "h2",
-    plan: "PREMIUM",
-    listings: {
-      id: "l4",
-      price: 11000.0,
-      condition: "NEW",
-      featured_plan: "PREMIUM",
-      products: {
-        name: "Queso de Campo Saborizado con Hierbas",
-        brand: "Estancia El Caldén",
-        description: "Queso artesanal semi-duro saborizado con orégano y provenzal. Horma de 800g directamente de tambo pampeano.",
-        images: ["https://images.unsplash.com/photo-1486299267070-8382e214434b?q=80&w=600&auto=format&fit=crop"],
-        categories: { name: "Campo / Agro" },
-      },
-      sellers: { name: "Distribuidora Luro", score: 99, tier: "PREMIUM" },
-    },
-  },
-  {
-    id: "h3",
-    plan: "FEATURED",
-    listings: {
-      id: "l2",
-      price: 125000.0,
-      condition: "NEW",
-      featured_plan: "FEATURED",
-      products: {
-        name: "Taladro Percutor Bosch 500W",
-        brand: "Bosch",
-        description: "Taladro percutor Bosch GSB 13 RE Professional. Potente motor de 500 W, ideal para mampostería, madera y metal.",
-        images: ["https://images.unsplash.com/photo-1504148455328-c376907d081c?q=80&w=600&auto=format&fit=crop"],
-        categories: { name: "Construcción" },
-      },
-      sellers: { name: "Ferretería El Pampeano", score: 95, tier: "GOLD" },
-    },
-  },
-];
-
-async function getHighlightedListings(): Promise<typeof mockHighlights> {
+async function getHighlightedListings(): Promise<HighlightRow[]> {
   try {
     const supabase = await createClient();
     const now = new Date().toISOString();
@@ -114,18 +56,23 @@ async function getHighlightedListings(): Promise<typeof mockHighlights> {
       .gt("end_date", now)
       .order("plan", { ascending: true });
 
-    if (error || !data || data.length === 0) return mockHighlights;
+    if (error) {
+      console.error("[destacados] Error fetching highlights:", error.message);
+      return [];
+    }
+    if (!data) return [];
 
     // Sort: PREMIUM first, then FEATURED
-    const sorted = (data as unknown as typeof mockHighlights).sort((a, b) => {
+    const sorted = (data as unknown as HighlightRow[]).sort((a, b) => {
       if (a.plan === "PREMIUM" && b.plan !== "PREMIUM") return -1;
       if (a.plan !== "PREMIUM" && b.plan === "PREMIUM") return 1;
       return 0;
     });
 
     return sorted;
-  } catch {
-    return mockHighlights;
+  } catch (err) {
+    console.error("[destacados] Unexpected error fetching highlights:", err);
+    return [];
   }
 }
 
@@ -198,7 +145,7 @@ export default async function DestacadosPage() {
                   <img
                     src={image}
                     alt={product?.name ?? "Producto"}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500"
                   />
 
                   {/* Category Badge */}

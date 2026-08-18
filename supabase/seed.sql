@@ -18,12 +18,7 @@ INSERT INTO auth.users (
     '{"full_name": "Ferretería El Pampeano"}'::jsonb,
     'authenticated', 'authenticated'
   ),
-  (
-    'a0000000-0000-0000-0000-000000000002',
-    'apicultura@example.com', '', now(), now(), now(),
-    '{"full_name": "Apicultura La Fusta"}'::jsonb,
-    'authenticated', 'authenticated'
-  ),
+  
   (
     'a0000000-0000-0000-0000-000000000003',
     'motoventa@example.com', '', now(), now(), now(),
@@ -76,14 +71,7 @@ INSERT INTO products (id, name, brand, description, images, category_id) VALUES
     ARRAY['https://images.unsplash.com/photo-1587049352846-4a222e784d38?q=80&w=600&auto=format&fit=crop'],
     (SELECT id FROM categories WHERE slug = 'alimentos-y-bebidas')
   ),
-  (
-    'b0000000-0000-0000-0000-000000000004',
-    'Queso de Campo Saborizado con Hierbas',
-    'Estancia El Caldén',
-    'Queso artesanal semi-duro con orégano y provenzal. 400g.',
-    ARRAY['https://images.unsplash.com/photo-1486299267070-8382e214434b?q=80&w=600&auto=format&fit=crop'],
-    (SELECT id FROM categories WHERE slug = 'alimentos-y-bebidas')
-  ),
+  
   (
     'b0000000-0000-0000-0000-000000000005',
     'Honda Wave 110S',

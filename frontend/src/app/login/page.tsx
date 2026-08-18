@@ -6,6 +6,8 @@ import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/lib/supabase/types"
+import CustomDropdown from "@/components/CustomDropdown"
+import { LA_PAMPA_CITIES } from "@/lib/constants/laPampaCities"
 
 export default function LoginPage() {
   const router = useRouter()
@@ -25,6 +27,12 @@ export default function LoginPage() {
   const [showConfirmModal, setShowConfirmModal] = useState(false)
   const [registeredEmail, setRegisteredEmail] = useState("")
 
+  // Forgot password
+  const [showForgotModal, setShowForgotModal] = useState(false)
+  const [forgotEmail, setForgotEmail] = useState("")
+  const [forgotLoading, setForgotLoading] = useState(false)
+  const [forgotSent, setForgotSent] = useState(false)
+
   // Form fields
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -33,6 +41,7 @@ export default function LoginPage() {
   const [sellerType, setSellerType] = useState<"PERSONAL_SELLER" | "BUSINESS_SELLER">("PERSONAL_SELLER")
   const [documentNumber, setDocumentNumber] = useState("")
   const [phone, setPhone] = useState("")
+  const [location, setLocation] = useState("")
   const [acceptTerms, setAcceptTerms] = useState(false)
 
   // Redirect if already logged in
@@ -56,11 +65,11 @@ export default function LoginPage() {
         const { error } = await getSupabase().auth.signInWithPassword({ email, password })
 
         if (error) {
-          throw new Error(
-            error.message === "Invalid login credentials"
-              ? "Email o contraseña incorrectos."
-              : error.message
-          )
+          const knownErrors: Record<string, string> = {
+            "Invalid login credentials": "Email o contraseña incorrectos.",
+            "Email not confirmed": "Todavía no confirmaste tu email. Revisá tu casilla de correo.",
+          }
+          throw new Error(knownErrors[error.message] ?? error.message)
         }
 
         setSuccessMsg("¡Inicio de sesión exitoso! Redireccionando...")
@@ -88,6 +97,7 @@ export default function LoginPage() {
             sellerType,
             documentNumber,
             phone,
+            location,
           }),
         })
 
@@ -106,6 +116,27 @@ export default function LoginPage() {
       setErrorMsg(message)
       setLoading(false)
     }
+  }
+
+  const handleForgotSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setForgotLoading(true)
+    try {
+      await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: forgotEmail }),
+      })
+      setForgotSent(true)
+    } finally {
+      setForgotLoading(false)
+    }
+  }
+
+  const closeForgotModal = () => {
+    setShowForgotModal(false)
+    setForgotSent(false)
+    setForgotEmail("")
   }
 
   return (
@@ -134,6 +165,63 @@ export default function LoginPage() {
           >
             Entendido, volver al inicio de sesión
           </button>
+        </div>
+      </div>
+    )}
+    {showForgotModal && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
+        <div className="bg-card-bg border border-card-border rounded-3xl p-8 max-w-sm w-full shadow-2xl flex flex-col gap-5 relative">
+          <button
+            onClick={closeForgotModal}
+            className="absolute top-4 right-4 text-text-muted hover:text-foreground text-lg cursor-pointer"
+          >
+            ✕
+          </button>
+
+          {forgotSent ? (
+            <div className="text-center flex flex-col gap-3">
+              <span className="text-5xl">📬</span>
+              <h2 className="font-heading text-xl font-extrabold text-foreground">¡Listo!</h2>
+              <p className="text-sm text-text-muted leading-relaxed">
+                Si <span className="text-foreground font-bold">{forgotEmail}</span> está registrado, te
+                enviamos instrucciones para restablecer la contraseña. Revisá tu correo (y la carpeta de Spam).
+              </p>
+              <button
+                onClick={closeForgotModal}
+                className="w-full rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover py-3 text-xs font-extrabold text-background shadow-md hover:opacity-95 transition-all cursor-pointer mt-2"
+              >
+                Entendido
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className="text-center">
+                <span className="text-4xl">🔑</span>
+                <h2 className="font-heading text-xl font-extrabold text-foreground mt-3">¿Olvidaste tu contraseña?</h2>
+                <p className="text-sm text-text-muted mt-1">Te mandamos un enlace para elegir una nueva.</p>
+              </div>
+              <form onSubmit={handleForgotSubmit} className="flex flex-col gap-4">
+                <div className="flex flex-col gap-2">
+                  <label className="text-sm font-bold text-foreground">Correo Electrónico</label>
+                  <input
+                    type="email"
+                    required
+                    value={forgotEmail}
+                    onChange={(e) => setForgotEmail(e.target.value)}
+                    placeholder="nombre@correo.com"
+                    className="w-full bg-background border border-card-border rounded-xl px-4 py-3 text-sm text-foreground focus:outline-none focus:border-accent-gold"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={forgotLoading}
+                  className="w-full rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover py-3 text-xs font-extrabold text-background shadow-md hover:opacity-95 transition-all cursor-pointer disabled:opacity-50"
+                >
+                  {forgotLoading ? "Enviando..." : "Enviar enlace"}
+                </button>
+              </form>
+            </>
+          )}
         </div>
       </div>
     )}
@@ -223,6 +311,15 @@ export default function LoginPage() {
                 )}
               </button>
             </div>
+            {isLogin && (
+              <button
+                type="button"
+                onClick={() => { setForgotEmail(email); setShowForgotModal(true) }}
+                className="self-end text-[11px] font-bold text-accent-gold hover:underline cursor-pointer"
+              >
+                ¿Olvidaste tu contraseña?
+              </button>
+            )}
           </div>
 
           {/* Seller Setup (Registration only) */}
@@ -281,6 +378,20 @@ export default function LoginPage() {
                 </p>
               </div>
 
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-bold text-foreground">Ciudad</label>
+                <CustomDropdown
+                  name="location"
+                  defaultValue={location}
+                  showSearch
+                  onChange={(value) => setLocation(value)}
+                  options={[
+                    { name: "Seleccioná tu ciudad", value: "" },
+                    ...LA_PAMPA_CITIES.map((city) => ({ name: city, value: city })),
+                  ]}
+                />
+              </div>
+
               <div className="flex items-start gap-2.5 mt-2">
                 <input
                   type="checkbox"
@@ -315,7 +426,7 @@ export default function LoginPage() {
               ¿No tenés una cuenta?{" "}
               <button
                 type="button"
-                onClick={() => setIsLogin(false)}
+                onClick={() => { setIsLogin(false); setErrorMsg(""); setSuccessMsg(""); }}
                 className="text-accent-gold font-bold hover:underline cursor-pointer"
               >
                 Registrate como vendedor
@@ -326,7 +437,7 @@ export default function LoginPage() {
               ¿Ya estás registrado?{" "}
               <button
                 type="button"
-                onClick={() => setIsLogin(true)}
+                onClick={() => { setIsLogin(true); setErrorMsg(""); setSuccessMsg(""); }}
                 className="text-accent-gold font-bold hover:underline cursor-pointer"
               >
                 Ingresá con tu cuenta

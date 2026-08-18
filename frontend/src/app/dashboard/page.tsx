@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import CustomDropdown from "@/components/CustomDropdown";
 import ConfirmModal from "@/components/ConfirmModal";
+import Toast from "@/components/Toast";
+import { LA_PAMPA_CITIES } from "@/lib/constants/laPampaCities";
 import { createClient } from "@/lib/supabase/client";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -53,12 +55,17 @@ interface SellerProfile {
   tier: string;
   plan: string;
   user_id: string;
+  phone: string | null;
+  location: string | null;
+  document_number: string | null;
+  bio: string | null;
 }
 
 interface BackendCategory {
   id: string;
   name: string;
   slug: string;
+  parentId?: string | null;
   attributesSchema?: any;
 }
 
@@ -76,6 +83,7 @@ export default function DashboardPage() {
 
   // Auth state
   const [userId, setUserId] = useState<string | null>(null);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
   const [pageLoading, setPageLoading] = useState(true);
 
@@ -83,7 +91,7 @@ export default function DashboardPage() {
   const [sellerProfile, setSellerProfile] = useState<SellerProfile | null>(null);
   const [myListings, setMyListings] = useState<Listing[]>([]);
   const [categories, setCategories] = useState<BackendCategory[]>([]);
-  const [activeTab, setActiveTab] = useState<"summary" | "publish" | "inventory" | "rewards">("summary");
+  const [activeTab, setActiveTab] = useState<"summary" | "publish" | "inventory" | "rewards" | "profile">("summary");
   const [rewards, setRewards] = useState<any[]>([]);
   const [selectedRewardToClaim, setSelectedRewardToClaim] = useState<any | null>(null);
   const [selectedListingForReward, setSelectedListingForReward] = useState<string>("");
@@ -94,12 +102,23 @@ export default function DashboardPage() {
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState("");
   const [condition, setCondition] = useState("NEW");
-  const [stock, setStock] = useState("5");
+  const [stock, setStock] = useState("1");
   const [categoryId, setCategoryId] = useState("");
   const [featuredPlan, setFeaturedPlan] = useState("FREE");
   const [loading, setLoading] = useState(false);
   const [successMsg, setSuccessMsg] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
+
+  // Mis Datos (edición de perfil)
+  const [profileName, setProfileName] = useState("");
+  const [profileType, setProfileType] = useState<"PERSONAL_SELLER" | "BUSINESS_SELLER">("PERSONAL_SELLER");
+  const [profilePhone, setProfilePhone] = useState("");
+  const [profileLocation, setProfileLocation] = useState("");
+  const [profileDocumentNumber, setProfileDocumentNumber] = useState("");
+  const [profileBio, setProfileBio] = useState("");
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileSuccessMsg, setProfileSuccessMsg] = useState("");
+  const [profileErrorMsg, setProfileErrorMsg] = useState("");
 
   // Estados para edición de publicación
   const [selectedListingToEdit, setSelectedListingToEdit] = useState<Listing | null>(null);
@@ -123,6 +142,7 @@ export default function DashboardPage() {
 
   // Estados para subida de fotos de producto
   const [productImages, setProductImages] = useState<string[]>([]);
+  const [isUploadingImages, setIsUploadingImages] = useState(false);
   const [selectedImages, setSelectedImages] = useState<string[]>([]);
   const [activeCarouselIndex, setActiveCarouselIndex] = useState<number | null>(null);
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
@@ -152,6 +172,7 @@ export default function DashboardPage() {
         return;
       }
       setUserId(session.user.id);
+      setUserEmail(session.user.email ?? null);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -160,12 +181,13 @@ export default function DashboardPage() {
         return;
       }
       setUserId(session.user.id);
+      setUserEmail(session.user.email ?? null);
     });
 
     // Parse URL query parameter for active tab
     const params = new URLSearchParams(window.location.search);
     const tab = params.get("tab");
-    if (tab === "publish" || tab === "inventory" || tab === "rewards" || tab === "summary") {
+    if (tab === "publish" || tab === "inventory" || tab === "rewards" || tab === "summary" || tab === "profile") {
       setActiveTab(tab as any);
     }
 
@@ -187,7 +209,7 @@ export default function DashboardPage() {
         // 1. Fetch seller profile for this auth user
         const { data: profileData, error: profileError } = await supabase
           .from("sellers")
-          .select("id, name, type, score, tier, user_id")
+          .select("id, name, type, score, tier, user_id, phone, location, document_number, bio")
           .eq("user_id", userId!)
           .single();
 
@@ -195,12 +217,19 @@ export default function DashboardPage() {
           throw new Error("No pudimos encontrar tu perfil de vendedor.");
         }
 
-        setSellerProfile(profileData as SellerProfile);
+        const profile = profileData as SellerProfile;
+        setSellerProfile(profile);
+        setProfileName(profile.name ?? "");
+        setProfileType(profile.type === "BUSINESS_SELLER" ? "BUSINESS_SELLER" : "PERSONAL_SELLER");
+        setProfilePhone(profile.phone ?? "");
+        setProfileLocation(profile.location ?? "");
+        setProfileDocumentNumber(profile.document_number ?? "");
+        setProfileBio(profile.bio ?? "");
 
-        // 2. Fetch Categories (flat list)
+        // 2. Fetch Categories (flat list, subcategories carry parentId)
         const { data: catData } = await supabase
           .from("categories")
-          .select("id, name, slug")
+          .select("id, name, slug, parent_id")
           .order("name", { ascending: true });
 
         if (catData && catData.length > 0) {
@@ -208,9 +237,11 @@ export default function DashboardPage() {
             id: c.id,
             name: c.name,
             slug: c.slug,
+            parentId: c.parent_id,
           }));
           setCategories(flatCategories);
-          setCategoryId(flatCategories[0].id);
+          const firstRoot = flatCategories.find((c) => !c.parentId) ?? flatCategories[0];
+          setCategoryId(firstRoot.id);
         }
 
         // 3. Fetch this seller's listings
@@ -257,20 +288,60 @@ export default function DashboardPage() {
     loadDashboardData();
   }, [userId]);
 
-  const downloadCsvTemplate = () => {
-    const headers = "name,brand,description,category_slug,price,condition,stock,attributes,images\n";
-    const example1 = 'iPhone 13,Apple,Excelente celular usado impecable,celulares,750000,USED,2,"brand=Apple;ram=4GB;storage=128GB",https://images.unsplash.com/photo-1510557880182-3d4d3cba35a5\n';
-    const example2 = 'Mesa de Madera Rústica,Muebles Pampeanos,Mesa de comedor de caldén macizo,muebles,350000,NEW,5,,https://images.unsplash.com/photo-1577140917170-285929fb55b7\n';
-    
-    const blob = new Blob([headers + example1 + example2], { type: "text/csv;charset=utf-8;" });
+  const downloadExcelTemplate = async () => {
+    const ExcelJS = (await import("exceljs")).default;
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet("Publicaciones");
+
+    sheet.columns = [
+      { header: "name", key: "name", width: 32 },
+      { header: "brand", key: "brand", width: 20 },
+      { header: "description", key: "description", width: 45 },
+      { header: "category_slug", key: "category_slug", width: 20 },
+      { header: "price", key: "price", width: 12 },
+      { header: "condition", key: "condition", width: 12 },
+      { header: "stock", key: "stock", width: 10 },
+      { header: "attributes", key: "attributes", width: 30 },
+      { header: "images", key: "images", width: 45 },
+    ];
+    sheet.getRow(1).font = { bold: true };
+
+    sheet.addRow({
+      name: "iPhone 13",
+      brand: "Apple",
+      description: "Excelente celular usado impecable",
+      category_slug: "electronica",
+      price: 750000,
+      condition: "USED",
+      stock: 2,
+      attributes: "ram=4GB;storage=128GB",
+      images: "https://images.unsplash.com/photo-1510557880182-3d4d3cba35a5",
+    });
+    sheet.addRow({
+      name: "Mesa de Madera Rústica",
+      brand: "Muebles Pampeanos",
+      description: "Mesa de comedor de caldén macizo",
+      category_slug: "hogar-y-jardin",
+      price: 350000,
+      condition: "NEW",
+      stock: 5,
+      attributes: "",
+      images: "https://images.unsplash.com/photo-1577140917170-285929fb55b7",
+    });
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", "plantilla_publicaciones_masivas.csv");
+    link.setAttribute("download", "plantilla_publicaciones_masivas.xlsx");
     link.style.visibility = "hidden";
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   const handleCsvFileSelect = (file: File) => {
@@ -291,7 +362,7 @@ export default function DashboardPage() {
     formData.append("file", csvFile);
 
     try {
-      // Route Handler handles CSV bulk upload with service_role key server-side
+      // Route Handler handles Excel bulk upload with service_role key server-side
       const res = await fetch("/api/listings/bulk", {
         method: "POST",
         body: formData,
@@ -299,17 +370,27 @@ export default function DashboardPage() {
 
       const data = await res.json();
       if (!res.ok) {
-        if (data.errors && Array.isArray(data.errors)) {
-          setBulkErrors(data.errors);
-          throw new Error("El archivo CSV contiene errores de validación. Revisá el listado abajo.");
-        } else {
-          throw new Error(data.message || "Error al subir el archivo masivo.");
-        }
+        throw new Error(data.error || "Error al subir el archivo masivo.");
       }
 
-      setSuccessMsg(`¡Subida masiva exitosa! Se crearon con éxito ${data.inserted} publicaciones.`);
-      setCsvFile(null);
+      const failedRows: { row: number; reason: string }[] = data.failed ?? [];
+      if (failedRows.length > 0) {
+        setBulkErrors(failedRows.map((f) => `Fila ${f.row}: ${f.reason}`));
+      }
+
+      if (data.inserted > 0) {
+        setSuccessMsg(
+          failedRows.length > 0
+            ? `Se crearon ${data.inserted} publicaciones. ${failedRows.length} filas tuvieron errores (ver detalle abajo).`
+            : `¡Subida masiva exitosa! Se crearon con éxito ${data.inserted} publicaciones.`
+        );
+        setCsvFile(null);
+      } else {
+        throw new Error("Ninguna fila pudo publicarse. Revisá los errores de validación abajo.");
+      }
       await refreshListings();
+    } catch (err: any) {
+      setErrorMsg(err.message || "Error al subir el archivo masivo.");
     } finally {
       setLoading(false);
     }
@@ -327,37 +408,42 @@ export default function DashboardPage() {
     // Use a temporary listing ID placeholder during creation; will be replaced on publish
     const tempListingId = selectedListingToEdit?.id ?? `tmp-${Date.now()}`;
 
-    const uploadedUrls: string[] = [];
+    setIsUploadingImages(true);
+    try {
+      const uploadedUrls: string[] = [];
 
-    for (const file of fileArray) {
-      const ext = file.name.split(".").pop() ?? "jpg";
-      const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-      const path = `${sellerId}/${tempListingId}/${filename}`;
+      for (const file of fileArray) {
+        const ext = file.name.split(".").pop() ?? "jpg";
+        const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+        const path = `${sellerId}/${tempListingId}/${filename}`;
 
-      const { error } = await supabase.storage
-        .from("listings")
-        .upload(path, file, { upsert: false });
-
-      if (!error) {
-        const { data: urlData } = supabase.storage
+        const { error } = await supabase.storage
           .from("listings")
-          .getPublicUrl(path);
+          .upload(path, file, { upsert: false });
 
-        if (urlData?.publicUrl) {
-          uploadedUrls.push(urlData.publicUrl);
+        if (!error) {
+          const { data: urlData } = supabase.storage
+            .from("listings")
+            .getPublicUrl(path);
+
+          if (urlData?.publicUrl) {
+            uploadedUrls.push(urlData.publicUrl);
+          }
+        } else {
+          // Fallback: read as base64 for preview when storage is not yet configured
+          const base64 = await new Promise<string>((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.readAsDataURL(file);
+          });
+          uploadedUrls.push(base64);
         }
-      } else {
-        // Fallback: read as base64 for preview when storage is not yet configured
-        const base64 = await new Promise<string>((resolve) => {
-          const reader = new FileReader();
-          reader.onloadend = () => resolve(reader.result as string);
-          reader.readAsDataURL(file);
-        });
-        uploadedUrls.push(base64);
       }
-    }
 
-    setProductImages((prev) => [...prev, ...uploadedUrls]);
+      setProductImages((prev) => [...prev, ...uploadedUrls]);
+    } finally {
+      setIsUploadingImages(false);
+    }
   };
 
   // Drag and Drop (reordenamiento nativo)
@@ -474,7 +560,7 @@ export default function DashboardPage() {
               name: productName,
               brand,
               description,
-              category_id: categoryId,
+              category_id: categoryId || null,
               images: imageList,
               attributes: productAttributes,
             })
@@ -490,7 +576,7 @@ export default function DashboardPage() {
             stock: parseInt(stock),
             condition,
             featured_plan: featuredPlan,
-            currency_id: currencyId,
+            currency_id: currencyId || null,
             image_url: imageList[0] ?? null,
             status,
           })
@@ -506,7 +592,7 @@ export default function DashboardPage() {
         setBrand("");
         setDescription("");
         setPrice("");
-        setStock("5");
+        setStock("1");
         setProductImages([]);
         setSelectedImages([]);
         setCategoryId(categories.length > 0 ? categories[0].id : "");
@@ -525,7 +611,7 @@ export default function DashboardPage() {
             name: productName,
             brand,
             description,
-            category_id: categoryId,
+            category_id: categoryId || null,
             images: imageList,
             attributes: productAttributes,
           })
@@ -546,7 +632,7 @@ export default function DashboardPage() {
             condition,
             stock: parseInt(stock),
             featured_plan: featuredPlan,
-            currency_id: currencyId,
+            currency_id: currencyId || null,
             image_url: imageList[0] ?? null,
             status: "APPROVED",
           })
@@ -566,7 +652,7 @@ export default function DashboardPage() {
         setBrand("");
         setDescription("");
         setPrice("");
-        setStock("5");
+        setStock("1");
         setProductImages([]);
         setSelectedImages([]);
         setCategoryId(categories.length > 0 ? categories[0].id : "");
@@ -661,6 +747,46 @@ export default function DashboardPage() {
     }
   };
 
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!sellerProfile) return;
+    setProfileSaving(true);
+    setProfileSuccessMsg("");
+    setProfileErrorMsg("");
+
+    const supabase = getSupabase();
+    try {
+      const { error } = await supabase
+        .from("sellers")
+        .update({
+          name: profileName,
+          type: profileType,
+          phone: profilePhone,
+          location: profileLocation || null,
+          document_number: profileDocumentNumber || null,
+          bio: profileBio || null,
+        })
+        .eq("id", sellerProfile.id);
+
+      if (error) throw new Error(error.message);
+
+      setSellerProfile({
+        ...sellerProfile,
+        name: profileName,
+        type: profileType,
+        phone: profilePhone,
+        location: profileLocation || null,
+        document_number: profileDocumentNumber || null,
+        bio: profileBio || null,
+      });
+      setProfileSuccessMsg("¡Datos actualizados con éxito!");
+    } catch (err: any) {
+      setProfileErrorMsg(err.message || "No se pudieron guardar los cambios.");
+    } finally {
+      setProfileSaving(false);
+    }
+  };
+
   const handleDeleteListing = async (id: string) => {
     if (!sellerProfile) return;
     setLoading(true);
@@ -723,10 +849,10 @@ export default function DashboardPage() {
     setCurrencyId(listing.currency_id ?? "");
     setStatus(listing.status);
 
-    // Set images (prefer image_url, then product images array)
-    const images = listing.image_url
-      ? [listing.image_url]
-      : (product?.images ?? []);
+    // Set images (prefer the full product images array; image_url is just the cover shot)
+    const images = product?.images && product.images.length > 0
+      ? product.images
+      : (listing.image_url ? [listing.image_url] : []);
     setProductImages(images);
     setSelectedImages([]);
 
@@ -829,6 +955,12 @@ export default function DashboardPage() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-10 w-full relative">
+      <div className="fixed top-32 right-6 z-[100] flex flex-col gap-3 max-w-sm pointer-events-none">
+        {errorMsg && <Toast type="error" message={errorMsg} onClose={() => setErrorMsg("")} />}
+        {successMsg && <Toast type="success" message={successMsg} onClose={() => setSuccessMsg("")} />}
+        {profileErrorMsg && <Toast type="error" message={profileErrorMsg} onClose={() => setProfileErrorMsg("")} />}
+        {profileSuccessMsg && <Toast type="success" message={profileSuccessMsg} onClose={() => setProfileSuccessMsg("")} />}
+      </div>
       {statusUpdating && (
         <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
           <div className="flex flex-col items-center gap-3 bg-card-bg border border-card-border p-6 rounded-2xl shadow-2xl animate-in zoom-in-95 duration-200">
@@ -868,7 +1000,7 @@ export default function DashboardPage() {
                   setBrand("");
                   setDescription("");
                   setPrice("");
-                  setStock("5");
+                  setStock("1");
                   setProductImages([]);
                   setSelectedImages([]);
                   setCategoryId(categories.length > 0 ? categories[0].id : "");
@@ -894,7 +1026,7 @@ export default function DashboardPage() {
                   setBrand("");
                   setDescription("");
                   setPrice("");
-                  setStock("5");
+                  setStock("1");
                   setProductImages([]);
                   setSelectedImages([]);
                   setCategoryId(categories.length > 0 ? categories[0].id : "");
@@ -910,7 +1042,7 @@ export default function DashboardPage() {
                 activeTab === "inventory" ? "bg-accent-blue text-background shadow-md" : "text-foreground/80 hover:text-accent-blue"
               }`}
             >
-              Inventario ({myListings.length})
+              Mis Publicaciones ({myListings.length})
             </button>
             <button 
               onClick={() => {
@@ -920,7 +1052,7 @@ export default function DashboardPage() {
                   setBrand("");
                   setDescription("");
                   setPrice("");
-                  setStock("5");
+                  setStock("1");
                   setProductImages([]);
                   setSelectedImages([]);
                   setCategoryId(categories.length > 0 ? categories[0].id : "");
@@ -938,15 +1070,21 @@ export default function DashboardPage() {
             >
               Mis Premios ({rewards.filter(r => !r.claimed).length})
             </button>
+            <button
+              onClick={() => {
+                setActiveTab("profile");
+                setProfileSuccessMsg("");
+                setProfileErrorMsg("");
+              }}
+              className={`px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                activeTab === "profile" ? "bg-accent-blue text-background shadow-md" : "text-foreground/80 hover:text-accent-blue"
+              }`}
+            >
+              Mis Datos
+            </button>
           </div>
         </div>
       </div>
-
-      {errorMsg && (
-        <div className="bg-red-500/10 border border-red-500/20 text-red-500 rounded-xl p-3 text-xs font-semibold mb-6">
-          ⚠️ {errorMsg}
-        </div>
-      )}
 
       <div className="grid grid-cols-1 gap-8">
         
@@ -1041,14 +1179,8 @@ export default function DashboardPage() {
                     publishMode === "bulk" ? "border-accent-gold text-foreground font-extrabold" : "border-transparent text-text-muted hover:text-foreground"
                   }`}
                 >
-                  Subida Masiva (CSV)
+                  Subida Masiva (Excel)
                 </button>
-              </div>
-            )}
-
-            {successMsg && (
-              <div className="bg-accent-green/10 border border-accent-green/30 rounded-xl p-4 text-xs font-medium text-accent-green mb-6">
-                {successMsg}
               </div>
             )}
 
@@ -1065,7 +1197,14 @@ export default function DashboardPage() {
                       setCategoryId(val);
                       setDynamicAttributes({});
                     }}
-                    options={categories.map((cat) => ({ name: cat.name, value: cat.id }))}
+                    options={categories
+                      .filter((cat) => !cat.parentId)
+                      .flatMap((root) => [
+                        { name: root.name, value: root.id },
+                        ...categories
+                          .filter((cat) => cat.parentId === root.id)
+                          .map((sub) => ({ name: sub.name, value: sub.id, groupLabel: root.name })),
+                      ])}
                     showSearch={true}
                     placeholder="Buscar categoría..."
                   />
@@ -1303,15 +1442,25 @@ export default function DashboardPage() {
                       }
                     }}
                   >
-                    <span className="text-3xl animate-bounce duration-1000">📸</span>
-                    <div>
-                      <p className="text-xs font-bold text-foreground">Arrastrá tus imágenes aquí o hacé clic para buscar</p>
-                      <p className="text-[10px] text-text-muted mt-1">Podés subir múltiples archivos (.png, .jpg, .webp). La primera foto será la portada.</p>
-                    </div>
+                    {isUploadingImages ? (
+                      <>
+                        <div className="h-8 w-8 animate-spin rounded-full border-2 border-accent-gold border-t-transparent"></div>
+                        <p className="text-xs font-bold text-foreground">Subiendo imágenes, esperá un momento...</p>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-3xl animate-bounce duration-1000">📸</span>
+                        <div>
+                          <p className="text-xs font-bold text-foreground">Arrastrá tus imágenes aquí o hacé clic para buscar</p>
+                          <p className="text-[10px] text-text-muted mt-1">Podés subir múltiples archivos (.png, .jpg, .webp). La primera foto será la portada.</p>
+                        </div>
+                      </>
+                    )}
                     <input
                       type="file"
                       accept="image/*"
                       multiple
+                      disabled={isUploadingImages}
                       onChange={(e) => {
                         if (e.target.files && e.target.files.length > 0) {
                           handleImageFiles(e.target.files);
@@ -1382,7 +1531,7 @@ export default function DashboardPage() {
                               <img 
                                 src={img} 
                                 alt={`Producto ${index + 1}`} 
-                                className="w-full h-full object-cover pointer-events-none"
+                                className="w-full h-full object-contain pointer-events-none"
                                 onClick={() => setActiveCarouselIndex(index)}
                               />
 
@@ -1434,7 +1583,7 @@ export default function DashboardPage() {
                         setBrand("");
                         setDescription("");
                         setPrice("");
-                        setStock("5");
+                        setStock("1");
                         setProductImages([]);
                         setSelectedImages([]);
                         setCategoryId(categories.length > 0 ? categories[0].id : "");
@@ -1448,14 +1597,16 @@ export default function DashboardPage() {
                       Cancelar Edición
                     </button>
                   )}
-                  <button 
-                    type="submit" 
-                    disabled={loading}
+                  <button
+                    type="submit"
+                    disabled={loading || isUploadingImages}
                     className="flex-1 rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover py-4 text-xs font-extrabold text-background shadow-md hover:opacity-95 transition-all disabled:opacity-50 cursor-pointer"
                   >
-                    {loading 
-                      ? (selectedListingToEdit ? "Guardando Cambios..." : "Publicando en el Catálogo...") 
-                      : (selectedListingToEdit ? "Guardar Cambios" : "Confirmar Publicación")}
+                    {isUploadingImages
+                      ? "Subiendo imágenes..."
+                      : loading
+                        ? (selectedListingToEdit ? "Guardando Cambios..." : "Publicando en el Catálogo...")
+                        : (selectedListingToEdit ? "Guardar Cambios" : "Confirmar Publicación")}
                   </button>
                 </div>
 
@@ -1464,19 +1615,19 @@ export default function DashboardPage() {
               <div className="flex flex-col gap-6">
                 <div className="bg-card-bg border border-card-border p-4 rounded-xl text-xs text-text-muted flex flex-col gap-2">
                   <h4 className="font-bold text-foreground">Instrucciones de Subida Masiva:</h4>
-                  <p>1. Descargá nuestra plantilla CSV e ingresá los detalles de tus productos.</p>
+                  <p>1. Descargá nuestra plantilla Excel e ingresá los detalles de tus productos.</p>
                   <p>2. Columnas requeridas: <strong>name, brand, description, category_slug, price, condition, stock</strong>.</p>
                   <p>3. Columnas opcionales:
                     <br />• <strong>attributes</strong>: Atributos específicos separados por punto y coma en formato <code>clave=valor;clave=valor</code> (ej: <code>brand=Apple;ram=8GB;storage=256GB</code>).
                     <br />• <strong>images</strong>: URLs de imágenes separadas por punto y coma (ej: <code>url1;url2</code>).
                   </p>
                   <p>4. Subí el archivo. Validaremos el formato antes de crear las publicaciones para evitar errores parciales.</p>
-                  
+
                   <button
-                    onClick={downloadCsvTemplate}
+                    onClick={downloadExcelTemplate}
                     className="self-start mt-2 inline-flex items-center gap-1.5 rounded-lg border border-accent-gold/30 hover:border-accent-gold text-accent-gold px-3 py-2 text-[11px] font-bold transition-all cursor-pointer bg-accent-gold/5"
                   >
-                    📥 Descargar Plantilla CSV de Ejemplo
+                    📥 Descargar Plantilla Excel de Ejemplo
                   </button>
                 </div>
 
@@ -1496,12 +1647,12 @@ export default function DashboardPage() {
                 >
                   <span className="text-3xl">📄</span>
                   <div>
-                    <p className="text-xs font-bold text-foreground">Arrastrá tu archivo CSV aquí o hacé clic para buscar</p>
-                    <p className="text-[10px] text-text-muted mt-1">Solo archivos .csv de hasta 5MB</p>
+                    <p className="text-xs font-bold text-foreground">Arrastrá tu archivo Excel aquí o hacé clic para buscar</p>
+                    <p className="text-[10px] text-text-muted mt-1">Solo archivos .xlsx de hasta 5MB</p>
                   </div>
                   <input
                     type="file"
-                    accept=".csv"
+                    accept=".xlsx"
                     onChange={(e) => {
                       if (e.target.files && e.target.files[0]) {
                         handleCsvFileSelect(e.target.files[0]);
@@ -1644,7 +1795,8 @@ export default function DashboardPage() {
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
                     <tr className="border-b border-card-border text-text-muted font-bold select-none">
-                      <th 
+                      <th className="pb-3 pr-4">Foto</th>
+                      <th
                         onClick={() => handleSort("name")}
                         className="pb-3 pr-4 cursor-pointer hover:text-accent-gold transition-colors"
                       >
@@ -1686,13 +1838,25 @@ export default function DashboardPage() {
                   <tbody className="divide-y divide-card-border/30">
                     {filteredAndSortedListings.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="py-8 text-center text-text-muted">
+                        <td colSpan={8} className="py-8 text-center text-text-muted">
                           No se encontraron artículos
                         </td>
                       </tr>
                     ) : (
-                      paginatedListings.map((listing, index) => (
+                      paginatedListings.map((listing, index) => {
+                        const thumbnail = listing.image_url ?? listing.products?.images?.[0] ?? null;
+                        return (
                         <tr key={listing.id} className="hover:bg-card-bg/30 transition-colors">
+                          <td className="py-4 pr-4">
+                            <Link href={`/listings/${listing.id}`} className="block h-12 w-12 rounded-lg overflow-hidden border border-card-border bg-card-bg shrink-0">
+                              {thumbnail ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={thumbnail} alt={listing.products?.name ?? "Producto"} className="h-full w-full object-contain" />
+                              ) : (
+                                <span className="h-full w-full flex items-center justify-center text-text-muted text-lg">📦</span>
+                              )}
+                            </Link>
+                          </td>
                           <td className="py-4 pr-4 font-bold text-foreground">
                             <Link href={`/listings/${listing.id}`} className="hover:text-accent-gold transition-colors">
                               {listing.products?.name ?? "Sin nombre"}
@@ -1843,7 +2007,8 @@ export default function DashboardPage() {
                             </div>
                           </td>
                         </tr>
-                      ))
+                        );
+                      })
                     )}
                   </tbody>
                 </table>
@@ -2123,6 +2288,121 @@ export default function DashboardPage() {
               </div>
             )}
 
+          </div>
+        )}
+
+        {activeTab === "profile" && (
+          <div className="max-w-2xl mx-auto w-full rounded-2xl glass-panel p-8">
+            <h2 className="font-heading text-lg font-bold text-foreground mb-1">Mis Datos</h2>
+            <p className="text-xs text-text-muted mb-6">Actualizá los datos de tu perfil de vendedor.</p>
+
+
+            <form onSubmit={handleSaveProfile} className="flex flex-col gap-5">
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-bold text-foreground">Correo Electrónico</label>
+                <input
+                  type="email"
+                  value={userEmail ?? ""}
+                  disabled
+                  readOnly
+                  className="w-full bg-card-border/20 border border-card-border rounded-xl px-4 py-3 text-xs text-text-muted cursor-not-allowed"
+                />
+                <p className="text-[10px] text-text-muted">El correo no se puede modificar desde acá.</p>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-bold text-foreground">Nombre Completo / Razón Social</label>
+                <input
+                  type="text"
+                  required
+                  value={profileName}
+                  onChange={(e) => setProfileName(e.target.value)}
+                  className="w-full bg-background border border-card-border rounded-xl px-4 py-3 text-xs text-foreground focus:outline-none focus:border-accent-gold"
+                />
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-bold text-foreground">Tipo de Vendedor / Cuenta</label>
+                <div className="grid grid-cols-2 gap-3 bg-background border border-card-border p-1 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => setProfileType("PERSONAL_SELLER")}
+                    className={`py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      profileType === "PERSONAL_SELLER" ? "bg-accent-blue text-background shadow-md" : "text-text-muted hover:text-foreground"
+                    }`}
+                  >
+                    Particular
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setProfileType("BUSINESS_SELLER")}
+                    className={`py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      profileType === "BUSINESS_SELLER" ? "bg-accent-blue text-background shadow-md" : "text-text-muted hover:text-foreground"
+                    }`}
+                  >
+                    Comercio
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-bold text-foreground">Celular</label>
+                <input
+                  type="tel"
+                  required
+                  value={profilePhone}
+                  onChange={(e) => setProfilePhone(e.target.value)}
+                  placeholder="Ej. 2954123456"
+                  className="w-full bg-background border border-card-border rounded-xl px-4 py-3 text-xs text-foreground focus:outline-none focus:border-accent-gold"
+                />
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-bold text-foreground">
+                  {profileType === "PERSONAL_SELLER" ? "DNI / CUIL" : "CUIT"}
+                </label>
+                <input
+                  type="text"
+                  value={profileDocumentNumber}
+                  onChange={(e) => setProfileDocumentNumber(e.target.value)}
+                  placeholder={profileType === "PERSONAL_SELLER" ? "Ej. 20-35444333-8" : "Ej. 30-71112223-9"}
+                  className="w-full bg-background border border-card-border rounded-xl px-4 py-3 text-xs text-foreground focus:outline-none focus:border-accent-gold"
+                />
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-bold text-foreground">Ciudad</label>
+                <CustomDropdown
+                  name="location"
+                  defaultValue={profileLocation}
+                  showSearch
+                  onChange={(value) => setProfileLocation(value)}
+                  options={[
+                    { name: "Seleccioná tu ciudad", value: "" },
+                    ...LA_PAMPA_CITIES.map((city) => ({ name: city, value: city })),
+                  ]}
+                />
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-bold text-foreground">Bio / Descripción</label>
+                <textarea
+                  rows={3}
+                  value={profileBio}
+                  onChange={(e) => setProfileBio(e.target.value)}
+                  placeholder="Contales a los compradores algo sobre vos o tu comercio..."
+                  className="w-full bg-background border border-card-border rounded-xl px-4 py-3 text-xs text-foreground focus:outline-none focus:border-accent-gold resize-none"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={profileSaving}
+                className="rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover py-4 text-xs font-extrabold text-background shadow-md hover:opacity-95 transition-all mt-2 disabled:opacity-50 cursor-pointer"
+              >
+                {profileSaving ? "Guardando..." : "Guardar Cambios"}
+              </button>
+            </form>
           </div>
         )}
 

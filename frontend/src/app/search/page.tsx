@@ -1,8 +1,16 @@
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
-import CategorySearchDropdown from "../../components/CategorySearchDropdown";
+import CategorySubcategoryFilter from "../../components/CategorySubcategoryFilter";
 import CustomDropdown from "../../components/CustomDropdown";
 import FavoriteButton from "../../components/FavoriteButton";
+
+// Case- and accent-insensitive comparison ("guitarra" matches "Guitarra Acústica").
+function normalize(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
 
 type ListingRow = {
   id: string;
@@ -23,83 +31,10 @@ type ListingRow = {
   } | null;
 };
 
-// Fallback search mock listings
-const mockSearchListings: ListingRow[] = [
-  {
-    id: "l1",
-    price: 18500.0,
-    condition: "NEW",
-    featured_plan: "PREMIUM",
-    products: {
-      name: "Miel Orgánica Pura del Caldenal",
-      brand: "Pampeana Alta",
-      description: "Miel pura de abeja de flores silvestres cosechada en el caldenal pampeano.",
-      images: ["https://images.unsplash.com/photo-1587049352846-4a222e784d38?q=80&w=600&auto=format&fit=crop"],
-      categories: { slug: "campo-agro", name: "Campo / Agro" },
-    },
-    sellers: { name: "Apicultura La Fusta", score: 98, tier: "PREMIUM" },
-  },
-  {
-    id: "l2",
-    price: 125000.0,
-    condition: "NEW",
-    featured_plan: "FEATURED",
-    products: {
-      name: "Taladro Percutor Bosch 500W",
-      brand: "Bosch",
-      description: "Taladro percutor Bosch GSB 13 RE Professional. Potente motor de 500 W.",
-      images: ["https://images.unsplash.com/photo-1504148455328-c376907d081c?q=80&w=600&auto=format&fit=crop"],
-      categories: { slug: "construccion", name: "Construcción" },
-    },
-    sellers: { name: "Ferretería El Pampeano", score: 95, tier: "GOLD" },
-  },
-  {
-    id: "l3",
-    price: 85000.0,
-    condition: "USED",
-    featured_plan: "FREE",
-    products: {
-      name: "Sillón Retro Tapizado Pana Verde",
-      brand: "Vintage",
-      description: "Sillón de un cuerpo estilo retro vintage años 70. Tapizado en pana verde musgo.",
-      images: ["https://images.unsplash.com/photo-1567538096630-e0c55bd6374c?q=80&w=600&auto=format&fit=crop"],
-      categories: { slug: "hogar", name: "Hogar" },
-    },
-    sellers: { name: "Ramiro Tule (Particular)", score: 90, tier: "BRONCE" },
-  },
-  {
-    id: "l4",
-    price: 11000.0,
-    condition: "NEW",
-    featured_plan: "PREMIUM",
-    products: {
-      name: "Queso de Campo Saborizado con Hierbas",
-      brand: "Estancia El Caldén",
-      description: "Queso artesanal semi-duro saborizado con orégano y provenzal.",
-      images: ["https://images.unsplash.com/photo-1486299267070-8382e214434b?q=80&w=600&auto=format&fit=crop"],
-      categories: { slug: "campo-agro", name: "Campo / Agro" },
-    },
-    sellers: { name: "Distribuidora Luro", score: 99, tier: "PREMIUM" },
-  },
-  {
-    id: "l5",
-    price: 980000.0,
-    condition: "USED",
-    featured_plan: "FREE",
-    products: {
-      name: "Honda Wave 110S Blanca",
-      brand: "Honda",
-      description: "Excelente estado, único dueño, 5000 km, papeles listos para transferir.",
-      images: ["https://images.unsplash.com/photo-1558981806-ec527fa84c39?q=80&w=600&auto=format&fit=crop"],
-      categories: { slug: "vehiculos", name: "Vehículos" },
-    },
-    sellers: { name: "Moto Centro Pico", score: 92, tier: "PLATA" },
-  },
-];
-
 async function searchListings(params: {
   q?: string;
   category?: string;
+  subcategory?: string;
   condition?: string;
   sort?: string;
 }): Promise<ListingRow[]> {
@@ -132,13 +67,6 @@ async function searchListings(params: {
       query = query.eq("condition", params.condition as "NEW" | "USED");
     }
 
-    // Text search: filter by product name or brand via ilike
-    if (params.q) {
-      query = query.or(
-        `products.name.ilike.%${params.q}%,products.brand.ilike.%${params.q}%`
-      );
-    }
-
     if (params.sort === "price_asc") {
       query = query.order("price", { ascending: true });
     } else if (params.sort === "price_desc") {
@@ -149,36 +77,82 @@ async function searchListings(params: {
 
     const { data, error } = await query.limit(50);
 
-    if (error || !data) return mockSearchListings;
+    if (error) {
+      console.error("[search] Error fetching listings:", error.message);
+      return [];
+    }
+    if (!data) return [];
 
     let results = data as unknown as ListingRow[];
 
-    // Client-side category slug filter (PostgREST nested filter has limited OR support)
-    if (params.category) {
+    // Client-side keyword filter — PostgREST's .or() doesn't reliably support
+    // filtering across an embedded relation (products.name/brand here).
+    // Case- and accent-insensitive.
+    if (params.q) {
+      const q = normalize(params.q);
       results = results.filter(
-        (l) => l.products?.categories?.slug === params.category
+        (l) =>
+          (l.products?.name && normalize(l.products.name).includes(q)) ||
+          (l.products?.brand && normalize(l.products.brand).includes(q))
       );
     }
 
-    return results.length > 0 ? results : mockSearchListings;
-  } catch {
-    return mockSearchListings;
+    // Client-side category slug filter (PostgREST nested filter has limited OR support).
+    // A specific subcategory matches exactly; a root category also matches
+    // listings in any of its subcategories.
+    if (params.subcategory) {
+      results = results.filter((l) => l.products?.categories?.slug === params.subcategory);
+    } else if (params.category) {
+      const validSlugs = new Set([params.category]);
+      const { data: catRow } = await supabase
+        .from("categories")
+        .select("id")
+        .eq("slug", params.category)
+        .single();
+      if (catRow) {
+        const { data: children } = await supabase
+          .from("categories")
+          .select("slug")
+          .eq("parent_id", catRow.id);
+        children?.forEach((c) => validSlugs.add(c.slug));
+      }
+      results = results.filter(
+        (l) => l.products?.categories?.slug && validSlugs.has(l.products.categories.slug)
+      );
+    }
+
+    return results;
+  } catch (err) {
+    console.error("[search] Unexpected error fetching listings:", err);
+    return [];
   }
 }
 
-async function fetchCategories(): Promise<{ name: string; slug: string }[]> {
+interface SearchCategory {
+  name: string;
+  slug: string;
+  parentSlug?: string | null;
+}
+
+async function fetchCategories(): Promise<SearchCategory[]> {
   try {
     const supabase = await createClient();
     const { data, error } = await supabase
       .from("categories")
-      .select("name, slug")
+      .select("id, name, slug, parent_id")
       .order("name", { ascending: true });
 
     if (error || !data) throw new Error();
 
-    const flat: { name: string; slug: string }[] = [
+    const slugById = new Map(data.map((cat) => [cat.id, cat.slug]));
+
+    const flat: SearchCategory[] = [
       { name: "Todas las categorías", slug: "" },
-      ...data.map((cat) => ({ name: cat.name, slug: cat.slug })),
+      ...data.map((cat) => ({
+        name: cat.name,
+        slug: cat.slug,
+        parentSlug: cat.parent_id ? slugById.get(cat.parent_id) ?? null : null,
+      })),
     ];
     return flat;
   } catch {
@@ -197,7 +171,7 @@ async function fetchCategories(): Promise<{ name: string; slug: string }[]> {
 export default async function SearchPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; category?: string; condition?: string; sort?: string }>;
+  searchParams: Promise<{ q?: string; category?: string; subcategory?: string; condition?: string; sort?: string }>;
 }) {
   const params = await searchParams;
   const [listings, categories] = await Promise.all([
@@ -229,11 +203,12 @@ export default async function SearchPage({
               />
             </div>
 
-            {/* Category Dropdown */}
-            <div className="flex flex-col gap-2">
-              <label className="text-xs font-bold text-foreground">Categoría</label>
-              <CategorySearchDropdown categories={categories} defaultValue={params.category || ""} />
-            </div>
+            {/* Category / Subcategory Dropdowns */}
+            <CategorySubcategoryFilter
+              categories={categories}
+              defaultCategory={params.category || ""}
+              defaultSubcategory={params.subcategory || ""}
+            />
 
             {/* Condition Choice */}
             <div className="flex flex-col gap-2">
@@ -306,12 +281,12 @@ export default async function SearchPage({
                       </span>
                     )}
                     <FavoriteButton listingId={listing.id} />
-                    <div className="h-44 w-full bg-slate-950 overflow-hidden relative">
+                    <div className="h-44 w-full bg-card-bg overflow-hidden relative">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={image}
                         alt={product?.name ?? "Producto"}
-                        className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                        className="h-full w-full object-contain transition-transform duration-500 group-hover:scale-105"
                       />
                     </div>
                     <div className="p-5 flex-1 flex flex-col gap-3">

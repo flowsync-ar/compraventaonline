@@ -44,43 +44,6 @@ interface Question {
   sellers: { name: string } | null;
 }
 
-const mockListings: Record<string, Listing> = {
-  l1: {
-    id: "l1",
-    price: 18500.0,
-    condition: "NEW",
-    featured_plan: "PREMIUM",
-    stock: 25,
-    image_url: null,
-    products: {
-      name: "Miel Orgánica Pura del Caldenal",
-      brand: "Pampeana Alta",
-      description: "Miel pura de abeja cosechada artesanalmente en la reserva del caldenal pampeano. Textura cremosa, sabor intenso y aroma a jarilla y flores silvestres. 100% natural, sin aditivos ni pasteurización.",
-      images: ["https://images.unsplash.com/photo-1587049352846-4a222e784d38?q=80&w=800&auto=format&fit=crop"],
-      categories: { name: "Campo / Agro" },
-    },
-    sellers: { id: "s1", name: "Apicultura La Fusta", score: 98, tier: "PREMIUM", type: "BUSINESS_SELLER" },
-    currencies: null,
-  },
-  l2: {
-    id: "l2",
-    price: 125000.0,
-    condition: "NEW",
-    featured_plan: "FEATURED",
-    stock: 12,
-    image_url: null,
-    products: {
-      name: "Taladro Percutor Bosch 500W",
-      brand: "Bosch",
-      description: "Taladro percutor Bosch GSB 13 RE Professional. Potente motor de 500 W, ideal para mampostería, madera y metal.",
-      images: ["https://images.unsplash.com/photo-1504148455328-c376907d081c?q=80&w=800&auto=format&fit=crop"],
-      categories: { name: "Construcción" },
-    },
-    sellers: { id: "s2", name: "Ferretería El Pampeano", score: 95, tier: "GOLD", type: "BUSINESS_SELLER" },
-    currencies: null,
-  },
-};
-
 export default function ListingDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -129,6 +92,10 @@ export default function ListingDetailPage() {
 
   // Active main image
   const [activeImage, setActiveImage] = useState<string | null>(null);
+
+  // Fullscreen image carousel modal
+  const [showImageModal, setShowImageModal] = useState(false);
+  const [modalImageIndex, setModalImageIndex] = useState(0);
 
   // Auth state
   const [userId, setUserId] = useState<string | null>(null);
@@ -190,18 +157,16 @@ export default function ListingDetailPage() {
           .single();
 
         if (error || !data) {
-          const fallback = mockListings[id] || mockListings.l1;
-          setListing(fallback);
-          setActiveImage(fallback.products?.images?.[0] ?? null);
+          if (error) console.error("[listing] Error fetching listing:", error.message);
+          setListing(null);
         } else {
           const row = data as unknown as Listing;
           setListing(row);
           setActiveImage(row.image_url ?? row.products?.images?.[0] ?? null);
         }
-      } catch {
-        const fallback = mockListings[id] || mockListings.l1;
-        setListing(fallback);
-        setActiveImage(fallback.products?.images?.[0] ?? null);
+      } catch (err) {
+        console.error("[listing] Unexpected error fetching listing:", err);
+        setListing(null);
       } finally {
         setLoading(false);
       }
@@ -279,6 +244,22 @@ export default function ListingDetailPage() {
 
     fetchSellerPhone();
   }, [userId, listing?.sellers?.id]);
+
+  // Keyboard navigation for the image carousel modal
+  useEffect(() => {
+    if (!showImageModal) return;
+
+    const images = listing?.products?.images ?? [];
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setShowImageModal(false);
+      if (e.key === "ArrowRight") setModalImageIndex((i) => (i + 1) % images.length);
+      if (e.key === "ArrowLeft") setModalImageIndex((i) => (i - 1 + images.length) % images.length);
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [showImageModal, listing?.products?.images]);
 
   const handleToggleFavorite = async () => {
     if (!userId) {
@@ -428,6 +409,12 @@ export default function ListingDetailPage() {
   const images = product?.images ?? [];
   const mainImage = activeImage ?? images[0] ?? "/placeholder.png";
 
+  const openImageModal = (img: string) => {
+    const idx = images.indexOf(img);
+    setModalImageIndex(idx >= 0 ? idx : 0);
+    setShowImageModal(true);
+  };
+
   const getTierBadge = (tier: string) => {
     switch (tier.toUpperCase()) {
       case "PREMIUM":
@@ -477,17 +464,25 @@ export default function ListingDetailPage() {
         <div className="lg:col-span-7 flex flex-col gap-8">
 
           {/* Main Product Image Container */}
-          <div className="rounded-3xl overflow-hidden bg-card-bg border border-card-border p-3 shadow-xl relative aspect-[4/3] flex items-center justify-center group">
+          <div
+            onClick={() => openImageModal(mainImage)}
+            className="rounded-3xl overflow-hidden bg-card-bg border border-card-border p-3 shadow-xl relative aspect-[4/3] flex items-center justify-center group cursor-zoom-in"
+          >
             {listing.featured_plan === "PREMIUM" && (
               <span className="absolute top-6 left-6 z-10 rounded-xl bg-accent-gold px-3.5 py-1 text-xs font-extrabold tracking-wider text-background shadow-md uppercase">
                 💎 Premium Pampeano
+              </span>
+            )}
+            {images.length > 1 && (
+              <span className="absolute bottom-6 right-6 z-10 rounded-lg bg-background/80 backdrop-blur-sm px-2.5 py-1 text-[10px] font-bold text-foreground shadow-md flex items-center gap-1">
+                🔍 Ver {images.length} fotos
               </span>
             )}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={mainImage}
               alt={product?.name ?? "Producto"}
-              className="rounded-2xl object-cover h-full w-full max-h-[500px] transition-transform duration-500 group-hover:scale-[1.01]"
+              className="rounded-2xl object-contain h-full w-full max-h-[500px] transition-transform duration-500 group-hover:scale-[1.02]"
             />
           </div>
 
@@ -505,7 +500,7 @@ export default function ListingDetailPage() {
                     }`}
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={img} alt={`${product?.name} miniatura ${idx + 1}`} className="h-full w-full object-cover" />
+                    <img src={img} alt={`${product?.name} miniatura ${idx + 1}`} className="h-full w-full object-contain" />
                   </button>
                 );
               })}
@@ -877,7 +872,7 @@ export default function ListingDetailPage() {
             <div className="rounded-2xl bg-background border border-card-border p-4 flex items-center gap-3 text-xs">
               <div className="h-12 w-12 rounded-lg overflow-hidden border border-card-border shrink-0">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={mainImage} alt={product?.name ?? "Producto"} className="h-full w-full object-cover" />
+                <img src={mainImage} alt={product?.name ?? "Producto"} className="h-full w-full object-contain" />
               </div>
               <div className="flex-1 min-w-0 text-left">
                 <h4 className="font-bold text-foreground truncate">{product?.name}</h4>
@@ -948,6 +943,82 @@ export default function ListingDetailPage() {
               )}
             </button>
           </div>
+        </div>
+      )}
+
+      {/* MODAL 4: CARRUSEL DE IMÁGENES */}
+      {showImageModal && (
+        <div
+          className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={() => setShowImageModal(false)}
+        >
+          <button
+            onClick={() => setShowImageModal(false)}
+            className="absolute top-5 right-5 z-10 text-white/80 hover:text-white text-2xl cursor-pointer"
+            aria-label="Cerrar"
+          >
+            ✕
+          </button>
+
+          {images.length > 1 && (
+            <span className="absolute top-5 left-5 z-10 rounded-lg bg-white/10 px-3 py-1 text-xs font-bold text-white">
+              {modalImageIndex + 1} / {images.length}
+            </span>
+          )}
+
+          {images.length > 1 && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setModalImageIndex((i) => (i - 1 + images.length) % images.length);
+              }}
+              className="absolute left-3 sm:left-6 z-10 h-11 w-11 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white text-xl cursor-pointer transition-all"
+              aria-label="Imagen anterior"
+            >
+              ‹
+            </button>
+          )}
+
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={images[modalImageIndex] ?? mainImage}
+            alt={`${product?.name ?? "Producto"} — foto ${modalImageIndex + 1}`}
+            onClick={(e) => e.stopPropagation()}
+            className="max-h-[85vh] max-w-[90vw] object-contain rounded-xl shadow-2xl animate-in zoom-in-95 duration-200"
+          />
+
+          {images.length > 1 && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setModalImageIndex((i) => (i + 1) % images.length);
+              }}
+              className="absolute right-3 sm:right-6 z-10 h-11 w-11 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white text-xl cursor-pointer transition-all"
+              aria-label="Imagen siguiente"
+            >
+              ›
+            </button>
+          )}
+
+          {images.length > 1 && (
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="absolute bottom-5 left-1/2 -translate-x-1/2 flex gap-2 max-w-[90vw] overflow-x-auto px-2"
+            >
+              {images.map((img, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => setModalImageIndex(idx)}
+                  className={`h-12 w-12 shrink-0 rounded-lg overflow-hidden border-2 cursor-pointer transition-all ${
+                    idx === modalImageIndex ? "border-accent-gold" : "border-white/20 hover:border-white/50"
+                  }`}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={img} alt={`Miniatura ${idx + 1}`} className="h-full w-full object-contain bg-white/5" />
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

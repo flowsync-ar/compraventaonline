@@ -45,6 +45,7 @@ export default function FavoritesPage() {
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
   const [userId, setUserId] = useState<string | null>(null);
+  const [sellerId, setSellerId] = useState<string | null>(null);
 
   const supabaseRef = useRef<SupabaseClient | null>(null);
   const getSupabase = () => {
@@ -78,9 +79,26 @@ export default function FavoritesPage() {
     return () => subscription.unsubscribe();
   }, [router]);
 
-  // Fetch favorites once userId is available
+  // Resolve the seller row (favorites.seller_id references sellers.id, not the auth user id)
   useEffect(() => {
     if (!userId) return;
+
+    async function resolveSeller() {
+      const supabase = getSupabase();
+      const { data } = await supabase
+        .from("sellers")
+        .select("id")
+        .eq("user_id", userId!)
+        .single();
+      setSellerId(data?.id ?? null);
+    }
+
+    resolveSeller();
+  }, [userId]);
+
+  // Fetch favorites once sellerId is available
+  useEffect(() => {
+    if (!sellerId) return;
 
     async function fetchFavorites() {
       const supabase = getSupabase();
@@ -116,7 +134,7 @@ export default function FavoritesPage() {
               )
             )
           `)
-          .eq("user_id", userId!)
+          .eq("seller_id", sellerId!)
           .order("created_at", { ascending: false });
 
         if (error) throw error;
@@ -129,7 +147,7 @@ export default function FavoritesPage() {
     }
 
     fetchFavorites();
-  }, [userId]);
+  }, [sellerId]);
 
   const handleRemoveFavorite = async (favId: string) => {
     const supabase = getSupabase();
@@ -234,7 +252,7 @@ export default function FavoritesPage() {
                   <img
                     src={image}
                     alt={title}
-                    className={`w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 ${
+                    className={`w-full h-full object-contain transition-transform duration-500 group-hover:scale-105 ${
                       !isAvailable ? "grayscale contrast-75 brightness-75" : ""
                     }`}
                   />

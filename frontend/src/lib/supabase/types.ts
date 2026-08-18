@@ -70,6 +70,7 @@ export type Database = {
           icon: string | null
           id: string
           name: string
+          parent_id: string | null
           slug: string
           updated_at: string
         }
@@ -78,6 +79,7 @@ export type Database = {
           icon?: string | null
           id?: string
           name: string
+          parent_id?: string | null
           slug: string
           updated_at?: string
         }
@@ -86,10 +88,19 @@ export type Database = {
           icon?: string | null
           id?: string
           name?: string
+          parent_id?: string | null
           slug?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "categories_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       currencies: {
         Row: {
@@ -313,6 +324,7 @@ export type Database = {
       }
       products: {
         Row: {
+          attributes: Json | null
           brand: string | null
           category_id: string | null
           created_at: string
@@ -323,6 +335,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          attributes?: Json | null
           brand?: string | null
           category_id?: string | null
           created_at?: string
@@ -333,6 +346,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          attributes?: Json | null
           brand?: string | null
           category_id?: string | null
           created_at?: string
@@ -456,6 +470,7 @@ export type Database = {
           phone: string | null
           rating: number | null
           score: number
+          status: Database["public"]["Enums"]["seller_status"]
           tier: string
           type: Database["public"]["Enums"]["seller_type"]
           updated_at: string
@@ -472,6 +487,7 @@ export type Database = {
           phone?: string | null
           rating?: number | null
           score?: number
+          status?: Database["public"]["Enums"]["seller_status"]
           tier?: string
           type?: Database["public"]["Enums"]["seller_type"]
           updated_at?: string
@@ -488,6 +504,7 @@ export type Database = {
           phone?: string | null
           rating?: number | null
           score?: number
+          status?: Database["public"]["Enums"]["seller_status"]
           tier?: string
           type?: Database["public"]["Enums"]["seller_type"]
           updated_at?: string
@@ -538,6 +555,7 @@ export type Database = {
       question_status: "PENDING" | "ANSWERED"
       report_reason: "SPAM" | "FRAUD" | "INAPPROPRIATE" | "DUPLICATE" | "OTHER"
       reward_type: "HIGHLIGHT" | "DISCOUNT" | "FREE_LISTING"
+      seller_status: "ACTIVE" | "SUSPENDED"
       seller_type: "PERSONAL_SELLER" | "BUSINESS_SELLER"
     }
     CompositeTypes: {
@@ -705,6 +723,7 @@ export const Constants = {
       question_status: ["PENDING", "ANSWERED"],
       report_reason: ["SPAM", "FRAUD", "INAPPROPRIATE", "DUPLICATE", "OTHER"],
       reward_type: ["HIGHLIGHT", "DISCOUNT", "FREE_LISTING"],
+      seller_status: ["ACTIVE", "SUSPENDED"],
       seller_type: ["PERSONAL_SELLER", "BUSINESS_SELLER"],
     },
   },

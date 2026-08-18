@@ -5,6 +5,10 @@ import { useState, useEffect } from "react";
 interface DropdownOption {
   name: string;
   value: string;
+  // Optional grouping label — when set on consecutive options, a
+  // non-selectable header is rendered above the first one in each group.
+  // Leave unset for plain, ungrouped dropdowns (e.g. Condición, Ordenar por).
+  groupLabel?: string;
 }
 
 interface Props {
@@ -34,7 +38,7 @@ export default function CustomDropdown({
   useEffect(() => {
     const matched = options.find((o) => o.value === defaultValue);
     if (matched) {
-      setSelected(matched);
+      setSelected(matched); // eslint-disable-line react-hooks/set-state-in-effect
     } else if (options[0]) {
       setSelected(options[0]);
     }
@@ -98,27 +102,36 @@ export default function CustomDropdown({
               {filtered.length === 0 ? (
                 <span className="text-[10px] text-text-muted text-center py-4">No se encontraron resultados</span>
               ) : (
-                filtered.map((opt) => {
+                filtered.map((opt, idx) => {
                   const isSelected = opt.value === selected.value;
+                  const showGroupHeader = opt.groupLabel && opt.groupLabel !== filtered[idx - 1]?.groupLabel;
                   return (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() => {
-                        setSelected(opt);
-                        setIsOpen(false);
-                        setSearch("");
-                        if (onChange) onChange(opt.value);
-                      }}
-                      className={`text-left px-2.5 py-2 rounded-lg text-xs transition-all cursor-pointer flex items-center justify-between ${
-                        isSelected 
-                          ? "bg-accent-gold/20 text-accent-gold font-bold" 
-                          : "text-foreground/80 hover:bg-card-border/30"
-                      }`}
-                    >
-                      <span className="truncate">{opt.name}</span>
-                      {isSelected && <span className="text-accent-gold text-[10px]">✓</span>}
-                    </button>
+                    <div key={opt.value}>
+                      {showGroupHeader && (
+                        <span className="block px-2.5 pt-2 pb-1 text-[10px] font-extrabold uppercase tracking-wider text-text-muted">
+                          {opt.groupLabel}
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelected(opt);
+                          setIsOpen(false);
+                          setSearch("");
+                          if (onChange) onChange(opt.value);
+                        }}
+                        className={`w-full text-left px-2.5 py-2 rounded-lg text-xs transition-all cursor-pointer flex items-center justify-between ${
+                          opt.groupLabel ? "pl-4" : ""
+                        } ${
+                          isSelected
+                            ? "bg-accent-gold/20 text-accent-gold font-bold"
+                            : "text-foreground/80 hover:bg-card-border/30"
+                        }`}
+                      >
+                        <span className="truncate">{opt.name}</span>
+                        {isSelected && <span className="text-accent-gold text-[10px]">✓</span>}
+                      </button>
+                    </div>
                   );
                 })
               )}

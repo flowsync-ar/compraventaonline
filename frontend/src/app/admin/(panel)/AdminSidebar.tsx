@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation"
 import ThemedImage from "@/components/ThemedImage"
 
 const LINKS = [
+  { href: "/admin/slides", label: "Carousel", icon: "🖼️" },
   { href: "/admin/categorias", label: "Categorías", icon: "🏷️" },
   { href: "/admin/usuarios", label: "Usuarios", icon: "👥" },
   { href: "/admin/publicaciones", label: "Publicaciones", icon: "📦" },

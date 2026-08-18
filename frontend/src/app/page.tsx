@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
-import HeroCarousel from "@/components/HeroCarousel";
+import HeroCarousel, { type HeroSlide } from "@/components/HeroCarousel";
 import CategoriesCarousel from "@/components/CategoriesCarousel";
 import FavoriteButton from "@/components/FavoriteButton";
 
@@ -22,6 +22,33 @@ type ListingRow = {
     tier: string;
   } | null;
 };
+
+async function getHeroSlides(): Promise<HeroSlide[]> {
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("hero_slides")
+      .select("id, image_url, eyebrow, title, cta_label, href")
+      .eq("active", true)
+      .order("sort_order", { ascending: true });
+
+    if (error) {
+      console.error("[home] Error fetching hero_slides:", error.message);
+      return [];
+    }
+    return (data ?? []).map((slide) => ({
+      id: slide.id,
+      image: slide.image_url,
+      eyebrow: slide.eyebrow,
+      title: slide.title,
+      cta: slide.cta_label,
+      href: slide.href,
+    }));
+  } catch (err) {
+    console.error("[home] Unexpected error fetching hero_slides:", err);
+    return [];
+  }
+}
 
 async function getListings(): Promise<ListingRow[]> {
   try {
@@ -62,14 +89,14 @@ async function getListings(): Promise<ListingRow[]> {
 }
 
 export default async function HomePage() {
-  const listings = await getListings();
+  const [listings, heroSlides] = await Promise.all([getListings(), getHeroSlides()]);
 
   return (
     <div className="flex flex-col gap-10 pb-16">
 
       {/* 1. Carousel + Hero Search */}
       <section className="relative">
-        <HeroCarousel />
+        <HeroCarousel slides={heroSlides} />
 
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 text-center relative z-10 -mt-2 pt-2 pb-2 sm:pb-3">
 

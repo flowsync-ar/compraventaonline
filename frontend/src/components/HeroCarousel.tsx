@@ -44,19 +44,35 @@ const SLIDES = [
 
 const INTERVAL_MS = 5500;
 
-export default function HeroCarousel() {
+export interface HeroSlide {
+  id: string;
+  image: string;
+  eyebrow: string;
+  title: string;
+  cta: string;
+  href: string;
+}
+
+interface HeroCarouselProps {
+  slides?: HeroSlide[];
+}
+
+export default function HeroCarousel({ slides }: HeroCarouselProps) {
+  // Falls back to the built-in placeholder slides when the admin hasn't
+  // configured any active slide in hero_slides yet.
+  const activeSlides = slides && slides.length > 0 ? slides : SLIDES;
   const [active, setActive] = useState(0);
 
   const goTo = useCallback((index: number) => {
-    setActive((index + SLIDES.length) % SLIDES.length);
-  }, []);
+    setActive((index + activeSlides.length) % activeSlides.length);
+  }, [activeSlides.length]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
-      setActive((prev) => (prev + 1) % SLIDES.length);
+      setActive((prev) => (prev + 1) % activeSlides.length);
     }, INTERVAL_MS);
     return () => window.clearInterval(timer);
-  }, []);
+  }, [activeSlides.length]);
 
   return (
     <div className="relative w-full">
@@ -69,7 +85,7 @@ export default function HeroCarousel() {
             "linear-gradient(to bottom, #000 0%, #000 80%, transparent 100%)",
         }}
       >
-        {SLIDES.map((slide, index) => (
+        {activeSlides.map((slide, index) => (
           <div
             key={slide.id}
             className={`absolute inset-0 transition-opacity duration-700 ease-in-out ${
@@ -113,7 +129,7 @@ export default function HeroCarousel() {
       />
 
       <div className="absolute bottom-6 left-1/2 z-20 flex -translate-x-1/2 gap-2">
-        {SLIDES.map((slide, index) => (
+        {activeSlides.map((slide, index) => (
           <button
             key={slide.id}
             type="button"

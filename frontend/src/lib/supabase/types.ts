@@ -129,6 +129,42 @@ export type Database = {
         }
         Relationships: []
       }
+      hero_slides: {
+        Row: {
+          active: boolean
+          created_at: string
+          cta_label: string
+          eyebrow: string
+          href: string
+          id: string
+          image_url: string
+          sort_order: number
+          title: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          cta_label?: string
+          eyebrow?: string
+          href?: string
+          id?: string
+          image_url: string
+          sort_order?: number
+          title: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          cta_label?: string
+          eyebrow?: string
+          href?: string
+          id?: string
+          image_url?: string
+          sort_order?: number
+          title?: string
+        }
+        Relationships: []
+      }
       favorites: {
         Row: {
           created_at: string

@@ -16,12 +16,21 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Faltan credenciales" }, { status: 400 })
   }
 
-  if (!verifyCredentials(email, password)) {
-    return NextResponse.json({ error: "Credenciales inválidas" }, { status: 401 })
-  }
+  try {
+    if (!verifyCredentials(email, password)) {
+      return NextResponse.json({ error: "Credenciales inválidas" }, { status: 401 })
+    }
 
-  const token = await signAdminToken()
-  const response = NextResponse.json({ ok: true })
-  response.cookies.set(ADMIN_COOKIE, token, adminCookieOptions)
-  return response
+    const token = await signAdminToken()
+    const response = NextResponse.json({ ok: true })
+    response.cookies.set(ADMIN_COOKIE, token, adminCookieOptions)
+    return response
+  } catch (err) {
+    console.error("[admin/login] Server misconfiguration:", err)
+    const message = err instanceof Error ? err.message : "Error desconocido"
+    return NextResponse.json(
+      { error: `Configuración del servidor incompleta: ${message}` },
+      { status: 500 },
+    )
+  }
 }

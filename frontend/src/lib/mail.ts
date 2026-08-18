@@ -67,14 +67,14 @@ export async function sendConfirmationEmail(params: {
       ].join("\n"),
       html: `
         <div style="font-family:sans-serif;max-width:560px;margin:0 auto;background:#ffffff;border-radius:14px;overflow:hidden;border:1px solid #f3e0c2;">
-          <div style="background-color:#0f172a;padding:32px 48px;text-align:center;">
+          <div style="background-color:#0f172a;padding:20px 48px;text-align:center;">
             <table role="presentation" align="center" style="margin:0 auto;border-collapse:collapse;">
               <tr>
-                <td style="padding-right:12px;vertical-align:middle;">
-                  <img src="${logoIconUrl}" alt="" width="52" style="display:block;width:52px;height:auto;" />
+                <td style="padding-right:14px;vertical-align:middle;">
+                  <img src="${logoIconUrl}" alt="" width="88" style="display:block;width:88px;height:auto;" />
                 </td>
                 <td style="vertical-align:middle;">
-                  <img src="${logoWordmarkUrl}" alt="CompraVentaOnline" width="170" style="display:block;width:170px;height:auto;" />
+                  <img src="${logoWordmarkUrl}" alt="CompraVentaOnline" width="230" style="display:block;width:230px;height:auto;" />
                 </td>
               </tr>
             </table>
@@ -150,14 +150,14 @@ export async function sendPasswordResetEmail(params: {
       ].join("\n"),
       html: `
         <div style="font-family:sans-serif;max-width:560px;margin:0 auto;background:#ffffff;border-radius:14px;overflow:hidden;border:1px solid #f3e0c2;">
-          <div style="background-color:#0f172a;padding:32px 48px;text-align:center;">
+          <div style="background-color:#0f172a;padding:20px 48px;text-align:center;">
             <table role="presentation" align="center" style="margin:0 auto;border-collapse:collapse;">
               <tr>
-                <td style="padding-right:12px;vertical-align:middle;">
-                  <img src="${logoIconUrl}" alt="" width="52" style="display:block;width:52px;height:auto;" />
+                <td style="padding-right:14px;vertical-align:middle;">
+                  <img src="${logoIconUrl}" alt="" width="88" style="display:block;width:88px;height:auto;" />
                 </td>
                 <td style="vertical-align:middle;">
-                  <img src="${logoWordmarkUrl}" alt="CompraVentaOnline" width="170" style="display:block;width:170px;height:auto;" />
+                  <img src="${logoWordmarkUrl}" alt="CompraVentaOnline" width="230" style="display:block;width:230px;height:auto;" />
                 </td>
               </tr>
             </table>

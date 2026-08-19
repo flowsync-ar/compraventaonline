@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, Suspense } from "react";
+import { useState, useEffect, useRef, useMemo, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import CustomDropdown from "@/components/CustomDropdown";
@@ -221,6 +221,33 @@ function DashboardPageContent() {
   const [isDragging, setIsDragging] = useState(false);
   const [bulkErrors, setBulkErrors] = useState<string[]>([]);
 
+  // Bulk upload — review step (parsed from the Excel, category assigned
+  // via dropdown and photos attached via drag-and-drop right here, before
+  // anything actually gets published). null = still on the "pick a file"
+  // step; an array (even empty) means the file was parsed and we're
+  // showing the review screen.
+  type BulkPreviewRow = {
+    rowNumber: number;
+    valid: boolean;
+    reason?: string;
+    name?: string;
+    brand?: string | null;
+    description?: string | null;
+    price?: number;
+    currencyCode?: "ARS" | "USD";
+    condition?: "NEW" | "USED";
+    stock?: number;
+    attributes?: Record<string, string> | null;
+    categoryId: string | null;
+    images: string[];
+  };
+  const [bulkPreviewRows, setBulkPreviewRows] = useState<BulkPreviewRow[] | null>(null);
+  const [bulkPreviewLoading, setBulkPreviewLoading] = useState(false);
+  const [bulkConfirming, setBulkConfirming] = useState(false);
+  const [bulkUploadingRow, setBulkUploadingRow] = useState<number | null>(null);
+  const [bulkRowDragOver, setBulkRowDragOver] = useState<number | null>(null);
+  const [bulkDraggingImage, setBulkDraggingImage] = useState<{ row: number; index: number } | null>(null);
+
   // Check auth and mount
   useEffect(() => {
     setMounted(true);
@@ -402,39 +429,39 @@ function DashboardPageContent() {
     const sheet = workbook.addWorksheet("Publicaciones");
 
     sheet.columns = [
-      { header: "name", key: "name", width: 32 },
-      { header: "brand", key: "brand", width: 20 },
-      { header: "description", key: "description", width: 45 },
-      { header: "category_slug", key: "category_slug", width: 20 },
-      { header: "price", key: "price", width: 12 },
-      { header: "condition", key: "condition", width: 12 },
-      { header: "stock", key: "stock", width: 10 },
-      { header: "attributes", key: "attributes", width: 30 },
-      { header: "images", key: "images", width: 45 },
+      { header: "Nombre", key: "name", width: 32 },
+      { header: "Marca", key: "brand", width: 20 },
+      { header: "Descripción", key: "description", width: 45 },
+      { header: "Moneda", key: "currencyCode", width: 12 },
+      { header: "Precio", key: "price", width: 12 },
+      { header: "Condición", key: "condition", width: 12 },
+      { header: "Stock", key: "stock", width: 10 },
+      { header: "Atributos", key: "attributes", width: 30 },
     ];
     sheet.getRow(1).font = { bold: true };
 
+    // Ni categoría ni fotos van en la planilla — se asignan producto por
+    // producto en la pantalla de revisión, después de subir el Excel
+    // (dropdown de categoría + arrastrar y soltar imágenes).
     sheet.addRow({
       name: "iPhone 13",
       brand: "Apple",
       description: "Excelente celular usado impecable",
-      category_slug: "electronica",
+      currencyCode: "ARS",
       price: 750000,
       condition: "USED",
       stock: 2,
       attributes: "ram=4GB;storage=128GB",
-      images: "https://images.unsplash.com/photo-1510557880182-3d4d3cba35a5",
     });
     sheet.addRow({
       name: "Mesa de Madera Rústica",
       brand: "Muebles Pampeanos",
       description: "Mesa de comedor de caldén macizo",
-      category_slug: "hogar-y-jardin",
+      currencyCode: "ARS",
       price: 350000,
       condition: "NEW",
       stock: 5,
       attributes: "",
-      images: "https://images.unsplash.com/photo-1577140917170-285929fb55b7",
     });
 
     const buffer = await workbook.xlsx.writeBuffer();
@@ -455,14 +482,17 @@ function DashboardPageContent() {
   const handleCsvFileSelect = (file: File) => {
     setCsvFile(file);
     setBulkErrors([]);
+    setBulkPreviewRows(null);
     setSuccessMsg("");
     setErrorMsg("");
   };
 
-  const handleBulkPublish = async () => {
-    if (!csvFile || !sellerProfile) return;
-    setLoading(true);
-    setSuccessMsg("");
+  // Step 1 -> Step 2: parses + validates the Excel's fields server-side,
+  // but doesn't publish anything yet — category (dropdown) and photos
+  // (drag-and-drop) still need to be attached per row below.
+  const handleBulkPreview = async () => {
+    if (!csvFile) return;
+    setBulkPreviewLoading(true);
     setErrorMsg("");
     setBulkErrors([]);
 
@@ -470,15 +500,140 @@ function DashboardPageContent() {
     formData.append("file", csvFile);
 
     try {
-      // Route Handler handles Excel bulk upload with service_role key server-side
+      const res = await fetch("/api/listings/bulk/preview", { method: "POST", body: formData });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "No pudimos leer el archivo.");
+      }
+      setBulkPreviewRows(
+        (data.rows as Omit<BulkPreviewRow, "categoryId" | "images">[]).map((r) => ({
+          ...r,
+          categoryId: null,
+          images: [],
+        }))
+      );
+    } catch (err: any) {
+      console.error("Error al previsualizar la subida masiva:", err);
+      setErrorMsg(err.message || "No pudimos leer el archivo.");
+    } finally {
+      setBulkPreviewLoading(false);
+    }
+  };
+
+  const handleBulkReset = () => {
+    setBulkPreviewRows(null);
+    setCsvFile(null);
+    setBulkErrors([]);
+  };
+
+  const handleBulkRowCategoryChange = (rowNumber: number, categoryId: string) => {
+    setBulkPreviewRows((prev) =>
+      prev ? prev.map((r) => (r.rowNumber === rowNumber ? { ...r, categoryId } : r)) : prev
+    );
+  };
+
+  // Same upload mechanics as handleImageFiles (single-listing flow) —
+  // Supabase Storage, "listings" bucket — just scoped to one bulk row's
+  // own image array instead of the shared productImages state.
+  const handleBulkRowImageFiles = async (rowNumber: number, files: FileList) => {
+    const supabase = getSupabase();
+    const fileArray = Array.from(files).filter((file) => file.type.startsWith("image/"));
+    if (fileArray.length === 0) return;
+
+    const sellerId = sellerProfile?.id ?? userId ?? "unknown";
+    setBulkUploadingRow(rowNumber);
+    try {
+      const uploadedUrls: string[] = [];
+      for (const file of fileArray) {
+        const ext = file.name.split(".").pop() ?? "jpg";
+        const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+        const path = `${sellerId}/bulk-${rowNumber}/${filename}`;
+        const { error } = await supabase.storage.from("listings").upload(path, file, { upsert: false });
+        if (!error) {
+          const { data: urlData } = supabase.storage.from("listings").getPublicUrl(path);
+          if (urlData?.publicUrl) uploadedUrls.push(urlData.publicUrl);
+        }
+      }
+      setBulkPreviewRows((prev) =>
+        prev
+          ? prev.map((r) => (r.rowNumber === rowNumber ? { ...r, images: [...r.images, ...uploadedUrls] } : r))
+          : prev
+      );
+    } finally {
+      setBulkUploadingRow(null);
+    }
+  };
+
+  const handleBulkRemoveImage = (rowNumber: number, imgIndex: number) => {
+    setBulkPreviewRows((prev) =>
+      prev
+        ? prev.map((r) =>
+            r.rowNumber === rowNumber ? { ...r, images: r.images.filter((_, i) => i !== imgIndex) } : r
+          )
+        : prev
+    );
+  };
+
+  // Native HTML5 drag reorder, same pattern as the single-listing photo
+  // grid (handleImageDragStart/Drop) — index 0 is always the cover.
+  const handleBulkImageDragStart = (rowNumber: number, index: number) => {
+    setBulkDraggingImage({ row: rowNumber, index });
+  };
+
+  const handleBulkImageDrop = (rowNumber: number, index: number) => {
+    if (!bulkDraggingImage || bulkDraggingImage.row !== rowNumber) {
+      setBulkDraggingImage(null);
+      return;
+    }
+    setBulkPreviewRows((prev) =>
+      prev
+        ? prev.map((r) => {
+            if (r.rowNumber !== rowNumber) return r;
+            const reordered = [...r.images];
+            const [removed] = reordered.splice(bulkDraggingImage.index, 1);
+            reordered.splice(index, 0, removed);
+            return { ...r, images: reordered };
+          })
+        : prev
+    );
+    setBulkDraggingImage(null);
+  };
+
+  // Step 2 -> actually publish: only rows with valid fields AND an
+  // assigned category go out; the rest stay listed above as "pendiente".
+  const handleConfirmBulkPublish = async () => {
+    if (!bulkPreviewRows) return;
+    const readyRows = bulkPreviewRows.filter((r) => r.valid && r.categoryId);
+    if (readyRows.length === 0) return;
+
+    setBulkConfirming(true);
+    setSuccessMsg("");
+    setErrorMsg("");
+    setBulkErrors([]);
+
+    try {
       const res = await fetch("/api/listings/bulk", {
         method: "POST",
-        body: formData,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          rows: readyRows.map((r) => ({
+            name: r.name,
+            brand: r.brand,
+            description: r.description,
+            price: r.price,
+            currencyCode: r.currencyCode,
+            condition: r.condition,
+            stock: r.stock,
+            attributes: r.attributes,
+            categoryId: r.categoryId,
+            images: r.images,
+          })),
+        }),
       });
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || "Error al subir el archivo masivo.");
+        throw new Error(data.error || "Error al publicar los productos.");
       }
 
       const failedRows: { row: number; reason: string }[] = data.failed ?? [];
@@ -489,21 +644,40 @@ function DashboardPageContent() {
       if (data.inserted > 0) {
         setSuccessMsg(
           failedRows.length > 0
-            ? `Se crearon ${data.inserted} publicaciones. ${failedRows.length} filas tuvieron errores (ver detalle abajo).`
-            : `¡Subida masiva exitosa! Se crearon con éxito ${data.inserted} publicaciones.`
+            ? `Se crearon ${data.inserted} publicaciones. ${failedRows.length} tuvieron errores (ver detalle abajo).`
+            : `¡Subida masiva exitosa! Se crearon ${data.inserted} publicaciones.`
         );
-        setCsvFile(null);
+        handleBulkReset();
       } else {
-        throw new Error("Ninguna fila pudo publicarse. Revisá los errores de validación abajo.");
+        throw new Error("Ninguna fila pudo publicarse. Revisá los errores abajo.");
       }
       await refreshListings();
     } catch (err: any) {
-      console.error("Error al subir el archivo masivo:", err);
-      setErrorMsg("Error al subir el archivo masivo.");
+      console.error("Error al confirmar la subida masiva:", err);
+      setErrorMsg(err.message || "Error al publicar los productos.");
     } finally {
-      setLoading(false);
+      setBulkConfirming(false);
     }
   };
+
+  // Same options shape as the single-listing "Categoría" dropdown (root +
+  // first-level children, grouped) — built once and reused across every
+  // row's dropdown in the bulk review screen instead of rebuilding it N
+  // times per render.
+  const bulkCategoryOptions = useMemo(
+    () => [
+      { name: "Seleccioná una categoría", value: "" },
+      ...categories
+        .filter((cat) => !cat.parentId)
+        .flatMap((root) => [
+          { name: root.name, value: root.id },
+          ...categories
+            .filter((cat) => cat.parentId === root.id)
+            .map((sub) => ({ name: sub.name, value: sub.id, groupLabel: root.name })),
+        ]),
+    ],
+    [categories]
+  );
 
   // Funciones para la gestión de imágenes
   // Uploads files to Supabase Storage bucket "listings" and stores public URLs
@@ -1962,17 +2136,18 @@ function DashboardPageContent() {
                 </div>
 
               </form>
-            ) : (
+            ) : !bulkPreviewRows ? (
+              // Paso 1: elegir el archivo
               <div className="flex flex-col gap-6">
                 <div className="bg-card-bg border border-card-border p-4 rounded-xl text-xs text-text-muted flex flex-col gap-2">
                   <h4 className="font-bold text-foreground">Instrucciones de Subida Masiva:</h4>
                   <p>1. Descargá nuestra plantilla Excel e ingresá los detalles de tus productos.</p>
-                  <p>2. Columnas requeridas: <strong>name, brand, description, category_slug, price, condition, stock</strong>.</p>
+                  <p>2. Columnas requeridas: <strong>Nombre, Precio</strong>.</p>
                   <p>3. Columnas opcionales:
-                    <br />• <strong>attributes</strong>: Atributos específicos separados por punto y coma en formato <code>clave=valor;clave=valor</code> (ej: <code>brand=Apple;ram=8GB;storage=256GB</code>).
-                    <br />• <strong>images</strong>: URLs de imágenes separadas por punto y coma (ej: <code>url1;url2</code>).
+                    <br />• <strong>Marca</strong>, <strong>Descripción</strong>, <strong>Moneda</strong> (ARS o USD, por defecto ARS), <strong>Condición</strong> (NEW o USED), <strong>Stock</strong>.
+                    <br />• <strong>Atributos</strong>: separados por punto y coma en formato <code>clave=valor;clave=valor</code> (ej: <code>ram=8GB;storage=256GB</code>).
                   </p>
-                  <p>4. Subí el archivo. Validaremos el formato antes de crear las publicaciones para evitar errores parciales.</p>
+                  <p>4. Subí el archivo. Después de leerlo vas a poder elegir la categoría y arrastrarle las fotos a cada producto antes de publicar nada.</p>
 
                   <button
                     onClick={downloadExcelTemplate}
@@ -1982,7 +2157,7 @@ function DashboardPageContent() {
                   </button>
                 </div>
 
-                <div 
+                <div
                   className={`border-2 border-dashed rounded-xl p-8 text-center flex flex-col items-center justify-center gap-3 transition-colors ${
                     isDragging ? "border-accent-gold bg-accent-gold/5" : "border-card-border hover:border-accent-gold/50"
                   }`}
@@ -2038,10 +2213,173 @@ function DashboardPageContent() {
                   </div>
                 )}
 
+                <button
+                  onClick={handleBulkPreview}
+                  disabled={bulkPreviewLoading || !csvFile}
+                  className="w-full rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover py-4 text-xs font-extrabold text-background shadow-md hover:opacity-95 transition-all mt-2 disabled:opacity-50 cursor-pointer"
+                >
+                  {bulkPreviewLoading ? "Leyendo archivo..." : "Continuar y Revisar"}
+                </button>
+              </div>
+            ) : (
+              // Paso 2: revisión — categoría (dropdown) y fotos (arrastrar y
+              // soltar) por producto, antes de publicar nada.
+              <div className="flex flex-col gap-6">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <h4 className="font-bold text-sm text-foreground">Revisá antes de publicar</h4>
+                    <p className="text-[11px] text-text-muted mt-0.5">
+                      {bulkPreviewRows.filter((r) => r.valid && r.categoryId).length} de {bulkPreviewRows.length} filas listas para publicar.
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleBulkReset}
+                    className="text-[11px] font-bold text-text-muted hover:text-foreground transition-colors cursor-pointer shrink-0"
+                  >
+                    ◀ Elegir otro archivo
+                  </button>
+                </div>
+
+                <div className="flex flex-col gap-4">
+                  {bulkPreviewRows.map((row) => (
+                    <div
+                      key={row.rowNumber}
+                      className={`rounded-2xl border p-4 flex flex-col gap-3 ${
+                        !row.valid ? "border-red-500/30 bg-red-500/5" : "border-card-border bg-card-bg"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <span className="text-[10px] font-bold text-text-muted uppercase tracking-wide">Fila {row.rowNumber}</span>
+                          {row.valid ? (
+                            <>
+                              <h5 className="text-sm font-bold text-foreground">{row.name}</h5>
+                              <p className="text-[11px] text-text-muted">
+                                {row.condition === "NEW" ? "Nuevo" : "Usado"} · Stock {row.stock}
+                              </p>
+                            </>
+                          ) : (
+                            <p className="text-xs font-bold text-red-500 mt-1">⚠️ {row.reason}</p>
+                          )}
+                        </div>
+                        {row.valid && (
+                          <span className="text-sm font-extrabold text-foreground whitespace-nowrap">
+                            {row.currencyCode === "USD" ? "US$" : "$"} {Number(row.price).toLocaleString("es-AR")}
+                          </span>
+                        )}
+                      </div>
+
+                      {row.valid && (
+                        <>
+                          <div className="max-w-xs">
+                            <CustomDropdown
+                              name={`bulk-category-${row.rowNumber}`}
+                              defaultValue={row.categoryId ?? ""}
+                              onChange={(val) => handleBulkRowCategoryChange(row.rowNumber, val)}
+                              options={bulkCategoryOptions}
+                              showSearch
+                              placeholder="Buscar categoría..."
+                            />
+                          </div>
+
+                          {/* Drag-and-drop de fotos, mismo patrón que la
+                              publicación individual — la primera es la
+                              portada, se reordena arrastrando. */}
+                          <div
+                            className={`border-2 border-dashed rounded-xl p-4 text-center flex flex-col items-center justify-center gap-1.5 transition-colors ${
+                              bulkRowDragOver === row.rowNumber
+                                ? "border-accent-gold bg-accent-gold/5"
+                                : "border-card-border hover:border-accent-gold/50"
+                            }`}
+                            onDragOver={(e) => { e.preventDefault(); setBulkRowDragOver(row.rowNumber); }}
+                            onDragLeave={() => setBulkRowDragOver(null)}
+                            onDrop={(e) => {
+                              e.preventDefault();
+                              setBulkRowDragOver(null);
+                              if (e.dataTransfer.files?.length) {
+                                handleBulkRowImageFiles(row.rowNumber, e.dataTransfer.files);
+                              }
+                            }}
+                          >
+                            {bulkUploadingRow === row.rowNumber ? (
+                              <p className="text-[11px] font-bold text-foreground">Subiendo fotos...</p>
+                            ) : (
+                              <>
+                                <span className="text-lg">📸</span>
+                                <p className="text-[11px] font-bold text-foreground">Arrastrá las fotos de este producto acá</p>
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  multiple
+                                  className="hidden"
+                                  id={`bulk-row-images-${row.rowNumber}`}
+                                  onChange={(e) => {
+                                    if (e.target.files?.length) handleBulkRowImageFiles(row.rowNumber, e.target.files);
+                                  }}
+                                />
+                                <label
+                                  htmlFor={`bulk-row-images-${row.rowNumber}`}
+                                  className="text-[10px] font-bold text-accent-gold hover:underline cursor-pointer"
+                                >
+                                  o hacé clic para elegirlas
+                                </label>
+                              </>
+                            )}
+                          </div>
+
+                          {row.images.length > 0 && (
+                            <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">
+                              {row.images.map((img, idx) => (
+                                <div
+                                  key={idx}
+                                  draggable
+                                  onDragStart={() => handleBulkImageDragStart(row.rowNumber, idx)}
+                                  onDragOver={(e) => e.preventDefault()}
+                                  onDrop={() => handleBulkImageDrop(row.rowNumber, idx)}
+                                  onDragEnd={() => setBulkDraggingImage(null)}
+                                  className={`relative aspect-square rounded-lg overflow-hidden bg-background border cursor-grab active:cursor-grabbing group select-none ${
+                                    bulkDraggingImage?.row === row.rowNumber && bulkDraggingImage.index === idx
+                                      ? "opacity-30 scale-95"
+                                      : "border-card-border hover:border-accent-gold/40"
+                                  }`}
+                                  title="Arrastrá para reordenar"
+                                >
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img
+                                    src={img}
+                                    alt={`Foto ${idx + 1} de ${row.name}`}
+                                    className="w-full h-full object-contain pointer-events-none"
+                                  />
+                                  {idx === 0 && (
+                                    <span className="absolute bottom-1 left-1 bg-accent-gold text-background text-[8px] font-extrabold px-1 py-0.5 rounded uppercase pointer-events-none">
+                                      Portada
+                                    </span>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleBulkRemoveImage(row.rowNumber, idx)}
+                                    className="absolute top-1 right-1 h-4 w-4 rounded-full bg-black/60 text-white text-[9px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                                  >
+                                    ✕
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {!row.categoryId && (
+                            <p className="text-[10px] font-bold text-yellow-600 dark:text-yellow-400">⚠️ Falta elegir la categoría</p>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
                 {bulkErrors.length > 0 && (
                   <div className="bg-red-500/10 border border-red-500/20 text-red-500 rounded-xl p-4 flex flex-col gap-2">
                     <h4 className="font-bold text-xs flex items-center gap-1.5">
-                      <span>⚠️</span> Se encontraron {bulkErrors.length} errores de validación:
+                      <span>⚠️</span> Se encontraron {bulkErrors.length} errores al publicar:
                     </h4>
                     <div className="max-h-60 overflow-y-auto divide-y divide-red-500/10 text-[11px]">
                       {bulkErrors.map((err, idx) => (
@@ -2054,11 +2392,13 @@ function DashboardPageContent() {
                 )}
 
                 <button
-                  onClick={handleBulkPublish}
-                  disabled={loading || !csvFile}
+                  onClick={handleConfirmBulkPublish}
+                  disabled={bulkConfirming || bulkPreviewRows.filter((r) => r.valid && r.categoryId).length === 0}
                   className="w-full rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover py-4 text-xs font-extrabold text-background shadow-md hover:opacity-95 transition-all mt-2 disabled:opacity-50 cursor-pointer"
                 >
-                  {loading ? "Procesando subida..." : "Comenzar Subida Masiva"}
+                  {bulkConfirming
+                    ? "Publicando..."
+                    : `Confirmar y Publicar (${bulkPreviewRows.filter((r) => r.valid && r.categoryId).length} productos)`}
                 </button>
               </div>
             )}

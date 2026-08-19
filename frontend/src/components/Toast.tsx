@@ -16,10 +16,14 @@ export default function Toast({ message, type, onClose }: ToastProps) {
 
   return (
     <div
-      className={`pointer-events-auto flex items-start gap-2 rounded-xl border px-4 py-3 text-xs font-semibold shadow-lg backdrop-blur-md animate-in slide-in-from-top-4 fade-in duration-300 ${
+      // Mostly-solid (90%) + blur instead of fully opaque — enough
+      // translucency to feel like a floating toast instead of a flat card,
+      // while staying readable over arbitrary page content (the original
+      // /10 was too see-through against a busy header).
+      className={`pointer-events-auto flex items-start gap-2 rounded-xl border px-4 py-3 text-xs font-semibold text-white shadow-lg backdrop-blur-md animate-in slide-in-from-top-4 fade-in duration-300 ${
         type === "success"
-          ? "bg-accent-green/10 border-accent-green/30 text-accent-green"
-          : "bg-red-500/10 border-red-500/20 text-red-500"
+          ? "bg-accent-green/90 border-accent-green/60"
+          : "bg-red-500/90 border-red-600/60"
       }`}
     >
       <span>{type === "success" ? "✓" : "⚠️"}</span>

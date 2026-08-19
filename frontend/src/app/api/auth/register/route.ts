@@ -163,9 +163,18 @@ export async function POST(request: NextRequest) {
   })
 
   if (linkError || !linkData?.user) {
-    const message = linkError?.message?.includes("already")
+    // "Database error saving new user" is Supabase's generic wrapper for
+    // when handle_new_user's INSERT fails — in practice this almost always
+    // means a stray/unconfirmed auth.users row already exists for this
+    // email from a previous incomplete signup, colliding with the unique
+    // index on lower(email) (see 008_seller_uniqueness.sql). Whatever the
+    // exact trigger failure, it's not something the user can act on, so we
+    // don't leak the raw message — same fix as the "already" case below.
+    const isGenericDbError = linkError?.message === "Database error saving new user"
+    const message = linkError?.message?.includes("already") || isGenericDbError
       ? "Ese email ya está registrado."
       : linkError?.message ?? "No se pudo crear la cuenta. Intentá de nuevo."
+    console.error("[register] generateLink failed:", linkError?.message)
     return NextResponse.json({ error: message }, { status: 400 })
   }
 

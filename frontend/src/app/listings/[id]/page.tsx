@@ -1038,8 +1038,7 @@ export default function ListingDetailPage() {
               </button>
             </div>
 
-            <div className="border-t border-card-border pt-5 flex justify-between items-center text-[10px] text-text-muted font-semibold">
-              <span>Publicado por {seller?.name}</span>
+            <div className="border-t border-card-border pt-5 flex justify-end items-center text-[10px] text-text-muted font-semibold">
               <button
                 onClick={() => setShowReportModal(true)}
                 className="text-red-500 hover:underline transition-all cursor-pointer"
@@ -1052,31 +1051,34 @@ export default function ListingDetailPage() {
 
           {/* Seller Trust Box — clickable to see the seller's profile
               photo/logo and bio without leaving the listing. */}
-          <button
-            type="button"
-            onClick={() => setShowSellerModal(true)}
-            className="w-full text-left rounded-2xl bg-card-bg border border-card-border p-6 shadow-md flex items-center gap-4 cursor-pointer hover:border-accent-gold/40 transition-colors"
-          >
-            <div className="relative h-12 w-12 shrink-0 rounded-xl overflow-hidden shadow-lg">
-              <SellerAvatar src={seller?.avatar_url} alt={seller?.name ?? "Vendedor"} />
-            </div>
-            <div className="flex-1">
-              <h4 className="text-xs font-bold text-foreground">{seller?.name}</h4>
-              <span className="text-[10px] text-text-muted block mt-0.5">
-                {sellerHasSales ? `Vendedor nivel ${seller?.tier}` : "🌱 Recién se suma a la comunidad"}
-              </span>
-            </div>
-            <div className="text-right">
-              {sellerHasSales ? (
-                <>
-                  <span className="text-sm font-extrabold text-accent-gold block">★ {((seller?.score ?? 0) / 10).toFixed(1)}</span>
-                  <span className="text-[8px] text-text-muted block uppercase">Puntaje pampeano</span>
-                </>
-              ) : (
-                <span className="text-[9px] font-bold text-text-muted italic">Sin ventas aún</span>
-              )}
-            </div>
-          </button>
+          <div className="flex flex-col gap-2">
+            <span className="text-[10px] text-text-muted font-semibold uppercase tracking-wide">Publicado por</span>
+            <button
+              type="button"
+              onClick={() => setShowSellerModal(true)}
+              className="w-full text-left rounded-2xl bg-card-bg border border-card-border p-6 shadow-md flex items-center gap-4 cursor-pointer hover:border-accent-gold/40 transition-colors"
+            >
+              <div className="relative h-12 w-12 shrink-0 rounded-xl overflow-hidden shadow-lg">
+                <SellerAvatar src={seller?.avatar_url} alt={seller?.name ?? "Vendedor"} />
+              </div>
+              <div className="flex-1">
+                <h4 className="text-xs font-bold text-foreground">{seller?.name}</h4>
+                <span className="text-[10px] text-text-muted block mt-0.5">
+                  {sellerHasSales ? `Vendedor nivel ${seller?.tier}` : "🌱 Recién se suma a la comunidad"}
+                </span>
+              </div>
+              <div className="text-right">
+                {sellerHasSales ? (
+                  <>
+                    <span className="text-sm font-extrabold text-accent-gold block">★ {((seller?.score ?? 0) / 10).toFixed(1)}</span>
+                    <span className="text-[8px] text-text-muted block uppercase">Puntaje pampeano</span>
+                  </>
+                ) : (
+                  <span className="text-[9px] font-bold text-text-muted italic">Sin ventas aún</span>
+                )}
+              </div>
+            </button>
+          </div>
 
         </div>
 

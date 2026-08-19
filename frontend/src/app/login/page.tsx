@@ -8,6 +8,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/lib/supabase/types"
 import CustomDropdown from "@/components/CustomDropdown"
 import GenericAvatar from "@/components/GenericAvatar"
+import Toast from "@/components/Toast"
 import { LA_PAMPA_CITIES } from "@/lib/constants/laPampaCities"
 
 export default function LoginPage() {
@@ -173,8 +174,35 @@ export default function LoginPage() {
         const { error } = await getSupabase().auth.signInWithPassword({ email, password })
 
         if (error) {
+          // Supabase returns the same generic "Invalid login credentials"
+          // whether the email doesn't exist or the password is wrong, on
+          // purpose (anti account-enumeration). We deliberately undo that
+          // here via a server-side lookup, so we only distinguish the two
+          // AFTER an actual failed login attempt — not on every keystroke.
+          if (error.message === "Invalid login credentials") {
+            let emailExists = true
+            try {
+              const res = await fetch("/api/auth/check-email", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email }),
+              })
+              if (res.ok) {
+                const data = await res.json()
+                emailExists = !!data.exists
+              }
+            } catch {
+              // If the check itself fails, fall back to the generic message
+              // below rather than block the user on a broken lookup.
+            }
+            throw new Error(
+              emailExists
+                ? "Email o contraseña incorrectos."
+                : "No existe un usuario registrado con ese email."
+            )
+          }
+
           const knownErrors: Record<string, string> = {
-            "Invalid login credentials": "Email o contraseña incorrectos.",
             "Email not confirmed": "Todavía no confirmaste tu email. Revisá tu casilla de correo.",
           }
           throw new Error(knownErrors[error.message] ?? error.message)
@@ -193,6 +221,9 @@ export default function LoginPage() {
         }
         if (usernameStatus !== "available") {
           throw new Error("Comprobá la disponibilidad de tu nombre de usuario antes de continuar.")
+        }
+        if (!location) {
+          throw new Error("Seleccioná tu ciudad.")
         }
 
         const avatarDataUrl = avatarFile ? await fileToBase64(avatarFile) : null
@@ -256,6 +287,18 @@ export default function LoginPage() {
 
   return (
     <>
+    {/* Fixed to the viewport (not the form card) on purpose — a long
+        registration form scrolls, and an inline banner up top would go
+        unseen once the user's scrolled down to e.g. the terms checkbox.
+        Centered on screen (inset-0 + items/justify-center) instead of
+        pinned to a corner, so it's impossible to miss regardless of
+        scroll position or header height. */}
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 pointer-events-none">
+      <div className="flex flex-col gap-3 w-full max-w-sm">
+        {errorMsg && <Toast type="error" message={errorMsg} onClose={() => setErrorMsg("")} />}
+        {successMsg && <Toast type="success" message={successMsg} onClose={() => setSuccessMsg("")} />}
+      </div>
+    </div>
     {showConfirmModal && (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
         <div className="bg-card-bg border border-card-border rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl flex flex-col gap-5">
@@ -340,7 +383,7 @@ export default function LoginPage() {
         </div>
       </div>
     )}
-    <div className="mx-auto max-w-md px-4 py-16 w-full flex flex-col gap-6">
+    <div className="mx-auto max-w-lg px-4 py-16 w-full flex flex-col gap-6">
       <div className="text-center">
         <span className="text-4xl">🌾</span>
         <h1 className="font-heading text-2xl font-extrabold text-foreground mt-4">
@@ -355,22 +398,11 @@ export default function LoginPage() {
       </div>
 
       <div className="rounded-3xl bg-card-bg border border-card-border p-8 shadow-xl">
-        {errorMsg && (
-          <div className="bg-red-500/10 border border-red-500/20 text-red-500 rounded-xl p-3 text-xs font-semibold mb-6">
-            ⚠️ {errorMsg}
-          </div>
-        )}
-        {successMsg && (
-          <div className="bg-accent-green/10 border border-accent-green/20 text-accent-green rounded-xl p-3 text-xs font-semibold mb-6">
-            ✓ {successMsg}
-          </div>
-        )}
-
         <form onSubmit={handleSubmit} className="flex flex-col gap-5">
           {/* Avatar (Registration only, optional) */}
           {!isLogin && (
-            <div className="flex flex-col gap-2 items-center">
-              <label className="text-xs font-bold text-foreground self-start">Foto de Perfil (opcional)</label>
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-bold text-foreground">Foto de Perfil (opcional)</label>
               <div className="flex items-center gap-4">
                 <div className="relative h-16 w-16 shrink-0 rounded-full overflow-hidden border border-card-border">
                   {avatarPreview ? (
@@ -385,7 +417,7 @@ export default function LoginPage() {
                   <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={handleAvatarChange} className="hidden" />
                 </label>
               </div>
-              <p className="text-[10px] text-text-muted self-start">
+              <p className="text-[10px] text-text-muted">
                 Si no elegís una, tu perfil muestra una foto genérica hasta que subas la tuya.
               </p>
             </div>

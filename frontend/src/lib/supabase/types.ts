@@ -713,46 +713,67 @@ export type Database = {
       }
       orders: {
         Row: {
+          admin_notes: string | null
           amount: number
           buyer_id: string
           created_at: string
           currency_id: string | null
+          delivery_confirmed_at: string | null
+          dispute_opened_at: string | null
+          dispute_reason: string | null
           id: string
           listing_id: string
           mp_payment_id: string | null
           mp_preference_id: string | null
           paid_at: string | null
           payment_method: Database["public"]["Enums"]["order_payment_method"]
+          refunded_at: string | null
+          release_deadline: string | null
+          released_at: string | null
           seller_id: string
           status: Database["public"]["Enums"]["order_status"]
           updated_at: string
         }
         Insert: {
+          admin_notes?: string | null
           amount: number
           buyer_id: string
           created_at?: string
           currency_id?: string | null
+          delivery_confirmed_at?: string | null
+          dispute_opened_at?: string | null
+          dispute_reason?: string | null
           id?: string
           listing_id: string
           mp_payment_id?: string | null
           mp_preference_id?: string | null
           paid_at?: string | null
           payment_method: Database["public"]["Enums"]["order_payment_method"]
+          refunded_at?: string | null
+          release_deadline?: string | null
+          released_at?: string | null
           seller_id: string
           status?: Database["public"]["Enums"]["order_status"]
           updated_at?: string
         }
         Update: {
+          admin_notes?: string | null
           amount?: number
           buyer_id?: string
           created_at?: string
           currency_id?: string | null
+          delivery_confirmed_at?: string | null
+          dispute_opened_at?: string | null
+          dispute_reason?: string | null
           id?: string
           listing_id?: string
           mp_payment_id?: string | null
           mp_preference_id?: string | null
           paid_at?: string | null
           payment_method?: Database["public"]["Enums"]["order_payment_method"]
+          refunded_at?: string | null
+          release_deadline?: string | null
+          released_at?: string | null
           seller_id?: string
           status?: Database["public"]["Enums"]["order_status"]
           updated_at?: string
@@ -809,7 +830,7 @@ export type Database = {
       currency_code: "ARS" | "USD"
       listing_status: "ACTIVE" | "APPROVED" | "PAUSED" | "SOLD" | "DELETED"
       order_payment_method: "MERCADOPAGO" | "TRANSFER"
-      order_status: "PENDING" | "PAID" | "CANCELLED"
+      order_status: "PENDING" | "PAID" | "CANCELLED" | "EN_CUSTODIA" | "LIBERADO" | "DISPUTADO" | "REEMBOLSADO"
       question_status: "PENDING" | "ANSWERED"
       report_reason: "SPAM" | "FRAUD" | "INAPPROPRIATE" | "DUPLICATE" | "OTHER"
       reward_type: "HIGHLIGHT" | "DISCOUNT" | "FREE_LISTING"
@@ -993,7 +1014,7 @@ export const Constants = {
       currency_code: ["ARS", "USD"],
       listing_status: ["ACTIVE", "APPROVED", "PAUSED", "SOLD", "DELETED"],
       order_payment_method: ["MERCADOPAGO", "TRANSFER"],
-      order_status: ["PENDING", "PAID", "CANCELLED"],
+      order_status: ["PENDING", "PAID", "CANCELLED", "EN_CUSTODIA", "LIBERADO", "DISPUTADO", "REEMBOLSADO"],
       question_status: ["PENDING", "ANSWERED"],
       report_reason: ["SPAM", "FRAUD", "INAPPROPRIATE", "DUPLICATE", "OTHER"],
       reward_type: ["HIGHLIGHT", "DISCOUNT", "FREE_LISTING"],

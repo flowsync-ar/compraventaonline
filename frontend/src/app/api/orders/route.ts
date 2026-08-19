@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient as createServerClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { requireSeller } from "@/lib/supabase/seller-guard"
-import { getSellerMercadoPagoAccessToken } from "@/lib/mercadopago/tokens"
+import { getPlatformMercadoPagoAccessToken } from "@/lib/mercadopago/tokens"
 import { checkoutUrl, createCheckoutPreference } from "@/lib/mercadopago/client"
 
 // Listings can be purchased once approved by the admin, or once an admin
@@ -79,15 +79,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Vendedor no encontrado" }, { status: 404 })
   }
 
-  if (paymentMethod === "MERCADOPAGO" && !seller.mercadopago_connected) {
+  // MERCADOPAGO now settles into the platform's own account (escrow —
+  // see 022_escrow_payments.sql), not the seller's, so the seller no
+  // longer needs their own MP connected to receive it. They DO still need
+  // bank details either way, since the actual payout to them (once
+  // released) always happens by transfer now, regardless of how the buyer
+  // paid.
+  if (!seller.bank_cbu && !seller.bank_alias) {
     return NextResponse.json(
-      { error: "El vendedor no tiene Mercado Pago vinculado. Elegí transferencia bancaria." },
-      { status: 400 },
-    )
-  }
-  if (paymentMethod === "TRANSFER" && !seller.bank_cbu && !seller.bank_alias) {
-    return NextResponse.json(
-      { error: "El vendedor no cargó datos bancarios para transferencia." },
+      { error: "El vendedor no cargó datos bancarios para recibir pagos." },
       { status: 400 },
     )
   }
@@ -119,12 +119,15 @@ export async function POST(request: NextRequest) {
     })
   }
 
-  // MERCADOPAGO: create the Checkout Pro preference under the seller's account.
-  const accessToken = await getSellerMercadoPagoAccessToken(typedListing.seller_id)
+  // MERCADOPAGO: create the Checkout Pro preference under the PLATFORM's
+  // own account — same Checkout Pro flow as before, just pointed at a
+  // different collector, which is what makes the funds holdable until
+  // release instead of landing directly with the seller.
+  const accessToken = getPlatformMercadoPagoAccessToken()
   if (!accessToken) {
     return NextResponse.json(
-      { error: "El vendedor no tiene Mercado Pago vinculado. Elegí transferencia bancaria." },
-      { status: 400 },
+      { error: "Mercado Pago no está configurado en la plataforma. Elegí transferencia bancaria." },
+      { status: 503 },
     )
   }
 

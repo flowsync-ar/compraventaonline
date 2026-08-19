@@ -1,6 +1,17 @@
 import { createAdminClient } from "@/lib/supabase/admin"
 import { getMpOAuthConfig, isTokenExpired, refreshOAuthToken, tokenExpiresAtIso } from "./oauth"
 
+// The platform's OWN Mercado Pago account — checkout now settles here
+// (escrow model, see 022_escrow_payments.sql) instead of each seller's
+// OAuth-connected account. This is a static access token from
+// CompraventaOnline's own MP business account (Developers panel →
+// "Credenciales de producción"), not an OAuth flow — same one-time manual
+// setup as MERCADOPAGO_CLIENT_ID/SECRET already required for the
+// (now-legacy) seller-connect flow.
+export function getPlatformMercadoPagoAccessToken(): string | null {
+  return process.env.MERCADOPAGO_PLATFORM_ACCESS_TOKEN?.trim() || null
+}
+
 /**
  * Returns a seller's valid Mercado Pago access token, refreshing it first
  * if it's expired (or close to it). Returns null if the seller never

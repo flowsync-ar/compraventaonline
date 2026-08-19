@@ -350,7 +350,12 @@ export default function ListingDetailPage() {
         const res = await fetch(`/api/orders/${orderId}`);
         const data = await res.json();
         if (cancelled) return;
-        if (res.ok && data.order?.status === "PAID") {
+        // MP-paid orders now land in EN_CUSTODIA (held) rather than PAID —
+        // see 022_escrow_payments.sql — LIBERADO/DISPUTADO/REEMBOLSADO all
+        // still mean "the payment went through", just further down the
+        // escrow lifecycle.
+        const paidLikeStatuses = ["PAID", "EN_CUSTODIA", "LIBERADO", "DISPUTADO", "REEMBOLSADO"];
+        if (res.ok && paidLikeStatuses.includes(data.order?.status)) {
           setIsPaid(true);
           return;
         }
@@ -386,7 +391,7 @@ export default function ListingDetailPage() {
           .from("orders")
           .select("id")
           .eq("listing_id", id)
-          .eq("status", "PAID")
+          .in("status", ["PAID", "EN_CUSTODIA", "LIBERADO", "DISPUTADO", "REEMBOLSADO"])
           .limit(1)
           .maybeSingle();
 

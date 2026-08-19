@@ -247,8 +247,36 @@ function LoginPageContent() {
         if (!acceptTerms) {
           throw new Error("Debes aceptar los términos y condiciones de la comunidad.")
         }
+        // If they never clicked "Comprobar disponibilidad" (or changed the
+        // username after checking it), run the same check right here
+        // instead of just blocking them with "andá a comprobarlo vos" —
+        // one less manual step for something we can just do ourselves.
         if (usernameStatus !== "available") {
-          throw new Error("Comprobá la disponibilidad de tu nombre de usuario antes de continuar.")
+          const trimmedUsername = username.trim()
+          if (!USERNAME_PATTERN.test(trimmedUsername)) {
+            setUsernameStatus("invalid")
+            setUsernameMsg("Usá entre 3 y 30 caracteres: letras, números, puntos o guiones bajos.")
+            throw new Error("Revisá el nombre de usuario: entre 3 y 30 caracteres (letras, números, puntos o guiones bajos).")
+          }
+
+          setUsernameStatus("checking")
+          let usernameAvailable: boolean
+          try {
+            usernameAvailable = await checkUsernameAvailability(trimmedUsername)
+          } catch {
+            setUsernameStatus("idle")
+            setUsernameMsg("No se pudo comprobar la disponibilidad. Intentá de nuevo.")
+            throw new Error("No se pudo comprobar la disponibilidad de tu nombre de usuario. Intentá de nuevo.")
+          }
+
+          if (!usernameAvailable) {
+            setUsernameStatus("taken")
+            setUsernameMsg("Este nombre de usuario ya existe.")
+            throw new Error("Ese nombre de usuario ya existe. Elegí otro.")
+          }
+
+          setUsernameStatus("available")
+          setUsernameMsg("¡Disponible!")
         }
         if (!location) {
           throw new Error("Seleccioná tu ciudad.")
@@ -318,19 +346,6 @@ function LoginPageContent() {
 
   return (
     <>
-    {/* Fixed to the viewport (not the form card) on purpose — a long
-        registration form scrolls, and an inline banner up top would go
-        unseen once the user's scrolled down to e.g. the terms checkbox.
-        Horizontally centered but pinned near the TOP (not true dead-center)
-        — dead-center used to sit right on top of the form card and hide
-        it; floating just below the header keeps it visible without
-        covering anything the user actually needs to see. */}
-    <div className="fixed inset-x-0 top-24 z-[100] flex items-start justify-center p-4 pointer-events-none">
-      <div className="flex flex-col gap-3 w-full max-w-sm">
-        {errorMsg && <Toast type="error" message={errorMsg} onClose={() => setErrorMsg("")} />}
-        {successMsg && <Toast type="success" message={successMsg} onClose={() => setSuccessMsg("")} />}
-      </div>
-    </div>
     {showTermsModal && (
       <TermsAcceptanceModal
         onAccept={() => { setAcceptTerms(true); setShowTermsModal(false); }}
@@ -685,6 +700,18 @@ function LoginPageContent() {
             }
           </button>
         </form>
+
+        {/* Inline, not fixed — sits right below the button the user just
+            pressed, inside the card. No more fighting a fixed overlay
+            against the header (too high) or the form (too low/centered):
+            living in the normal document flow means it can never overlap
+            either, on any form length or screen size. */}
+        {(errorMsg || successMsg) && (
+          <div className="mt-4">
+            {errorMsg && <Toast type="error" message={errorMsg} onClose={() => setErrorMsg("")} />}
+            {successMsg && <Toast type="success" message={successMsg} onClose={() => setSuccessMsg("")} />}
+          </div>
+        )}
 
         <div className="border-t border-card-border/50 pt-5 mt-6 text-center text-xs text-text-muted">
           {isLogin ? (

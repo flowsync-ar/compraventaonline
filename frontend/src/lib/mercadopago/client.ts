@@ -102,6 +102,25 @@ export async function getPayment(accessToken: string, paymentId: string): Promis
   return data as MpPaymentInfo
 }
 
+// Full refund of an already-approved (captured) payment — used when an
+// admin resolves a dispute in the buyer's favor. Standard documented
+// endpoint, unrelated to the deferred-capture feature (which this app
+// doesn't use — see 022_escrow_payments.sql for why).
+export async function refundPayment(accessToken: string, paymentId: string): Promise<void> {
+  const res = await fetch(`${MP_API}/v2/payments/${paymentId}/refunds`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+  })
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}))
+    console.error("[mercadopago/client] refundPayment failed", data)
+    throw new Error("Error al reembolsar el pago en Mercado Pago")
+  }
+}
+
 export interface MpUser {
   id: number
   nickname?: string

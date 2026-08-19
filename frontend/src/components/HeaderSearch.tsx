@@ -18,7 +18,7 @@ export default function HeaderSearch() {
   return (
     <form
       onSubmit={handleSubmit}
-      className="flex w-full max-w-md items-center gap-2 rounded-lg border border-card-border bg-card-bg px-4 py-1.5 shadow-sm focus-within:border-accent-gold/60 focus-within:ring-2 focus-within:ring-accent-gold/20 transition-all"
+      className="flex w-full items-center gap-2 rounded-lg border border-card-border bg-card-bg px-4 py-1.5 shadow-sm focus-within:border-accent-gold/60 focus-within:ring-2 focus-within:ring-accent-gold/20 transition-all"
     >
       {/* Search icon */}
       <svg

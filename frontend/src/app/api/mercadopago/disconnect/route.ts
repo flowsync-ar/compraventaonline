@@ -7,7 +7,7 @@ export async function POST() {
   const supabase = await createServerClient()
   const seller = await requireSeller(supabase)
   if (!seller) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 })
   }
 
   const admin = createAdminClient()

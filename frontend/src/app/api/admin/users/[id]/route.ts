@@ -26,8 +26,27 @@ export async function DELETE(request: NextRequest, context: { params: Promise<{ 
   }
 
   const { error } = await admin.auth.admin.deleteUser(seller.user_id)
+
+  // Some seller rows are seed/demo data whose user_id was never a real
+  // auth.users row to begin with (e.g. fake placeholder ids like
+  // a0000000-0000-0000-0000-000000000001 from the initial migration's
+  // sample data) — auth.admin.deleteUser correctly reports "User not
+  // found" for those, since there's genuinely no auth account to delete.
+  // That's not a failure from the admin's point of view: they asked to
+  // wipe the seller and everything under it, so fall back to deleting the
+  // `sellers` row directly — every table referencing it (listings,
+  // favorites, questions, seller_rewards, ...) already cascades from
+  // `sellers.id`, same end result as the normal path.
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    const isMissingAuthUser = error.status === 404 || /user not found/i.test(error.message)
+    if (!isMissingAuthUser) {
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    const { error: sellerDeleteError } = await admin.from("sellers").delete().eq("id", id)
+    if (sellerDeleteError) {
+      return NextResponse.json({ error: sellerDeleteError.message }, { status: 500 })
+    }
   }
 
   return NextResponse.json({ ok: true })

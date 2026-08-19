@@ -134,10 +134,14 @@ export default function FavoriteButton({ listingId }: FavoriteButtonProps) {
       type="button"
       onClick={handleToggleFavorite}
       disabled={loading}
-      className={`absolute top-3 right-3 z-20 w-9 h-9 rounded-full flex items-center justify-center transition-all duration-300 cursor-pointer border backdrop-blur-md active:scale-90 disabled:opacity-50 ${
+      className={`absolute top-3 right-3 z-20 w-9 h-9 rounded-full flex items-center justify-center transition-all duration-300 cursor-pointer border backdrop-blur-md active:scale-90 disabled:opacity-50 shadow-sm ${
         isFavorite
           ? "bg-red-500/10 border-red-500/30 text-red-500 shadow-[0_0_12px_rgba(239,68,68,0.2)]"
-          : "bg-background/60 hover:bg-background/80 border-card-border text-white hover:text-red-400 hover:border-red-500/20"
+          // text-white was invisible against light product photos (white
+          // outline on a barely-tinted white circle) — text-foreground/70
+          // keeps a visible dark outline in light mode and a light one in
+          // dark mode, regardless of what's behind the card.
+          : "bg-background/80 hover:bg-background/95 border-card-border text-foreground/70 hover:text-red-400 hover:border-red-500/20"
       }`}
       aria-label={isFavorite ? "Quitar de favoritos" : "Agregar a favoritos"}
       title={isFavorite ? "Quitar de favoritos" : "Agregar a favoritos"}

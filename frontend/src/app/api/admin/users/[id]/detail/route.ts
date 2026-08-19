@@ -39,7 +39,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
     else if (l.status === "DELETED") counts.deleted++
   }
 
-  const [reportsReceived, favoritesSaved, questionsAsked, questionsReceived] = await Promise.all([
+  const [reportsReceived, favoritesSaved, questionsAsked, questionsReceived, paidOrders] = await Promise.all([
     listingIds.length > 0
       ? admin.from("product_reports").select("id", { count: "exact", head: true }).in("listing_id", listingIds)
       : Promise.resolve({ count: 0 }),
@@ -48,10 +48,14 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
     listingIds.length > 0
       ? admin.from("questions").select("id", { count: "exact", head: true }).in("listing_id", listingIds)
       : Promise.resolve({ count: 0 }),
+    // Whether this seller ever completed a sale — score/tier default to
+    // 80/BRONCE at signup, which would otherwise read as a real reputation.
+    admin.from("orders").select("id", { count: "exact", head: true }).eq("seller_id", id).eq("status", "PAID"),
   ])
 
   return NextResponse.json({
     user: { ...seller, email: authUser?.user?.email ?? null },
+    hasSales: (paidOrders.count ?? 0) > 0,
     stats: {
       totalListings: listingRows.length,
       activeListings: counts.active,

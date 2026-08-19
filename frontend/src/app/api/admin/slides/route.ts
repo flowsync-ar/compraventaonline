@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
   try {
     body = await request.json()
   } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
+    return NextResponse.json({ error: "Cuerpo de la solicitud inválido" }, { status: 400 })
   }
 
   const imageUrl = body.imageUrl?.trim()

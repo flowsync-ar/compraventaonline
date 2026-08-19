@@ -4,7 +4,8 @@ import { useEffect, useState, useRef } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
-import type { SellerRow, QuestionWithBuyer } from "@/lib/supabase/types"
+import SellerAvatar from "./SellerAvatar"
+import type { SellerRow, QuestionWithBuyer, AnsweredQuestionForBuyer } from "@/lib/supabase/types"
 
 export default function HeaderSessionBar() {
   const router = useRouter()
@@ -29,10 +30,16 @@ export default function HeaderSessionBar() {
   // Profile dropdown
   const [showUserMenu, setShowUserMenu] = useState(false)
 
-  // Questions / notifications
+  // Questions / notifications — two directions:
+  // 1) "notifications": questions asked ON this seller's listings (they answer).
+  // 2) "answeredNotifications": questions THIS user asked elsewhere that just
+  //    got answered (they read). Same bell, same panel, different sections.
   const [showNotifications, setShowNotifications] = useState(false)
   const [notifications, setNotifications] = useState<QuestionWithBuyer[]>([])
-  const [unreadCount, setUnreadCount] = useState(0)
+  const [answeredNotifications, setAnsweredNotifications] = useState<AnsweredQuestionForBuyer[]>([])
+  const [unreadReceivedCount, setUnreadReceivedCount] = useState(0)
+  const [unreadAnsweredCount, setUnreadAnsweredCount] = useState(0)
+  const unreadCount = unreadReceivedCount + unreadAnsweredCount
   const [replyingToId, setReplyingToId] = useState<string | null>(null)
   const [replyText, setReplyText] = useState("")
 
@@ -122,8 +129,10 @@ export default function HeaderSessionBar() {
         } else {
           setIsLoggedIn(false)
           setProfile(null)
-          setUnreadCount(0)
+          setUnreadReceivedCount(0)
+          setUnreadAnsweredCount(0)
           setNotifications([])
+          setAnsweredNotifications([])
         }
       }
     )
@@ -132,6 +141,20 @@ export default function HeaderSessionBar() {
       subscription.unsubscribe()
       window.removeEventListener("cart-change", loadCart)
     }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // The dashboard ("Mis Datos") updates name/avatar_url directly in the DB
+  // via the browser client — this component's own `profile` state has no
+  // way to know that happened (loadProfile only runs once, on mount/auth
+  // change), so without this it stays stale until a full page reload.
+  useEffect(() => {
+    const handleProfileUpdated = () => {
+      getSupabase().auth.getSession().then(({ data: { session } }) => {
+        if (session?.user) loadProfile(session.user.id)
+      })
+    }
+    window.addEventListener("profile-updated", handleProfileUpdated)
+    return () => window.removeEventListener("profile-updated", handleProfileUpdated)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load notifications when the panel opens
@@ -161,16 +184,41 @@ export default function HeaderSessionBar() {
       setNotifications(typedData)
 
       const unanswered = typedData.filter((q) => !q.is_read_by_seller).length
-      setUnreadCount(unanswered)
+      setUnreadReceivedCount(unanswered)
+    }
+
+    // Questions this user asked (as buyer) that a seller answered and this
+    // user hasn't seen yet.
+    const fetchAnsweredNotifications = async () => {
+      const { data } = await getSupabase()
+        .from("questions")
+        .select(`
+          id, question, answer, updated_at,
+          listing:listings!questions_listing_id_fkey (
+            id,
+            product:products ( name )
+          )
+        `)
+        .eq("buyer_id", profile.id)
+        .eq("is_read_by_buyer", false)
+        .not("answer", "is", null)
+        .order("updated_at", { ascending: false })
+        .limit(50)
+
+      const typedData = (data ?? []) as unknown as AnsweredQuestionForBuyer[]
+      setAnsweredNotifications(typedData)
+      setUnreadAnsweredCount(typedData.length)
     }
 
     fetchNotifications()
+    fetchAnsweredNotifications()
   }, [showNotifications, profile]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Poll unread count every 15s (keeping existing behavior — Realtime is out of scope)
   useEffect(() => {
     if (!profile) {
-      setUnreadCount(0)
+      setUnreadReceivedCount(0)
+      setUnreadAnsweredCount(0)
       return
     }
 
@@ -180,15 +228,26 @@ export default function HeaderSessionBar() {
         .select("id")
         .eq("seller_id", profile.id)
 
-      if (!listingIds?.length) return
+      if (!listingIds?.length) {
+        setUnreadReceivedCount(0)
+      } else {
+        const { count } = await getSupabase()
+          .from("questions")
+          .select("id", { count: "exact", head: true })
+          .in("listing_id", listingIds.map((l) => l.id))
+          .eq("is_read_by_seller", false)
 
-      const { count } = await getSupabase()
+        setUnreadReceivedCount(count ?? 0)
+      }
+
+      const { count: answeredCount } = await getSupabase()
         .from("questions")
         .select("id", { count: "exact", head: true })
-        .in("listing_id", listingIds.map((l) => l.id))
-        .eq("is_read_by_seller", false)
+        .eq("buyer_id", profile.id)
+        .eq("is_read_by_buyer", false)
+        .not("answer", "is", null)
 
-      setUnreadCount(count ?? 0)
+      setUnreadAnsweredCount(answeredCount ?? 0)
     }
 
     checkUnread()
@@ -201,7 +260,7 @@ export default function HeaderSessionBar() {
 
     const { error } = await getSupabase()
       .from("questions")
-      .update({ answer: replyText, status: "ANSWERED" })
+      .update({ answer: replyText, status: "ANSWERED", is_read_by_buyer: false })
       .eq("id", questionId)
 
     if (error) {
@@ -234,8 +293,40 @@ export default function HeaderSessionBar() {
       .in("listing_id", listingIds.map((l) => l.id))
       .eq("is_read_by_seller", false)
 
-    setUnreadCount(0)
+    setUnreadReceivedCount(0)
     setNotifications((prev) => prev.map((n) => ({ ...n, is_read_by_seller: true })))
+  }
+
+  // Hide (or unhide) a question from the listing's public Q&A — the buyer
+  // who asked it still sees it in their own view (see listings/[id]/page.tsx),
+  // it just disappears for everyone else. Soft toggle, not a delete.
+  const handleToggleHidden = async (questionId: string, currentlyHidden: boolean) => {
+    const { error } = await getSupabase()
+      .from("questions")
+      .update({ hidden_by_seller: !currentlyHidden })
+      .eq("id", questionId)
+
+    if (error) {
+      alert("No se pudo actualizar la visibilidad de la consulta.")
+      return
+    }
+
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === questionId ? { ...n, hidden_by_seller: !currentlyHidden } : n))
+    )
+  }
+
+  const handleMarkAnsweredAsRead = async () => {
+    if (!profile || answeredNotifications.length === 0) return
+
+    await getSupabase()
+      .from("questions")
+      .update({ is_read_by_buyer: true })
+      .eq("buyer_id", profile.id)
+      .eq("is_read_by_buyer", false)
+
+    setUnreadAnsweredCount(0)
+    setAnsweredNotifications([])
   }
 
   const handleLogout = async () => {
@@ -291,7 +382,7 @@ export default function HeaderSessionBar() {
       {/* CTA Vender */}
       <Link
         href="/dashboard?tab=publish"
-        className="sell-cta-pulse hidden sm:inline-flex w-32 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-accent-green to-accent-green py-2 text-xs font-extrabold uppercase tracking-wide text-background border border-accent-green/30 hover:opacity-95 hover:scale-[1.02] active:scale-[0.98] transition-all"
+        className="sell-cta-pulse hidden sm:inline-flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-accent-green to-accent-green px-3.5 py-2 text-xs font-extrabold uppercase tracking-wide text-background border border-accent-green/30 hover:opacity-95 hover:scale-[1.02] active:scale-[0.98] transition-all"
       >
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
           <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z" />
@@ -302,7 +393,7 @@ export default function HeaderSessionBar() {
       </Link>
 
       {isLoggedIn ? (
-        <div className="flex items-center gap-4 relative">
+        <div className="flex items-center gap-2.5 sm:gap-4 relative">
 
           {/* User Profile Indicator / Dropdown */}
           <div ref={userMenuRef} className="relative">
@@ -311,10 +402,10 @@ export default function HeaderSessionBar() {
                 setShowUserMenu(!showUserMenu)
                 setShowCart(false)
               }}
-              className="flex items-center gap-2 bg-card-bg border border-card-border/50 pl-1.5 pr-3 py-1 rounded-full shadow-sm hover:border-card-border transition-colors cursor-pointer select-none"
+              className="flex items-center gap-2 bg-card-bg border border-card-border/50 pl-1.5 pr-2 md:pr-3 py-1 rounded-full shadow-sm hover:border-card-border transition-colors cursor-pointer select-none"
             >
-              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-tr from-accent-gold to-accent-gold-hover text-background font-bold text-xs uppercase shadow-sm">
-                {profile ? profile.name.charAt(0) : "U"}
+              <div className="relative h-7 w-7 shrink-0 rounded-full overflow-hidden shadow-sm">
+                <SellerAvatar src={profile?.avatar_url} alt={profile?.name ?? "Vendedor"} />
               </div>
               <span className="hidden md:inline-block text-xs font-bold text-foreground max-w-[180px] truncate">
                 {profile ? `Bienvenido, ${profile.name}` : "Cargando..."}
@@ -520,10 +611,49 @@ export default function HeaderSessionBar() {
             </button>
 
             {showNotifications && (
-              <div className="fixed md:absolute right-4 left-4 md:right-0 md:left-auto top-[125px] md:top-auto md:mt-3 w-auto md:w-96 rounded-2xl bg-card-bg-solid border border-card-border p-4 shadow-2xl z-50 flex flex-col gap-3 animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="fixed md:absolute right-4 left-4 md:right-0 md:left-auto top-[125px] md:top-auto md:mt-3 w-auto md:w-96 rounded-2xl bg-card-bg-solid border border-card-border p-4 shadow-2xl z-50 flex flex-col gap-3 max-h-[70vh] overflow-y-auto animate-in fade-in slide-in-from-top-2 duration-200">
+                {answeredNotifications.length > 0 && (
+                  <>
+                    <div className="flex justify-between items-center border-b border-card-border/30 pb-2">
+                      <span className="text-xs font-heading font-extrabold text-foreground uppercase tracking-wider">Te Respondieron</span>
+                      <button
+                        onClick={handleMarkAnsweredAsRead}
+                        className="text-[10px] text-accent-gold hover:underline font-bold cursor-pointer"
+                      >
+                        Marcar como leídas
+                      </button>
+                    </div>
+
+                    <div className="flex flex-col gap-3 pr-1">
+                      {answeredNotifications.map((n) => (
+                        <Link
+                          key={n.id}
+                          href={`/listings/${n.listing?.id ?? "#"}`}
+                          onClick={() => setShowNotifications(false)}
+                          className="p-3 rounded-xl border bg-accent-green/5 border-accent-green/20 flex flex-col gap-2 text-xs hover:border-accent-green/40 transition-colors"
+                        >
+                          <div className="flex justify-between items-start gap-3">
+                            <span className="font-bold text-foreground line-clamp-1">
+                              {n.listing?.product?.name ?? "Publicación"}
+                            </span>
+                            <span className="text-[9px] text-text-muted shrink-0">
+                              {new Date(n.updated_at).toLocaleDateString("es-AR")}
+                            </span>
+                          </div>
+                          <p className="text-text-muted italic line-clamp-1">Tu consulta: &quot;{n.question}&quot;</p>
+                          <div className="bg-background/40 p-2.5 rounded-lg border border-card-border/40">
+                            <span className="text-[9px] font-bold text-accent-green block mb-0.5 uppercase">Respuesta del vendedor:</span>
+                            <p className="text-foreground leading-relaxed">&quot;{n.answer}&quot;</p>
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                  </>
+                )}
+
                 <div className="flex justify-between items-center border-b border-card-border/30 pb-2">
                   <span className="text-xs font-heading font-extrabold text-foreground uppercase tracking-wider">Preguntas Recibidas</span>
-                  {unreadCount > 0 && (
+                  {unreadReceivedCount > 0 && (
                     <button
                       onClick={handleMarkAllAsRead}
                       className="text-[10px] text-accent-gold hover:underline font-bold cursor-pointer"
@@ -533,7 +663,7 @@ export default function HeaderSessionBar() {
                   )}
                 </div>
 
-                <div className="flex flex-col gap-3 max-h-80 overflow-y-auto pr-1">
+                <div className="flex flex-col gap-3 pr-1">
                   {notifications.length === 0 ? (
                     <p className="text-xs text-text-muted text-center py-6">No tenés ninguna consulta por el momento.</p>
                   ) : (
@@ -564,6 +694,13 @@ export default function HeaderSessionBar() {
                           <span className="text-[9px] font-bold text-text-muted block mb-0.5">{n.buyer?.name ?? "Comprador"} pregunta:</span>
                           <p className="text-foreground leading-relaxed italic">&quot;{n.question}&quot;</p>
                         </div>
+
+                        <button
+                          onClick={() => handleToggleHidden(n.id, n.hidden_by_seller)}
+                          className="self-start text-[10px] font-bold text-text-muted hover:text-foreground underline decoration-dotted cursor-pointer"
+                        >
+                          {n.hidden_by_seller ? "👁️ Volver a mostrar en la publicación" : "🙈 Ocultar de la publicación"}
+                        </button>
 
                         {n.answer ? (
                           <div className="bg-accent-green/5 p-2.5 rounded-lg border border-accent-green/15 flex flex-col gap-0.5">
@@ -623,7 +760,7 @@ export default function HeaderSessionBar() {
         </div>
       ) : (
         /* Login CTA */
-        <Link href="/login" className="flex w-32 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover py-2 text-xs font-extrabold text-background border border-transparent shadow-md hover:opacity-90 hover:scale-[1.02] active:scale-[0.98] transition-all">
+        <Link href="/login" className="flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover px-3.5 py-2 text-xs font-extrabold text-background border border-transparent shadow-md hover:opacity-90 hover:scale-[1.02] active:scale-[0.98] transition-all">
           <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
             <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
             <polyline points="10 17 15 12 10 7" />

@@ -161,7 +161,7 @@ export async function POST(req: NextRequest) {
   } = await supabase.auth.getUser()
 
   if (authError || !user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   }
 
   const { data: sellerRow, error: sellerError } = await supabase
@@ -171,7 +171,7 @@ export async function POST(req: NextRequest) {
     .single()
 
   if (sellerError || !sellerRow) {
-    return NextResponse.json({ error: 'Only sellers can use this endpoint' }, { status: 403 })
+    return NextResponse.json({ error: 'Esta acción es solo para vendedores' }, { status: 403 })
   }
 
   const sellerId = sellerRow.id
@@ -182,7 +182,7 @@ export async function POST(req: NextRequest) {
     const file = formData.get('file')
 
     if (!file || typeof file === 'string') {
-      return NextResponse.json({ error: 'Missing "file" field in form data' }, { status: 400 })
+      return NextResponse.json({ error: 'Falta el campo "file" en el formulario' }, { status: 400 })
     }
 
     const buffer = await (file as File).arrayBuffer()

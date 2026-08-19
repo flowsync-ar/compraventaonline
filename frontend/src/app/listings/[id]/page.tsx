@@ -1,11 +1,14 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import CustomDropdown from "@/components/CustomDropdown";
+import SellerAvatar from "@/components/SellerAvatar";
 import { createClient } from "@/lib/supabase/client";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { getAncestors, type CategoryNode } from "@/lib/categories";
+import { getOrCreateVisitorId } from "@/lib/visitorId";
 
 interface Listing {
   id: string;
@@ -19,14 +22,16 @@ interface Listing {
     brand: string;
     description: string;
     images: string[] | null;
-    categories: { name: string } | null;
+    categories: { id: string; name: string; slug: string } | null;
   } | null;
   sellers: {
     id: string;
     name: string;
+    avatar_url: string | null;
     score: number;
     tier: string;
     type: string;
+    bio: string | null;
     mercadopago_connected: boolean;
     bank_cbu: string | null;
     bank_alias: string | null;
@@ -42,8 +47,12 @@ interface Question {
   id: string;
   question: string;
   answer: string | null;
-  answered_at: string | null;
+  updated_at: string;
   created_at: string;
+  hidden_by_seller: boolean;
+  question_deleted: boolean;
+  answer_deleted: boolean;
+  buyer_id: string;
   sellers: { name: string } | null;
 }
 
@@ -76,6 +85,7 @@ export default function ListingDetailPage() {
   // Interactive Modals
   const [showContactModal, setShowContactModal] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
+  const [showSellerModal, setShowSellerModal] = useState(false);
 
   // Contact Form States
   const [contactMsg, setContactMsg] = useState("Hola! Estoy interesado en tu publicación. ¿Sigue disponible?");
@@ -106,24 +116,78 @@ export default function ListingDetailPage() {
 
   // Auth state
   const [userId, setUserId] = useState<string | null>(null);
+  // The seller row of the logged-in user acting as buyer here — favorites,
+  // questions and product_reports all key off sellers.id (buyer_id /
+  // seller_id / reporter_id), never off the raw auth user id.
+  const [sellerId, setSellerId] = useState<string | null>(null);
 
   // Seller phone — only fetched (and only fetchable, per RLS) for logged-in users
   const [sellerPhone, setSellerPhone] = useState<string | null>(null);
 
+  // Whether this listing's seller has at least one PAID order — sellers.score
+  // and sellers.tier default to 80/BRONCE at signup, which would otherwise
+  // read as a real reputation for a seller who never sold anything.
+  const [sellerHasSales, setSellerHasSales] = useState(false);
+
+  // Full category path (root-first, e.g. Alimentos y Bebidas > Bebidas >
+  // Vinos y Espumantes) for the breadcrumb — resolved once the listing's
+  // own category id is known.
+  // Raw category tree (fetched once, in parallel with the listing itself —
+  // NOT triggered by listing.products.categories.id resolving, which was
+  // causing the breadcrumb to render short ("Inicio / Producto") and then
+  // visibly "jump" to the full chain a moment later). categoryPath below is
+  // a synchronous derivation from this + the listing, so it only ever
+  // renders in its final form, never a partial one.
+  const [allCategories, setAllCategories] = useState<CategoryNode[]>([]);
+
   useEffect(() => {
     const supabase = getSupabase();
 
+    async function resolveSellerId(uid: string) {
+      try {
+        const { data } = await supabase.from("sellers").select("id").eq("user_id", uid).single();
+        setSellerId(data?.id ?? null);
+      } catch (err) {
+        console.error("Error resolving seller id:", err);
+        setSellerId(null);
+      }
+    }
+
     // Get current user
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setUserId(session?.user?.id ?? null);
+      const uid = session?.user?.id ?? null;
+      setUserId(uid);
+      if (uid) resolveSellerId(uid);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUserId(session?.user?.id ?? null);
+      const uid = session?.user?.id ?? null;
+      setUserId(uid);
+      if (uid) {
+        resolveSellerId(uid);
+      } else {
+        setSellerId(null);
+      }
     });
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // Records one "view" for this listing (seller-visibility metric in "Mis
+  // Publicaciones"), deduped server-side by visitor+day — see
+  // listing_views migration. Fire-and-forget, mirrors SiteChrome's
+  // track-visit beacon; a dropped request must never affect the page.
+  useEffect(() => {
+    if (!id) return;
+    fetch(`/api/listings/${id}/track-view`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ visitorId: getOrCreateVisitorId() }),
+      keepalive: true,
+    }).catch(() => {
+      // best-effort — a dropped beacon shouldn't surface anywhere
+    });
+  }, [id]);
 
   useEffect(() => {
     if (!id) return;
@@ -145,14 +209,16 @@ export default function ListingDetailPage() {
               brand,
               description,
               images,
-              categories ( name )
+              categories ( id, name, slug )
             ),
             sellers (
               id,
               name,
+              avatar_url,
               score,
               tier,
               type,
+              bio,
               mercadopago_connected,
               bank_cbu,
               bank_alias
@@ -183,21 +249,67 @@ export default function ListingDetailPage() {
       }
     }
 
+    // Fired alongside fetchListing (not chained after it, not waiting on
+    // any piece of listing data) — both requests go out together on mount,
+    // so the breadcrumb below only ever renders once, in its final form.
+    async function fetchCategories() {
+      const supabase = getSupabase();
+      try {
+        const { data } = await supabase.from("categories").select("id, name, slug, parent_id");
+        if (data) setAllCategories(data);
+      } catch (err) {
+        console.error("Error fetching categories:", err);
+      }
+    }
+
+    fetchListing();
+    fetchCategories();
+  }, [id]);
+
+  // Full category breadcrumb (root-first) for the product's own category —
+  // a synchronous derivation, not its own fetch: both pieces of data it
+  // needs (listing, allCategories) come from the parallel fetches above.
+  const categoryPath = useMemo<CategoryNode[]>(() => {
+    const categoryId = listing?.products?.categories?.id;
+    if (!categoryId || allCategories.length === 0) return [];
+
+    const ancestors = getAncestors(allCategories, categoryId);
+    const self = allCategories.find((c) => c.id === categoryId);
+    return [...ancestors, ...(self ? [self] : [])];
+  }, [listing, allCategories]);
+
+  // Public Q&A list — hidden_by_seller questions are excluded UNLESS the
+  // current user is the one who asked (they keep it in their own view even
+  // if the seller hid it from everyone else). Separate effect from
+  // fetchListing because sellerId resolves asynchronously in another effect
+  // (it starts null, then gets set once we know who's logged in).
+  useEffect(() => {
+    if (!id) return;
+
     async function fetchQuestions() {
       const supabase = getSupabase();
       try {
-        const { data } = await supabase
+        let query = supabase
           .from("questions")
           .select(`
             id,
             question,
             answer,
-            answered_at,
+            updated_at,
             created_at,
+            hidden_by_seller,
+            question_deleted,
+            answer_deleted,
+            buyer_id,
             sellers ( name )
           `)
-          .eq("listing_id", id)
-          .order("created_at", { ascending: true });
+          .eq("listing_id", id);
+
+        query = sellerId
+          ? query.or(`hidden_by_seller.eq.false,buyer_id.eq.${sellerId}`)
+          : query.eq("hidden_by_seller", false);
+
+        const { data } = await query.order("created_at", { ascending: true });
 
         if (data) setQuestions(data as unknown as Question[]);
       } catch (err) {
@@ -205,9 +317,8 @@ export default function ListingDetailPage() {
       }
     }
 
-    fetchListing();
     fetchQuestions();
-  }, [id]);
+  }, [id, sellerId]);
 
   // Handle the buyer coming back from Mercado Pago's checkout — poll the
   // order a few times since the webhook that confirms payment can lag
@@ -287,7 +398,7 @@ export default function ListingDetailPage() {
 
   // Check if listing is favorited
   useEffect(() => {
-    if (!userId || !id) return;
+    if (!sellerId || !id) return;
 
     async function checkFavoriteStatus() {
       const supabase = getSupabase();
@@ -296,7 +407,7 @@ export default function ListingDetailPage() {
           .from("favorites")
           .select("id")
           .eq("listing_id", id)
-          .eq("user_id", userId!)
+          .eq("seller_id", sellerId!)
           .maybeSingle();
 
         setIsFavorite(!!data);
@@ -306,13 +417,15 @@ export default function ListingDetailPage() {
     }
 
     checkFavoriteStatus();
-  }, [userId, id]);
+  }, [sellerId, id]);
 
   // Fetch the seller's real phone — only possible while logged in (RLS
   // revokes SELECT on sellers.phone for anon).
   useEffect(() => {
-    const sellerId = listing?.sellers?.id;
-    if (!userId || !sellerId) return;
+    // The listing owner's seller id — unrelated to the `sellerId` state
+    // above, which is the logged-in buyer's own seller row.
+    const listingSellerId = listing?.sellers?.id;
+    if (!userId || !listingSellerId) return;
 
     async function fetchSellerPhone() {
       const supabase = getSupabase();
@@ -320,7 +433,7 @@ export default function ListingDetailPage() {
         const { data } = await supabase
           .from("sellers")
           .select("phone")
-          .eq("id", sellerId!)
+          .eq("id", listingSellerId!)
           .single();
 
         setSellerPhone(data?.phone ?? null);
@@ -331,6 +444,26 @@ export default function ListingDetailPage() {
 
     fetchSellerPhone();
   }, [userId, listing?.sellers?.id]);
+
+  // Check whether the seller has any completed (PAID) sale — public info,
+  // works for any visitor regardless of login state.
+  useEffect(() => {
+    const listingSellerId = listing?.sellers?.id;
+    if (!listingSellerId) return;
+
+    async function fetchSellerSalesStatus() {
+      try {
+        const res = await fetch(`/api/sellers/${listingSellerId}/sales-status`);
+        const data = await res.json();
+        setSellerHasSales(res.ok ? !!data.hasSales : false);
+      } catch (err) {
+        console.error("Error fetching seller sales status:", err);
+        setSellerHasSales(false);
+      }
+    }
+
+    fetchSellerSalesStatus();
+  }, [listing?.sellers?.id]);
 
   // Keyboard navigation for the image carousel modal
   useEffect(() => {
@@ -353,6 +486,7 @@ export default function ListingDetailPage() {
       router.push("/login?redirect=" + encodeURIComponent(`/listings/${id}`));
       return;
     }
+    if (!sellerId) return;
 
     const supabase = getSupabase();
     try {
@@ -362,12 +496,12 @@ export default function ListingDetailPage() {
           .from("favorites")
           .delete()
           .eq("listing_id", id)
-          .eq("user_id", userId);
+          .eq("seller_id", sellerId);
         setIsFavorite(false);
       } else {
         await supabase
           .from("favorites")
-          .insert({ listing_id: id, user_id: userId });
+          .insert({ listing_id: id, seller_id: sellerId });
         setIsFavorite(true);
       }
     } catch (err) {
@@ -435,7 +569,7 @@ export default function ListingDetailPage() {
 
   const handleContactSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!userId) return;
+    if (!sellerId) return;
 
     const supabase = getSupabase();
     try {
@@ -444,7 +578,7 @@ export default function ListingDetailPage() {
         .insert({
           listing_id: id,
           question: contactMsg,
-          user_id: userId,
+          buyer_id: sellerId,
         });
 
       if (error) throw error;
@@ -454,7 +588,7 @@ export default function ListingDetailPage() {
       // Refresh questions
       const { data } = await supabase
         .from("questions")
-        .select(`id, question, answer, answered_at, created_at, sellers ( name )`)
+        .select(`id, question, answer, updated_at, created_at, sellers ( name )`)
         .eq("listing_id", id)
         .order("created_at", { ascending: true });
 
@@ -482,7 +616,7 @@ export default function ListingDetailPage() {
           listing_id: id,
           reason: reportReason,
           details: reportDetails,
-          user_id: userId,
+          reporter_id: sellerId,
         });
 
       setReportSuccess(true);
@@ -566,11 +700,20 @@ export default function ListingDetailPage() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 w-full">
-      {/* Breadcrumb Navigation */}
-      <div className="flex items-center gap-2 text-xs text-text-muted mb-8">
+      {/* Breadcrumb Navigation — shows the product's real category path
+          (root-first, e.g. Alimentos y Bebidas / Bebidas / Vinos y
+          Espumantes) once it resolves, so you can see exactly where this
+          listing lives and jump to any level of it. */}
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-text-muted mb-8">
         <Link href="/" className="hover:text-accent-gold transition-colors">Inicio</Link>
-        <span>/</span>
-        <Link href="/search" className="hover:text-accent-gold transition-colors">Buscar</Link>
+        {categoryPath.map((cat) => (
+          <span key={cat.id} className="flex items-center gap-2">
+            <span>/</span>
+            <Link href={`/search?category=${cat.slug}`} className="hover:text-accent-gold transition-colors">
+              {cat.name}
+            </Link>
+          </span>
+        ))}
         <span>/</span>
         <span className="text-foreground font-semibold truncate max-w-[200px] sm:max-w-xs">{product?.name}</span>
       </div>
@@ -668,25 +811,39 @@ export default function ListingDetailPage() {
                       Tipo: {seller?.type === "BUSINESS_SELLER" ? "Comercio Registrado" : "Vendedor Particular"}
                     </span>
                   </div>
-                  <span className={`px-2.5 py-0.5 rounded-full border text-[10px] font-extrabold uppercase tracking-wider ${getTierBadge(seller?.tier ?? "")}`}>
-                    Nivel {seller?.tier}
-                  </span>
+                  {sellerHasSales ? (
+                    <span className={`px-2.5 py-0.5 rounded-full border text-[10px] font-extrabold uppercase tracking-wider ${getTierBadge(seller?.tier ?? "")}`}>
+                      Nivel {seller?.tier}
+                    </span>
+                  ) : (
+                    <span className="px-2.5 py-0.5 rounded-full border text-[10px] font-extrabold uppercase tracking-wider bg-accent-green/10 text-accent-green border-accent-green/30">
+                      🌱 Vendedor nuevo
+                    </span>
+                  )}
                 </div>
 
                 <div className="border-t border-card-border/50 pt-4 mt-2">
-                  <div className="flex justify-between items-center text-xs font-bold text-foreground mb-1">
-                    <span>Score de Reputación</span>
-                    <span className="text-accent-gold">{seller?.score ?? 0} / 100</span>
-                  </div>
-                  <div className="w-full bg-card-border h-2 rounded-full overflow-hidden">
-                    <div
-                      className="bg-gradient-to-r from-accent-gold to-accent-green h-full rounded-full"
-                      style={{ width: `${seller?.score ?? 0}%` }}
-                    />
-                  </div>
-                  <p className="text-[9px] text-text-muted mt-2">
-                    Las calificaciones se actualizan dinámicamente según la satisfacción del comprador pampeano.
-                  </p>
+                  {sellerHasSales ? (
+                    <>
+                      <div className="flex justify-between items-center text-xs font-bold text-foreground mb-1">
+                        <span>Score de Reputación</span>
+                        <span className="text-accent-gold">{seller?.score ?? 0} / 100</span>
+                      </div>
+                      <div className="w-full bg-card-border h-2 rounded-full overflow-hidden">
+                        <div
+                          className="bg-gradient-to-r from-accent-gold to-accent-green h-full rounded-full"
+                          style={{ width: `${seller?.score ?? 0}%` }}
+                        />
+                      </div>
+                      <p className="text-[9px] text-text-muted mt-2">
+                        Las calificaciones se actualizan dinámicamente según la satisfacción del comprador pampeano.
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-xs text-text-muted leading-relaxed">
+                      Este vendedor todavía no realizó ninguna venta. En cuanto complete su primera, vas a poder ver acá su score de reputación.
+                    </p>
+                  )}
                 </div>
               </div>
             )}
@@ -706,28 +863,33 @@ export default function ListingDetailPage() {
                   {questions.map((q) => (
                     <div key={q.id} className="flex flex-col gap-2 text-xs border-b border-card-border/50 pb-3 last:border-b-0 last:pb-0">
                       <div className="flex items-start justify-between gap-4">
-                        <p className="text-foreground leading-relaxed">
+                        <p className={q.question_deleted ? "text-text-muted italic leading-relaxed" : "text-foreground leading-relaxed"}>
                           <span className="text-text-muted font-bold block mb-1 text-[10px]">{q.sellers?.name ?? "Comprador"}:</span>
-                          {q.question}
+                          {q.question_deleted && "🚫 "}{q.question}
                         </p>
                         <span className="text-[9px] text-text-muted shrink-0">
                           {new Date(q.created_at).toLocaleDateString("es-AR")}
                         </span>
                       </div>
+                      {q.hidden_by_seller && (
+                        <span className="text-[9px] font-semibold text-text-muted italic">
+                          👁️‍🗨️ Solo vos ves esta consulta — el vendedor la ocultó para el resto de los visitantes.
+                        </span>
+                      )}
                       {q.answer ? (
                         <div className="bg-card-bg-solid/40 border-l-2 border-accent-gold pl-3 py-2 rounded-r-xl flex flex-col gap-1 mt-1">
-                          <p className="text-text-muted leading-relaxed">
+                          <p className={q.answer_deleted ? "text-text-muted italic leading-relaxed" : "text-text-muted leading-relaxed"}>
                             <span className="text-accent-gold font-bold block text-[9.5px] uppercase tracking-wider">Respuesta del vendedor:</span>
-                            {q.answer}
+                            {q.answer_deleted && "🚫 "}{q.answer}
                           </p>
-                          {q.answered_at && (
+                          {q.updated_at && (
                             <span className="text-[8px] text-text-muted/80 self-end">
-                              {new Date(q.answered_at).toLocaleDateString("es-AR")}
+                              {new Date(q.updated_at).toLocaleDateString("es-AR")}
                             </span>
                           )}
                         </div>
                       ) : (
-                        <span className="text-[9px] text-yellow-500/80 italic">Aún sin responder</span>
+                        <span className="text-xs font-semibold text-amber-600 dark:text-amber-400 italic">Aún sin responder</span>
                       )}
                     </div>
                   ))}
@@ -784,10 +946,13 @@ export default function ListingDetailPage() {
             </div>
 
             <div className="flex items-baseline gap-1 mt-2">
-              <span className="text-sm font-semibold text-accent-gold">{currencySymbol}</span>
-              <span className="text-3xl font-extrabold text-foreground">
+              <span className="font-heading text-3xl font-extrabold text-foreground">{currencySymbol}</span>
+              <span className="font-heading text-3xl font-extrabold text-foreground">
                 {Number(listing.price).toLocaleString("es-AR")}
               </span>
+              {listing.currencies?.code === "USD" && (
+                <span className="text-xs font-semibold text-text-muted ml-1">(Precio en dólares)</span>
+              )}
             </div>
 
             <div className="rounded-xl bg-background/50 border border-card-border p-4 flex gap-3 text-xs leading-relaxed">
@@ -885,24 +1050,78 @@ export default function ListingDetailPage() {
 
           </div>
 
-          {/* Seller Trust Box */}
-          <div className="rounded-2xl bg-card-bg border border-card-border p-6 shadow-md flex items-center gap-4">
-            <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-accent-gold to-accent-green flex items-center justify-center text-white text-lg font-bold shadow-lg">
-              {(seller?.name ?? "V").charAt(0)}
+          {/* Seller Trust Box — clickable to see the seller's profile
+              photo/logo and bio without leaving the listing. */}
+          <button
+            type="button"
+            onClick={() => setShowSellerModal(true)}
+            className="w-full text-left rounded-2xl bg-card-bg border border-card-border p-6 shadow-md flex items-center gap-4 cursor-pointer hover:border-accent-gold/40 transition-colors"
+          >
+            <div className="relative h-12 w-12 shrink-0 rounded-xl overflow-hidden shadow-lg">
+              <SellerAvatar src={seller?.avatar_url} alt={seller?.name ?? "Vendedor"} />
             </div>
             <div className="flex-1">
               <h4 className="text-xs font-bold text-foreground">{seller?.name}</h4>
-              <span className="text-[10px] text-text-muted block mt-0.5">Vendedor nivel {seller?.tier}</span>
+              <span className="text-[10px] text-text-muted block mt-0.5">
+                {sellerHasSales ? `Vendedor nivel ${seller?.tier}` : "🌱 Recién se suma a la comunidad"}
+              </span>
             </div>
             <div className="text-right">
-              <span className="text-sm font-extrabold text-accent-gold block">★ {((seller?.score ?? 0) / 10).toFixed(1)}</span>
-              <span className="text-[8px] text-text-muted block uppercase">Puntaje pampeano</span>
+              {sellerHasSales ? (
+                <>
+                  <span className="text-sm font-extrabold text-accent-gold block">★ {((seller?.score ?? 0) / 10).toFixed(1)}</span>
+                  <span className="text-[8px] text-text-muted block uppercase">Puntaje pampeano</span>
+                </>
+              ) : (
+                <span className="text-[9px] font-bold text-text-muted italic">Sin ventas aún</span>
+              )}
             </div>
-          </div>
+          </button>
 
         </div>
 
       </div>
+
+      {/* MODAL: PERFIL DEL VENDEDOR (foto/logo + bio) */}
+      {showSellerModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-3xl bg-card-bg border border-card-border p-8 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200">
+            <button onClick={() => setShowSellerModal(false)} className="absolute top-4 right-4 text-text-muted hover:text-foreground text-lg cursor-pointer">✕</button>
+            <div className="flex flex-col items-center text-center gap-4">
+              <div className="relative h-40 w-40 shrink-0 rounded-2xl overflow-hidden">
+                <SellerAvatar
+                  src={seller?.avatar_url}
+                  alt={seller?.name ?? "Vendedor"}
+                  className="h-full w-full object-contain"
+                />
+              </div>
+              <div>
+                <h3 className="font-heading text-lg font-bold text-foreground">{seller?.name}</h3>
+                <span className="text-[10px] text-text-muted block mt-1">
+                  {seller?.type === "BUSINESS_SELLER" ? "Comercio / Empresa" : "Vendedor particular"}
+                </span>
+              </div>
+              <p className="text-xs text-text-muted leading-relaxed">
+                {seller?.bio?.trim() ? seller.bio : "Este vendedor todavía no agregó una descripción."}
+              </p>
+
+              {/* Reputación dentro de la plataforma — mismo criterio que la
+                  Seller Trust Box: sin ventas pagas todavía, no mostramos
+                  un puntaje/tier que en verdad es solo el default de alta. */}
+              <div className="w-full border-t border-card-border/50 pt-4">
+                {sellerHasSales ? (
+                  <>
+                    <span className="text-xl font-extrabold text-accent-gold block">★ {((seller?.score ?? 0) / 10).toFixed(1)}</span>
+                    <span className="text-[9px] text-text-muted block uppercase mt-0.5">Puntaje pampeano · Nivel {seller?.tier}</span>
+                  </>
+                ) : (
+                  <span className="text-xs font-bold text-text-muted italic">Sin ventas aún en la plataforma</span>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* MODAL 1: PREGUNTAR AL VENDEDOR */}
       {showContactModal && (

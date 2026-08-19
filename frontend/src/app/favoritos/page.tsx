@@ -140,7 +140,8 @@ export default function FavoritesPage() {
         if (error) throw error;
         setFavorites((data ?? []) as unknown as FavoriteItem[]);
       } catch (err: any) {
-        setErrorMsg(err.message || "Ocurrió un error al cargar la lista.");
+        console.error("Error al cargar la lista de favoritos:", err);
+        setErrorMsg("Ocurrió un error al cargar la lista.");
       } finally {
         setLoading(false);
       }
@@ -165,7 +166,8 @@ export default function FavoritesPage() {
       setFavorites((prev) => prev.filter((item) => item.id !== favId));
       setSuccessMsg("Quitado de tus favoritos correctamente.");
     } catch (err: any) {
-      setErrorMsg(err.message || "Error al eliminar el favorito.");
+      console.error("Error al eliminar favorito:", err);
+      setErrorMsg("Error al eliminar el favorito.");
     }
   };
 

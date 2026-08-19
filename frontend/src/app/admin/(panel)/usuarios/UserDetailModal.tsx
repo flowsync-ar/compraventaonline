@@ -57,6 +57,7 @@ export default function UserDetailModal({ userId, onClose }: { userId: string; o
   const [user, setUser] = useState<UserDetail | null>(null)
   const [stats, setStats] = useState<UserStats | null>(null)
   const [listings, setListings] = useState<ListingRow[]>([])
+  const [hasSales, setHasSales] = useState(false)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -66,6 +67,7 @@ export default function UserDetailModal({ userId, onClose }: { userId: string; o
         setUser(data.user ?? null)
         setStats(data.stats ?? null)
         setListings(data.listings ?? [])
+        setHasSales(!!data.hasSales)
       })
       .finally(() => setLoading(false))
   }, [userId])
@@ -100,9 +102,15 @@ export default function UserDetailModal({ userId, onClose }: { userId: string; o
                 >
                   {user.status === "ACTIVE" ? "Activo" : "Suspendido"}
                 </span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-accent-gold/10 text-accent-gold">
-                  {user.tier}
-                </span>
+                {hasSales ? (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-accent-gold/10 text-accent-gold">
+                    {user.tier}
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-card-border/30 text-text-muted">
+                    Sin ventas registradas
+                  </span>
+                )}
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-card-border/30 text-text-muted">
                   {user.type === "BUSINESS_SELLER" ? "Empresa" : "Personal"}
                 </span>
@@ -124,7 +132,7 @@ export default function UserDetailModal({ userId, onClose }: { userId: string; o
               </div>
               <div>
                 <span className="block text-[9px] uppercase text-text-muted/70">Score</span>
-                {user.score} / 100
+                {hasSales ? `${user.score} / 100` : "Sin calificar (sin ventas)"}
               </div>
             </div>
 

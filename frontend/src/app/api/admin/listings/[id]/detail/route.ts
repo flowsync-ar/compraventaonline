@@ -35,14 +35,22 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
     }
   }
 
-  const [questionsReceived, reportsReceived, favoritesSaved] = await Promise.all([
+  const [questionsReceived, reportsReceived, favoritesSaved, questionsList] = await Promise.all([
     admin.from("questions").select("id", { count: "exact", head: true }).eq("listing_id", id),
     admin.from("product_reports").select("id", { count: "exact", head: true }).eq("listing_id", id),
     admin.from("favorites").select("id", { count: "exact", head: true }).eq("listing_id", id),
+    admin
+      .from("questions")
+      .select(
+        "id, question, answer, question_deleted, answer_deleted, hidden_by_seller, created_at, updated_at, buyer:sellers!questions_buyer_id_fkey(name)"
+      )
+      .eq("listing_id", id)
+      .order("created_at", { ascending: false }),
   ])
 
   return NextResponse.json({
     listing: { ...listing, sellerEmail },
+    questions: questionsList.data ?? [],
     stats: {
       questionsReceived: questionsReceived.count ?? 0,
       reportsReceived: reportsReceived.count ?? 0,

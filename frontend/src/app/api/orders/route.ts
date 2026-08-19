@@ -37,14 +37,14 @@ export async function POST(request: NextRequest) {
   const supabase = await createServerClient()
   const buyer = await requireSeller(supabase)
   if (!buyer) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 })
   }
 
   let body: { listingId?: string; paymentMethod?: "MERCADOPAGO" | "TRANSFER" }
   try {
     body = await request.json()
   } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
+    return NextResponse.json({ error: "Cuerpo de la solicitud inválido" }, { status: 400 })
   }
 
   const { listingId, paymentMethod } = body

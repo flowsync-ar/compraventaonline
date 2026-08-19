@@ -1,9 +1,11 @@
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import Link from "next/link";
 import CategorySubcategoryFilter from "../../components/CategorySubcategoryFilter";
 import CustomDropdown from "../../components/CustomDropdown";
 import FavoriteButton from "../../components/FavoriteButton";
 import { LA_PAMPA_CITIES } from "@/lib/constants/laPampaCities";
+import { fetchAllCategories, buildChildrenMap } from "@/lib/categories";
 
 // Case- and accent-insensitive comparison ("guitarra" matches "Guitarra Acústica").
 function normalize(text: string): string {
@@ -26,12 +28,42 @@ type ListingRow = {
     categories: { slug: string; name: string } | null;
   } | null;
   sellers: {
+    id: string;
     name: string;
     score: number;
     tier: string;
     location: string | null;
   } | null;
+  currencies: { symbol: string } | null;
 };
+
+// Given a category slug, return that slug plus every descendant slug at any
+// depth (children, grandchildren, ...). The categories table is small
+// (a few hundred rows at most for a regional marketplace), so fetching it
+// whole and walking it in memory is simpler and cheaper than a recursive
+// SQL CTE, and this project has no Postgres function/RPC layer set up yet.
+async function getCategoryAndDescendantSlugs(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  rootSlug: string
+): Promise<Set<string>> {
+  const categories = await fetchAllCategories(supabase);
+  const root = categories.find((c) => c.slug === rootSlug);
+  if (!root) return new Set([rootSlug]);
+
+  const childrenByParentId = buildChildrenMap(categories);
+
+  const result = new Set<string>([root.slug]);
+  const queue = [root.id];
+  while (queue.length > 0) {
+    const id = queue.shift()!;
+    for (const child of childrenByParentId.get(id) ?? []) {
+      if (result.has(child.slug)) continue; // guards against a malformed cycle
+      result.add(child.slug);
+      queue.push(child.id);
+    }
+  }
+  return result;
+}
 
 async function searchListings(params: {
   q?: string;
@@ -59,11 +91,13 @@ async function searchListings(params: {
           categories ( slug, name )
         ),
         sellers (
+          id,
           name,
           score,
           tier,
           location
-        )
+        ),
+        currencies ( symbol )
       `)
       .eq("status", "APPROVED");
 
@@ -101,25 +135,19 @@ async function searchListings(params: {
       );
     }
 
-    // Client-side category slug filter (PostgREST nested filter has limited OR support).
-    // A specific subcategory matches exactly; a root category also matches
-    // listings in any of its subcategories.
-    if (params.subcategory) {
-      results = results.filter((l) => l.products?.categories?.slug === params.subcategory);
-    } else if (params.category) {
-      const validSlugs = new Set([params.category]);
-      const { data: catRow } = await supabase
-        .from("categories")
-        .select("id")
-        .eq("slug", params.category)
-        .single();
-      if (catRow) {
-        const { data: children } = await supabase
-          .from("categories")
-          .select("slug")
-          .eq("parent_id", catRow.id);
-        children?.forEach((c) => validSlugs.add(c.slug));
-      }
+    // Client-side category slug filter (PostgREST nested filter has limited OR
+    // support). `subcategory` (from the 2-level dropdown form) wins over
+    // `category` if both are present — it's the more specific pick.
+    // Categories can nest arbitrarily deep (category -> subcategory ->
+    // sub-subcategory, matching MercadoLibre's real structure), and a
+    // seller assigns a product to whichever level they picked. So matching
+    // a target category means matching it PLUS every descendant at any
+    // depth — not just its direct children — otherwise picking a broad
+    // category (or even a mid-level one with its own children) would miss
+    // products tagged at a deeper leaf.
+    const targetSlug = params.subcategory || params.category;
+    if (targetSlug) {
+      const validSlugs = await getCategoryAndDescendantSlugs(supabase, targetSlug);
       results = results.filter(
         (l) => l.products?.categories?.slug && validSlugs.has(l.products.categories.slug)
       );
@@ -134,6 +162,30 @@ async function searchListings(params: {
   } catch (err) {
     console.error("[search] Unexpected error fetching listings:", err);
     return [];
+  }
+}
+
+// Sellers with at least one PAID order — used to avoid showing the default
+// score/tier (DB default: score 80, tier BRONCE) as if it were an earned
+// reputation for sellers who never actually sold anything.
+// Uses the admin client: `orders` RLS only lets the buyer/seller read their
+// own rows, but this page is public and needs the full picture.
+async function getSellersWithSales(): Promise<Set<string>> {
+  try {
+    const supabase = createAdminClient();
+    const { data, error } = await supabase
+      .from("orders")
+      .select("seller_id")
+      .eq("status", "PAID");
+
+    if (error) {
+      console.error("[search] Error fetching sellers with sales:", error.message);
+      return new Set();
+    }
+    return new Set((data ?? []).map((o) => o.seller_id));
+  } catch (err) {
+    console.error("[search] Unexpected error fetching sellers with sales:", err);
+    return new Set();
   }
 }
 
@@ -183,9 +235,10 @@ export default async function SearchPage({
   searchParams: Promise<{ q?: string; category?: string; subcategory?: string; condition?: string; location?: string; sort?: string }>;
 }) {
   const params = await searchParams;
-  const [listings, categories] = await Promise.all([
+  const [listings, categories, sellersWithSales] = await Promise.all([
     searchListings(params),
     fetchCategories(),
+    getSellersWithSales(),
   ]);
 
   return (
@@ -328,8 +381,10 @@ export default async function SearchPage({
                       </p>
 
                       <div className="flex items-baseline gap-1 mt-auto">
-                        <span className="text-xs font-semibold text-accent-gold">$</span>
-                        <span className="text-lg font-extrabold text-foreground">
+                        <span className="font-heading text-lg font-extrabold text-foreground">
+                          {listing.currencies?.symbol ?? "$"}
+                        </span>
+                        <span className="font-heading text-lg font-extrabold text-foreground">
                           {Number(listing.price).toLocaleString("es-AR")}
                         </span>
                       </div>
@@ -337,12 +392,20 @@ export default async function SearchPage({
                       <div className="border-t border-card-border/50 pt-3 mt-1 flex items-center justify-between">
                         <div className="flex flex-col">
                           <span className="text-[10px] font-bold text-foreground leading-none">{seller?.name ?? "Vendedor"}</span>
-                          <span className="text-[8px] text-text-muted mt-0.5 uppercase">Reputación: {seller?.tier ?? "-"}</span>
+                          {seller?.id && sellersWithSales.has(seller.id) ? (
+                            <span className="text-[8px] text-text-muted mt-0.5 uppercase">Reputación: {seller.tier}</span>
+                          ) : (
+                            <span className="text-[8px] text-text-muted mt-0.5 uppercase">🌱 Vendedor nuevo</span>
+                          )}
                         </div>
-                        <div className="flex items-center gap-0.5 text-xs text-accent-gold font-bold">
-                          <span>★</span>
-                          <span className="text-[10px]">{((seller?.score ?? 0) / 10).toFixed(1)}</span>
-                        </div>
+                        {seller?.id && sellersWithSales.has(seller.id) ? (
+                          <div className="flex items-center gap-0.5 text-xs text-accent-gold font-bold">
+                            <span>★</span>
+                            <span className="text-[10px]">{(seller.score / 10).toFixed(1)}</span>
+                          </div>
+                        ) : (
+                          <span className="text-[10px] font-semibold text-text-muted italic">Sin ventas aún</span>
+                        )}
                       </div>
                     </div>
                   </Link>

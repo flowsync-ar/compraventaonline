@@ -1,25 +1,30 @@
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import Link from "next/link";
 import HeroCarousel, { type HeroSlide } from "@/components/HeroCarousel";
-import CategoriesCarousel from "@/components/CategoriesCarousel";
 import FavoriteButton from "@/components/FavoriteButton";
 
-type ListingRow = {
+type HighlightRow = {
   id: string;
-  price: number;
-  condition: string;
-  featured_plan: string;
-  products: {
-    name: string;
-    brand: string;
-    description: string;
-    images: string[] | null;
-    categories: { name: string } | null;
-  } | null;
-  sellers: {
-    name: string;
-    score: number;
-    tier: string;
+  listings: {
+    id: string;
+    price: number;
+    condition: string;
+    featured_plan: string;
+    products: {
+      name: string;
+      brand: string;
+      description: string;
+      images: string[] | null;
+      categories: { name: string } | null;
+    } | null;
+    sellers: {
+      id: string;
+      name: string;
+      score: number;
+      tier: string;
+    } | null;
+    currencies: { symbol: string } | null;
   } | null;
 };
 
@@ -50,46 +55,98 @@ async function getHeroSlides(): Promise<HeroSlide[]> {
   }
 }
 
-async function getListings(): Promise<ListingRow[]> {
+const HOME_FEATURED_LIMIT = 8;
+
+// Sellers with at least one PAID order — used to avoid showing the default
+// score/tier (DB default: score 80, tier BRONCE) as if it were an earned
+// reputation for sellers who never actually sold anything.
+// Uses the admin client: `orders` RLS only lets the buyer/seller read their
+// own rows, but this page is public and needs the full picture.
+async function getSellersWithSales(): Promise<Set<string>> {
   try {
-    const supabase = await createClient();
+    const supabase = createAdminClient();
     const { data, error } = await supabase
-      .from("listings")
-      .select(`
-        id,
-        price,
-        condition,
-        featured_plan,
-        products (
-          name,
-          brand,
-          description,
-          images,
-          categories ( name )
-        ),
-        sellers (
-          name,
-          score,
-          tier
-        )
-      `)
-      .eq("status", "APPROVED")
-      .order("created_at", { ascending: false })
-      .limit(12);
+      .from("orders")
+      .select("seller_id")
+      .eq("status", "PAID");
 
     if (error) {
-      console.error("[home] Error fetching listings:", error.message);
+      console.error("[home] Error fetching sellers with sales:", error.message);
+      return new Set();
+    }
+    return new Set((data ?? []).map((o) => o.seller_id));
+  } catch (err) {
+    console.error("[home] Unexpected error fetching sellers with sales:", err);
+    return new Set();
+  }
+}
+
+async function getFeaturedListings(): Promise<HighlightRow[]> {
+  try {
+    const supabase = await createClient();
+    const now = new Date().toISOString();
+
+    // Same source of truth as /destacados: highlighted_products with a
+    // still-valid end_date. Supabase can't .limit() correctly on a table
+    // with a nested relation + a JS-side sort, so we fetch all active
+    // highlights and slice after sorting (mirrors /destacados' approach).
+    const { data, error } = await supabase
+      .from("highlighted_products")
+      .select(`
+        id,
+        listings (
+          id,
+          price,
+          condition,
+          featured_plan,
+          products (
+            name,
+            brand,
+            description,
+            images,
+            categories ( name )
+          ),
+          sellers (
+            id,
+            name,
+            score,
+            tier
+          ),
+          currencies ( symbol )
+        )
+      `)
+      .gt("end_date", now);
+
+    if (error) {
+      console.error("[home] Error fetching highlighted_products:", error.message);
       return [];
     }
-    return (data ?? []) as unknown as ListingRow[];
+    if (!data) return [];
+
+    // Sort: PREMIUM first, then FEATURED/DESTACADO. The plan lives on
+    // listings.featured_plan, not on highlighted_products (that table only
+    // tracks the highlight's validity window — see /destacados).
+    const sorted = (data as unknown as HighlightRow[]).sort((a, b) => {
+      const aPremium = a.listings?.featured_plan === "PREMIUM";
+      const bPremium = b.listings?.featured_plan === "PREMIUM";
+      if (aPremium && !bPremium) return -1;
+      if (!aPremium && bPremium) return 1;
+      return 0;
+    });
+
+    return sorted.slice(0, HOME_FEATURED_LIMIT);
   } catch (err) {
-    console.error("[home] Unexpected error fetching listings:", err);
+    console.error("[home] Unexpected error fetching highlighted_products:", err);
     return [];
   }
 }
 
 export default async function HomePage() {
-  const [listings, heroSlides] = await Promise.all([getListings(), getHeroSlides()]);
+  const [highlights, heroSlides, sellersWithSales] = await Promise.all([
+    getFeaturedListings(),
+    getHeroSlides(),
+    getSellersWithSales(),
+  ]);
 
   return (
     <div className="flex flex-col gap-10 pb-16">
@@ -115,48 +172,35 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* 2. Categories Section */}
+      {/* 2. Highlighted Listings Grid */}
       <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 w-full -mt-2">
-        <div className="flex items-end justify-between border-b border-card-border pb-5 mb-8">
-          <div>
-            <h2 className="font-heading text-2xl font-bold tracking-tight text-foreground">Explorá por Categoría</h2>
-            <p className="text-sm text-text-muted mt-1">Navegá las categorías más buscadas de la provincia.</p>
-          </div>
-          <Link href="/search" className="text-xs font-bold text-accent-gold hover:text-accent-gold-hover hover:underline transition-all">
-            Ver todas →
-          </Link>
-        </div>
-
-        <CategoriesCarousel />
-      </section>
-
-      {/* 3. Highlighted Listings Grid */}
-      <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 w-full">
         <div className="flex items-end justify-between border-b border-card-border pb-5 mb-8">
           <div>
             <h2 className="font-heading text-2xl font-bold tracking-tight text-foreground">Publicaciones Destacadas</h2>
             <p className="text-sm text-text-muted mt-1">Ofertas destacadas con excelente reputación de vendedor.</p>
           </div>
-          <Link href="/search" className="text-xs font-bold text-accent-gold hover:text-accent-gold-hover hover:underline transition-all">
+          <Link href="/destacados" className="text-xs font-bold text-accent-gold hover:text-accent-gold-hover hover:underline transition-all">
             Ver todas las publicaciones →
           </Link>
         </div>
 
-        {listings.length === 0 ? (
+        {highlights.length === 0 ? (
           <div className="text-center py-16 rounded-2xl glass-panel">
             <span className="text-4xl">🌾</span>
-            <h3 className="font-heading text-lg font-bold text-foreground mt-4">Todavía no hay publicaciones</h3>
+            <h3 className="font-heading text-lg font-bold text-foreground mt-4">Todavía no hay publicaciones destacadas</h3>
             <p className="text-text-muted text-xs mt-1">Sé el primero en publicar un artículo en La Pampa.</p>
           </div>
         ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {listings.map((listing) => {
+          {highlights.map((highlight) => {
+            const listing = highlight.listings;
+            if (!listing) return null;
             const product = listing.products;
             const seller = listing.sellers;
             const image = product?.images?.[0] ?? "https://images.unsplash.com/photo-1531403009284-440f080d1e12?q=80&w=600&auto=format&fit=crop";
             return (
               <Link
-                key={listing.id}
+                key={highlight.id}
                 href={`/listings/${listing.id}`}
                 className="group flex flex-col rounded-2xl glass-card overflow-hidden relative cursor-pointer"
               >
@@ -198,8 +242,10 @@ export default async function HomePage() {
                   </p>
 
                   <div className="flex items-baseline gap-1 mt-auto">
-                    <span className="text-xs font-semibold text-accent-gold">$</span>
-                    <span className="text-lg font-extrabold text-foreground">
+                    <span className="font-heading text-lg font-extrabold text-foreground">
+                      {listing.currencies?.symbol ?? "$"}
+                    </span>
+                    <span className="font-heading text-lg font-extrabold text-foreground">
                       {listing.price.toLocaleString("es-AR", { minimumFractionDigits: 2 })}
                     </span>
                   </div>
@@ -210,14 +256,24 @@ export default async function HomePage() {
                       <span className="text-[10px] font-bold text-foreground leading-none">
                         {seller?.name ?? "Vendedor"}
                       </span>
-                      <span className="text-[8px] text-text-muted mt-0.5 uppercase">
-                        Reputación: {seller?.tier ?? "-"}
-                      </span>
+                      {seller?.id && sellersWithSales.has(seller.id) ? (
+                        <span className="text-[8px] text-text-muted mt-0.5 uppercase">
+                          Reputación: {seller.tier}
+                        </span>
+                      ) : (
+                        <span className="text-[8px] text-text-muted mt-0.5 uppercase">
+                          🌱 Vendedor nuevo
+                        </span>
+                      )}
                     </div>
-                    <div className="flex items-center gap-0.5 text-xs text-accent-gold font-bold">
-                      <span>★</span>
-                      <span className="text-[10px]">{((seller?.score ?? 0) / 10).toFixed(1)}</span>
-                    </div>
+                    {seller?.id && sellersWithSales.has(seller.id) ? (
+                      <div className="flex items-center gap-0.5 text-xs text-accent-gold font-bold">
+                        <span>★</span>
+                        <span className="text-[10px]">{(seller.score / 10).toFixed(1)}</span>
+                      </div>
+                    ) : (
+                      <span className="text-[10px] font-semibold text-text-muted italic">Sin ventas aún</span>
+                    )}
                   </div>
 
                 </div>

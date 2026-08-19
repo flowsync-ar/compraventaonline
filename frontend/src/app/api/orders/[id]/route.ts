@@ -13,7 +13,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
   } = await supabase.auth.getUser()
 
   if (authError || !user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 })
   }
 
   // RLS already restricts this to the buyer or seller of the order.

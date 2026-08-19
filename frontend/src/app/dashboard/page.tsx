@@ -1,14 +1,16 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, useRef, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import CustomDropdown from "@/components/CustomDropdown";
 import ConfirmModal from "@/components/ConfirmModal";
 import Toast from "@/components/Toast";
+import SellerAvatar from "@/components/SellerAvatar";
 import { LA_PAMPA_CITIES } from "@/lib/constants/laPampaCities";
 import { createClient } from "@/lib/supabase/client";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { QuestionWithBuyer } from "@/lib/supabase/types";
 
 interface Listing {
   id: string;
@@ -59,6 +61,8 @@ interface SellerProfile {
   location: string | null;
   document_number: string | null;
   bio: string | null;
+  avatar_url: string | null;
+  username: string | null;
   mercadopago_connected: boolean;
   bank_cbu: string | null;
   bank_alias: string | null;
@@ -80,8 +84,21 @@ interface BackendCategory {
   attributesSchema?: any;
 }
 
+// useSearchParams() (used below to react to the header's "Vender" CTA
+// navigating to /dashboard?tab=publish while already on this page) requires
+// a Suspense boundary around whatever calls it, or `next build` fails
+// prerendering this route entirely — see missing-suspense-with-csr-bailout.
 export default function DashboardPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen text-sm text-text-muted">Cargando...</div>}>
+      <DashboardPageContent />
+    </Suspense>
+  );
+}
+
+function DashboardPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   // Supabase client (lazy init via ref — safe for prerender)
   const supabaseRef = useRef<SupabaseClient | null>(null);
@@ -100,10 +117,28 @@ export default function DashboardPage() {
 
   // Domain states
   const [sellerProfile, setSellerProfile] = useState<SellerProfile | null>(null);
+  // Whether this seller has at least one PAID order — score/tier default to
+  // 80/BRONCE at signup, which would otherwise read as a real reputation
+  // for someone who never sold anything.
+  const [sellerHasSales, setSellerHasSales] = useState(false);
   const [myListings, setMyListings] = useState<Listing[]>([]);
+  // { [listingId]: viewCount } — unique visitors/day, see listing_views
+  // migration. Keyed by listing id so the table below can just look up
+  // viewCounts[listing.id] ?? 0 per row.
+  const [viewCounts, setViewCounts] = useState<Record<string, number>>({});
   const [categories, setCategories] = useState<BackendCategory[]>([]);
-  const [activeTab, setActiveTab] = useState<"summary" | "publish" | "inventory" | "rewards" | "profile">("summary");
+  const [activeTab, setActiveTab] = useState<"summary" | "publish" | "inventory" | "questions" | "rewards" | "profile">("summary");
   const [rewards, setRewards] = useState<any[]>([]);
+
+  // Consultas — same data/answer/hide logic as the header bell dropdown
+  // (HeaderSessionBar.tsx), but rendered as a full tab so a seller can
+  // actually track and follow up on everything, not just the last few in
+  // a small popover.
+  const [questions, setQuestions] = useState<QuestionWithBuyer[]>([]);
+  const [questionsLoading, setQuestionsLoading] = useState(false);
+  const [questionsFilter, setQuestionsFilter] = useState<"all" | "unanswered" | "answered">("all");
+  const [replyingToQuestionId, setReplyingToQuestionId] = useState<string | null>(null);
+  const [questionReplyText, setQuestionReplyText] = useState("");
   const [selectedRewardToClaim, setSelectedRewardToClaim] = useState<any | null>(null);
   const [selectedListingForReward, setSelectedListingForReward] = useState<string>("");
   
@@ -130,6 +165,13 @@ export default function DashboardPage() {
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileSuccessMsg, setProfileSuccessMsg] = useState("");
   const [profileErrorMsg, setProfileErrorMsg] = useState("");
+
+  // Foto de perfil / logo — se sube apenas se elige el archivo (no espera al
+  // submit del resto del form), así el seller no pierde la foto si cierra
+  // sin tocar "Guardar Cambios".
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarError, setAvatarError] = useState("");
 
   // Mis Datos — cobros (Mercado Pago + transferencia)
   const [bankCbu, setBankCbu] = useState("");
@@ -202,13 +244,6 @@ export default function DashboardPage() {
       setUserEmail(session.user.email ?? null);
     });
 
-    // Parse URL query parameter for active tab
-    const params = new URLSearchParams(window.location.search);
-    const tab = params.get("tab");
-    if (tab === "publish" || tab === "inventory" || tab === "rewards" || tab === "summary" || tab === "profile") {
-      setActiveTab(tab as any);
-    }
-
     return () => subscription.unsubscribe();
   }, [router]);
 
@@ -217,12 +252,21 @@ export default function DashboardPage() {
     setCurrentPage(1);
   }, [inventorySearch, activeTab]);
 
-  // Land on a specific tab and surface the Mercado Pago OAuth callback result
-  // (redirected here as ?tab=profile&mp=connected|error&mp_msg=...).
+  // Land on a specific tab (e.g. the header's "Vender" CTA links to
+  // /dashboard?tab=publish) and surface the Mercado Pago OAuth callback
+  // result (redirected here as ?tab=profile&mp=connected|error&mp_msg=...).
+  //
+  // Keyed on `searchParams` (from next/navigation's useSearchParams, which
+  // IS reactive to same-route navigations), not a one-shot read of
+  // window.location.search in an empty-deps effect — Next.js doesn't
+  // remount this page when only its query string changes (clicking
+  // "Vender" while already on /dashboard is a same-route navigation), so a
+  // mount-only effect would silently never see the new ?tab= value.
   useEffect(() => {
-    const searchParams = new URLSearchParams(window.location.search);
     const tab = searchParams.get("tab");
-    if (tab === "profile") setActiveTab("profile");
+    if (tab === "publish" || tab === "inventory" || tab === "questions" || tab === "rewards" || tab === "summary" || tab === "profile") {
+      setActiveTab(tab);
+    }
 
     const mp = searchParams.get("mp");
     if (mp === "connected") {
@@ -235,7 +279,7 @@ export default function DashboardPage() {
       router.replace("/dashboard", { scroll: false });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [searchParams]);
 
   // Load profile and dashboard data once userId is available
   useEffect(() => {
@@ -247,7 +291,7 @@ export default function DashboardPage() {
         // 1. Fetch seller profile for this auth user
         const { data: profileData, error: profileError } = await supabase
           .from("sellers")
-          .select("id, name, type, score, tier, user_id, phone, location, document_number, bio, mercadopago_connected, bank_cbu, bank_alias")
+          .select("id, name, type, score, tier, user_id, phone, location, document_number, bio, avatar_url, username, mercadopago_connected, bank_cbu, bank_alias")
           .eq("user_id", userId!)
           .single();
 
@@ -263,8 +307,18 @@ export default function DashboardPage() {
         setProfileLocation(profile.location ?? "");
         setProfileDocumentNumber(profile.document_number ?? "");
         setProfileBio(profile.bio ?? "");
+        setAvatarUrl(profile.avatar_url ?? null);
         setBankCbu(profile.bank_cbu ?? "");
         setBankAlias(profile.bank_alias ?? "");
+
+        // Has this seller ever completed a sale? RLS lets a seller read
+        // their own orders, so this works fine with the browser client.
+        const { count: paidOrdersCount } = await supabase
+          .from("orders")
+          .select("id", { count: "exact", head: true })
+          .eq("seller_id", profile.id)
+          .eq("status", "PAID");
+        setSellerHasSales((paidOrdersCount ?? 0) > 0);
 
         // Pending bank-transfer orders this seller needs to confirm manually.
         const { data: transferOrders } = await supabase
@@ -332,7 +386,8 @@ export default function DashboardPage() {
           setCurrencyId(pesos ? pesos.id : currData[0].id);
         }
       } catch (err: any) {
-        setErrorMsg(err.message || "Error al cargar los datos del panel.");
+        console.error("Error al cargar los datos del panel:", err);
+        setErrorMsg("Error al cargar los datos del panel.");
       } finally {
         setPageLoading(false);
       }
@@ -443,7 +498,8 @@ export default function DashboardPage() {
       }
       await refreshListings();
     } catch (err: any) {
-      setErrorMsg(err.message || "Error al subir el archivo masivo.");
+      console.error("Error al subir el archivo masivo:", err);
+      setErrorMsg("Error al subir el archivo masivo.");
     } finally {
       setLoading(false);
     }
@@ -574,6 +630,12 @@ export default function DashboardPage() {
     setLoading(true);
     setSuccessMsg("");
     setErrorMsg("");
+
+    if (!categoryId) {
+      setErrorMsg("Seleccioná una categoría para tu publicación.");
+      setLoading(false);
+      return;
+    }
 
     // Obtener la categoría seleccionada
     const selectedCategory = categories.find((cat) => cat.id === categoryId);
@@ -713,7 +775,8 @@ export default function DashboardPage() {
         setDynamicAttributes({});
       }
     } catch (err: any) {
-      setErrorMsg(err.message || "Ocurrió un error al procesar tu publicación.");
+      console.error("Error al procesar la publicación:", err);
+      setErrorMsg("Ocurrió un error al procesar tu publicación.");
     } finally {
       setLoading(false);
     }
@@ -736,7 +799,8 @@ export default function DashboardPage() {
 
       setMyListings(myListings.map((l) => (l.id === id ? { ...l, stock: newStock } : l)));
     } catch (err: any) {
-      alert(err.message || "Error al actualizar stock.");
+      console.error("Error al actualizar stock:", err);
+      alert("Error al actualizar stock.");
     }
   };
 
@@ -794,9 +858,67 @@ export default function DashboardPage() {
       setSuccessMsg("¡Publicación clonada con éxito!");
       await refreshListings();
     } catch (err: any) {
-      setErrorMsg(err.message || "Error al clonar la publicación.");
+      console.error("Error al clonar la publicación:", err);
+      setErrorMsg("Error al clonar la publicación.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const AVATAR_EXT_BY_MIME: Record<string, string> = {
+    "image/png": "png",
+    "image/jpeg": "jpg",
+    "image/webp": "webp",
+    "image/gif": "gif",
+  };
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !sellerProfile) return;
+
+    setAvatarError("");
+    const ext = AVATAR_EXT_BY_MIME[file.type];
+    if (!ext) {
+      setAvatarError("Formato no soportado. Usá PNG, JPG, WEBP o GIF.");
+      return;
+    }
+    if (file.size > 3 * 1024 * 1024) {
+      setAvatarError("La imagen no puede superar los 3MB.");
+      return;
+    }
+
+    setAvatarUploading(true);
+    try {
+      const supabase = getSupabase();
+      const path = `${sellerProfile.user_id}/avatar.${ext}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("avatars")
+        .upload(path, file, { contentType: file.type, upsert: true });
+      if (uploadError) throw uploadError;
+
+      const { data: publicUrlData } = supabase.storage.from("avatars").getPublicUrl(path);
+      // Cache-bust: same path every time (upsert), so without this the
+      // <img> would keep showing the browser-cached old photo.
+      const freshUrl = `${publicUrlData.publicUrl}?t=${Date.now()}`;
+
+      const { error: dbError } = await supabase
+        .from("sellers")
+        .update({ avatar_url: freshUrl })
+        .eq("id", sellerProfile.id);
+      if (dbError) throw dbError;
+
+      setAvatarUrl(freshUrl);
+      setSellerProfile((prev) => (prev ? { ...prev, avatar_url: freshUrl } : prev));
+      // The header loads the profile once on mount/auth-change — without
+      // this it keeps showing the old avatar until a full page reload.
+      window.dispatchEvent(new Event("profile-updated"));
+    } catch (err) {
+      console.error("Error al subir la foto de perfil:", err);
+      setAvatarError("No se pudo subir la imagen. Intentá de nuevo.");
+    } finally {
+      setAvatarUploading(false);
+      e.target.value = "";
     }
   };
 
@@ -837,11 +959,109 @@ export default function DashboardPage() {
         bank_alias: bankAlias.trim() || null,
       });
       setProfileSuccessMsg("¡Datos actualizados con éxito!");
+      window.dispatchEvent(new Event("profile-updated"));
     } catch (err: any) {
-      setProfileErrorMsg(err.message || "No se pudieron guardar los cambios.");
+      console.error("Error al guardar el perfil:", err);
+      setProfileErrorMsg("No se pudieron guardar los cambios.");
     } finally {
       setProfileSaving(false);
     }
+  };
+
+  // Load every question across all of this seller's listings when the
+  // "Consultas" tab is opened — mirrors HeaderSessionBar's fetchNotifications
+  // query shape exactly (same table, same embedded relations).
+  useEffect(() => {
+    if (activeTab !== "questions" || !sellerProfile) return;
+
+    const fetchQuestions = async () => {
+      if (myListings.length === 0) {
+        setQuestions([]);
+        return;
+      }
+      setQuestionsLoading(true);
+      const supabase = getSupabase();
+      try {
+        const { data } = await supabase
+          .from("questions")
+          .select(`
+            *,
+            buyer:sellers!questions_buyer_id_fkey ( * ),
+            listing:listings!questions_listing_id_fkey (
+              id,
+              product:products ( name )
+            )
+          `)
+          .in("listing_id", myListings.map((l) => l.id))
+          .order("created_at", { ascending: false });
+
+        setQuestions((data ?? []) as unknown as QuestionWithBuyer[]);
+      } catch (err) {
+        console.error("Error al cargar las consultas:", err);
+      } finally {
+        setQuestionsLoading(false);
+      }
+    };
+
+    fetchQuestions();
+  }, [activeTab, sellerProfile, myListings]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Loads per-listing view counts (unique visitors/day, see listing_views
+  // migration) for the "Visitas" column in "Mis Publicaciones". Only fired
+  // when that tab is open — no point tracking it while browsing other tabs.
+  useEffect(() => {
+    if (activeTab !== "inventory" || myListings.length === 0) return;
+
+    const fetchViewCounts = async () => {
+      try {
+        const ids = myListings.map((l) => l.id).join(",");
+        const res = await fetch(`/api/listings/views?ids=${encodeURIComponent(ids)}`);
+        if (!res.ok) return;
+        const counts = await res.json();
+        setViewCounts(counts);
+      } catch (err) {
+        console.error("Error al cargar las visitas:", err);
+      }
+    };
+
+    fetchViewCounts();
+  }, [activeTab, myListings]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleReplyToQuestion = async (questionId: string) => {
+    if (!questionReplyText.trim()) return;
+    const supabase = getSupabase();
+    const { error } = await supabase
+      .from("questions")
+      .update({ answer: questionReplyText, status: "ANSWERED", is_read_by_buyer: false })
+      .eq("id", questionId);
+
+    if (error) {
+      alert("Error al enviar la respuesta.");
+      return;
+    }
+
+    setReplyingToQuestionId(null);
+    setQuestionReplyText("");
+    setQuestions((prev) =>
+      prev.map((q) => (q.id === questionId ? { ...q, answer: questionReplyText, status: "ANSWERED" } : q))
+    );
+  };
+
+  const handleToggleQuestionHidden = async (questionId: string, currentlyHidden: boolean) => {
+    const supabase = getSupabase();
+    const { error } = await supabase
+      .from("questions")
+      .update({ hidden_by_seller: !currentlyHidden })
+      .eq("id", questionId);
+
+    if (error) {
+      alert("No se pudo actualizar la visibilidad de la consulta.");
+      return;
+    }
+
+    setQuestions((prev) =>
+      prev.map((q) => (q.id === questionId ? { ...q, hidden_by_seller: !currentlyHidden } : q))
+    );
   };
 
   const handleDisconnectMercadoPago = async () => {
@@ -852,7 +1072,8 @@ export default function DashboardPage() {
       setSellerProfile((prev) => (prev ? { ...prev, mercadopago_connected: false } : prev));
       setProfileSuccessMsg("Cuenta de Mercado Pago desvinculada.");
     } catch (err: any) {
-      setProfileErrorMsg(err.message || "No se pudo desvincular la cuenta.");
+      console.error("Error al desvincular Mercado Pago:", err);
+      setProfileErrorMsg("No se pudo desvincular la cuenta.");
     } finally {
       setMpDisconnecting(false);
     }
@@ -871,7 +1092,8 @@ export default function DashboardPage() {
       setPendingTransferOrders((prev) => prev.filter((o) => o.id !== orderId));
       setProfileSuccessMsg("Pago confirmado. ¡Ya podés coordinar la entrega!");
     } catch (err: any) {
-      setProfileErrorMsg(err.message || "No se pudo confirmar el pago.");
+      console.error("Error al confirmar el pago:", err);
+      setProfileErrorMsg("No se pudo confirmar el pago.");
     } finally {
       setConfirmingOrderId(null);
     }
@@ -895,7 +1117,8 @@ export default function DashboardPage() {
       setSuccessMsg("¡Publicación eliminada con éxito!");
       await refreshListings();
     } catch (err: any) {
-      setErrorMsg(err.message || "Error al eliminar la publicación.");
+      console.error("Error al eliminar la publicación:", err);
+      setErrorMsg("Error al eliminar la publicación.");
     } finally {
       setLoading(false);
       setListingIdToDelete(null);
@@ -919,7 +1142,8 @@ export default function DashboardPage() {
       setSuccessMsg("¡Estado de publicación actualizado!");
       await refreshListings();
     } catch (err: any) {
-      setErrorMsg(err.message || "Error al actualizar el estado.");
+      console.error("Error al actualizar el estado de la publicación:", err);
+      setErrorMsg("Error al actualizar el estado.");
     } finally {
       setStatusUpdating(false);
     }
@@ -1003,7 +1227,8 @@ export default function DashboardPage() {
       setRewards(rewards.map((r) => r.id === rewardId ? { ...r, claimed: true, claimed_at: new Date().toISOString() } : r));
       await refreshListings();
     } catch (err: any) {
-      setErrorMsg(err.message || "Ocurrió un error al canjear la recompensa.");
+      console.error("Error al canjear la recompensa:", err);
+      setErrorMsg("Ocurrió un error al canjear la recompensa.");
     } finally {
       setLoading(false);
     }
@@ -1059,24 +1284,25 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
-      <div className="flex flex-col md:flex-row items-start justify-between gap-6 border-b border-card-border pb-6 mb-8">
+      <div className="flex flex-col gap-5 border-b border-card-border pb-6 mb-8">
         <div>
           <h1 className="font-heading text-3xl font-extrabold text-foreground">Panel de Vendedor</h1>
           <p className="text-text-muted text-sm mt-1">
             Gestioná tus publicaciones, controlá tu stock y consultá tus métricas comerciales.
           </p>
         </div>
-        
-        {/* Navigation Tabs */}
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="flex bg-card-bg border border-card-border p-1 rounded-xl">
-            <button 
+
+        {/* Navigation Tabs — own full-width row, not squeezed next to the
+            title anymore (that's what was forcing "Mis Datos" onto a
+            second line even with whitespace-nowrap: not enough room). */}
+        <div className="flex flex-wrap w-full bg-card-bg border border-card-border p-1 rounded-xl gap-y-1">
+            <button
               onClick={() => {
                 setActiveTab("summary");
                 setSuccessMsg("");
                 setErrorMsg("");
               }}
-              className={`px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              className={`px-4 py-2 rounded-lg text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
                 activeTab === "summary" ? "bg-accent-blue text-background shadow-md" : "text-foreground/80 hover:text-accent-blue"
               }`}
             >
@@ -1102,7 +1328,7 @@ export default function DashboardPage() {
                 setSuccessMsg("");
                 setErrorMsg("");
               }}
-              className={`px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              className={`px-4 py-2 rounded-lg text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
                 activeTab === "publish" ? "bg-accent-blue text-background shadow-md" : "text-foreground/80 hover:text-accent-blue"
               }`}
             >
@@ -1128,13 +1354,27 @@ export default function DashboardPage() {
                 setSuccessMsg("");
                 setErrorMsg("");
               }}
-              className={`px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              className={`px-4 py-2 rounded-lg text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
                 activeTab === "inventory" ? "bg-accent-blue text-background shadow-md" : "text-foreground/80 hover:text-accent-blue"
               }`}
             >
               Mis Publicaciones ({myListings.length})
             </button>
-            <button 
+            <button
+              onClick={() => {
+                setActiveTab("questions");
+                setSuccessMsg("");
+                setErrorMsg("");
+              }}
+              className={`px-4 py-2 rounded-lg text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+                activeTab === "questions" ? "bg-accent-blue text-background shadow-md" : "text-foreground/80 hover:text-accent-blue"
+              }`}
+            >
+              Consultas
+              {questions.filter((q) => !q.is_read_by_seller).length > 0 &&
+                ` (${questions.filter((q) => !q.is_read_by_seller).length})`}
+            </button>
+            <button
               onClick={() => {
                 if (selectedListingToEdit) {
                   setSelectedListingToEdit(null);
@@ -1154,7 +1394,7 @@ export default function DashboardPage() {
                 setSuccessMsg("");
                 setErrorMsg("");
               }}
-              className={`px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              className={`px-4 py-2 rounded-lg text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
                 activeTab === "rewards" ? "bg-accent-blue text-background shadow-md" : "text-foreground/80 hover:text-accent-blue"
               }`}
             >
@@ -1166,13 +1406,12 @@ export default function DashboardPage() {
                 setProfileSuccessMsg("");
                 setProfileErrorMsg("");
               }}
-              className={`px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              className={`px-4 py-2 rounded-lg text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
                 activeTab === "profile" ? "bg-accent-blue text-background shadow-md" : "text-foreground/80 hover:text-accent-blue"
               }`}
             >
               Mis Datos
             </button>
-          </div>
         </div>
       </div>
 
@@ -1188,23 +1427,38 @@ export default function DashboardPage() {
               <div>
                 <h4 className="text-xl font-bold text-foreground">{sellerProfile.name}</h4>
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-accent-green/10 px-2.5 py-0.5 text-xs font-semibold text-accent-green border border-accent-green/20 mt-2">
-                  💼 Cuenta: {sellerProfile.type === "BUSINESS_SELLER" ? "Comercio / Empresa" : "Particular"}
+                  Cuenta: {sellerProfile.type === "BUSINESS_SELLER" ? "Comercio / Empresa" : "Particular"}
                 </span>
               </div>
               <div className="border-t border-card-border/50 pt-4 flex justify-between text-xs text-text-muted">
                 <span>Plan Actual: <strong className="text-foreground">{sellerProfile.plan}</strong></span>
-                <span>Tier de Venta: <strong className="text-accent-gold">{sellerProfile.tier}</strong></span>
+                {sellerHasSales ? (
+                  <span>Tier de Venta: <strong className="text-accent-gold">{sellerProfile.tier}</strong></span>
+                ) : (
+                  <span className="italic">🌱 Sin ventas todavía</span>
+                )}
               </div>
             </div>
 
             {/* Reputacion score */}
             <div className="rounded-2xl glass-panel p-6 flex flex-col items-center justify-center text-center">
               <h3 className="font-heading text-xs font-extrabold text-text-muted uppercase tracking-wider mb-2">Score del Vendedor</h3>
-              <div className="relative flex items-center justify-center">
-                <span className="text-5xl font-extrabold text-accent-gold font-heading">{sellerProfile.score}</span>
-                <span className="text-lg text-text-muted mt-4">/100</span>
-              </div>
-              <p className="text-[10px] text-text-muted mt-3">Reputación excelente basada en tus últimas calificaciones pampeanas.</p>
+              {sellerHasSales ? (
+                <>
+                  <div className="relative flex items-center justify-center">
+                    <span className="text-5xl font-extrabold text-accent-gold font-heading">{sellerProfile.score}</span>
+                    <span className="text-lg text-text-muted mt-4">/100</span>
+                  </div>
+                  <p className="text-[10px] text-text-muted mt-3">Reputación excelente basada en tus últimas calificaciones pampeanas.</p>
+                </>
+              ) : (
+                <>
+                  <span className="text-4xl">🌱</span>
+                  <p className="text-[11px] text-text-muted mt-3 leading-relaxed">
+                    Todavía no realizaste ninguna venta. Cuando completes la primera, vas a empezar a construir tu reputación acá.
+                  </p>
+                </>
+              )}
             </div>
 
             {/* Active listings summary */}
@@ -1287,14 +1541,21 @@ export default function DashboardPage() {
                       setCategoryId(val);
                       setDynamicAttributes({});
                     }}
-                    options={categories
-                      .filter((cat) => !cat.parentId)
-                      .flatMap((root) => [
-                        { name: root.name, value: root.id },
-                        ...categories
-                          .filter((cat) => cat.parentId === root.id)
-                          .map((sub) => ({ name: sub.name, value: sub.id, groupLabel: root.name })),
-                      ])}
+                    options={[
+                      // Real placeholder, not just an empty defaultValue —
+                      // without this CustomDropdown falls back to options[0]
+                      // (whatever category sorts first alphabetically) both
+                      // visually AND as the value it actually submits.
+                      { name: "Seleccioná una categoría", value: "" },
+                      ...categories
+                        .filter((cat) => !cat.parentId)
+                        .flatMap((root) => [
+                          { name: root.name, value: root.id },
+                          ...categories
+                            .filter((cat) => cat.parentId === root.id)
+                            .map((sub) => ({ name: sub.name, value: sub.id, groupLabel: root.name })),
+                        ]),
+                    ]}
                     showSearch={true}
                     placeholder="Buscar categoría..."
                   />
@@ -1916,7 +2177,10 @@ export default function DashboardPage() {
                       >
                         Stock {renderSortIndicator("stock")}
                       </th>
-                      <th 
+                      <th className="pb-3 px-4 text-center" title="Visitantes únicos por día — no cuenta refrescos ni tus propias visitas">
+                        Visitas
+                      </th>
+                      <th
                         onClick={() => handleSort("status")}
                         className="pb-3 px-4 text-center cursor-pointer hover:text-accent-gold transition-colors"
                       >
@@ -1928,7 +2192,7 @@ export default function DashboardPage() {
                   <tbody className="divide-y divide-card-border/30">
                     {filteredAndSortedListings.length === 0 ? (
                       <tr>
-                        <td colSpan={8} className="py-8 text-center text-text-muted">
+                        <td colSpan={9} className="py-8 text-center text-text-muted">
                           No se encontraron artículos
                         </td>
                       </tr>
@@ -1961,9 +2225,15 @@ export default function DashboardPage() {
                             </span>
                           </td>
                           <td className="py-4 px-4 text-right font-extrabold text-foreground">
-                            ${Number(listing.price).toLocaleString("es-AR")}
+                            {currencies.find((c) => c.id === listing.currency_id)?.symbol ?? "$"}
+                            {Number(listing.price).toLocaleString("es-AR")}
                           </td>
                           <td className="py-4 px-4 text-center font-bold text-foreground">{listing.stock}</td>
+                          <td className="py-4 px-4 text-center text-text-muted">
+                            <span className="inline-flex items-center gap-1">
+                              👁️ {viewCounts[listing.id] ?? 0}
+                            </span>
+                          </td>
                           <td className="py-4 px-4 text-center relative">
                             <button
                               type="button"
@@ -2167,6 +2437,144 @@ export default function DashboardPage() {
           );
         })()}
 
+        {/* TAB: Consultas (Q&A follow-up) */}
+        {activeTab === "questions" && (() => {
+          const filteredQuestions = questions.filter((q) => {
+            if (questionsFilter === "unanswered") return !q.answer;
+            if (questionsFilter === "answered") return !!q.answer;
+            return true;
+          });
+          const unansweredCount = questions.filter((q) => !q.answer).length;
+
+          return (
+            <div className="w-full flex flex-col gap-6">
+              <div className="rounded-2xl glass-panel p-6">
+                <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+                  <div>
+                    <h3 className="font-heading text-sm font-extrabold text-foreground uppercase tracking-wider">💬 Consultas de Compradores</h3>
+                    <p className="text-xs text-text-muted mt-1">
+                      Todas las preguntas recibidas en tus publicaciones, para hacer seguimiento.
+                    </p>
+                  </div>
+                  <div className="flex gap-2 bg-background border border-card-border p-1 rounded-xl">
+                    {([
+                      { key: "all", label: "Todas" },
+                      { key: "unanswered", label: `Sin responder${unansweredCount > 0 ? ` (${unansweredCount})` : ""}` },
+                      { key: "answered", label: "Respondidas" },
+                    ] as const).map((f) => (
+                      <button
+                        key={f.key}
+                        type="button"
+                        onClick={() => setQuestionsFilter(f.key)}
+                        className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                          questionsFilter === f.key ? "bg-accent-blue text-background shadow-sm" : "text-text-muted hover:text-foreground"
+                        }`}
+                      >
+                        {f.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {questionsLoading ? (
+                  <p className="text-xs text-text-muted text-center py-10">Cargando consultas...</p>
+                ) : filteredQuestions.length === 0 ? (
+                  <p className="text-xs text-text-muted text-center py-10">
+                    {questionsFilter === "all"
+                      ? "Todavía no tenés ninguna consulta en tus publicaciones."
+                      : questionsFilter === "unanswered"
+                        ? "No tenés consultas pendientes de responder."
+                        : "Todavía no respondiste ninguna consulta."}
+                  </p>
+                ) : (
+                  <div className="flex flex-col gap-3">
+                    {filteredQuestions.map((q) => (
+                      <div
+                        key={q.id}
+                        className={`p-4 rounded-xl border flex flex-col gap-2.5 text-xs transition-colors ${
+                          !q.answer ? "bg-accent-gold/5 border-accent-gold/20" : "bg-card-bg border-card-border/50"
+                        }`}
+                      >
+                        <div className="flex flex-wrap justify-between items-start gap-3">
+                          <div className="flex-1 min-w-0">
+                            <span className="text-[9px] font-bold text-text-muted block uppercase">Publicación</span>
+                            <Link
+                              href={`/listings/${q.listing?.id ?? "#"}`}
+                              target="_blank"
+                              className="font-bold text-foreground hover:text-accent-gold transition-colors line-clamp-1"
+                            >
+                              {q.listing?.product?.name ?? "Publicación"}
+                            </Link>
+                          </div>
+                          <span className="text-[9px] text-text-muted shrink-0">
+                            {new Date(q.created_at).toLocaleDateString("es-AR")}
+                          </span>
+                        </div>
+
+                        <div className="bg-background/40 p-3 rounded-lg border border-card-border/40">
+                          <span className="text-[9px] font-bold text-text-muted block mb-0.5">{q.buyer?.name ?? "Comprador"} pregunta:</span>
+                          <p className="text-foreground leading-relaxed italic">&quot;{q.question}&quot;</p>
+                        </div>
+
+                        <button
+                          onClick={() => handleToggleQuestionHidden(q.id, q.hidden_by_seller)}
+                          className="self-start text-[10px] font-bold text-text-muted hover:text-foreground underline decoration-dotted cursor-pointer"
+                        >
+                          {q.hidden_by_seller ? "👁️ Volver a mostrar en la publicación" : "🙈 Ocultar de la publicación"}
+                        </button>
+
+                        {q.answer ? (
+                          <div className="bg-accent-green/5 p-3 rounded-lg border border-accent-green/15 flex flex-col gap-0.5">
+                            <span className="text-[9px] font-bold text-accent-green block uppercase">Respondiste:</span>
+                            <p className="text-text-muted">&quot;{q.answer}&quot;</p>
+                          </div>
+                        ) : replyingToQuestionId === q.id ? (
+                          <div className="flex flex-col gap-2">
+                            <textarea
+                              value={questionReplyText}
+                              onChange={(e) => setQuestionReplyText(e.target.value)}
+                              placeholder="Escribí tu respuesta..."
+                              className="w-full bg-background border border-card-border rounded-lg p-2 text-xs text-foreground focus:outline-none focus:border-accent-gold resize-none h-16"
+                            />
+                            <div className="flex justify-end gap-2">
+                              <button
+                                onClick={() => {
+                                  setReplyingToQuestionId(null);
+                                  setQuestionReplyText("");
+                                }}
+                                className="px-2.5 py-1 text-[10px] rounded-lg border border-card-border hover:bg-card-bg/25 text-text-muted cursor-pointer"
+                              >
+                                Cancelar
+                              </button>
+                              <button
+                                onClick={() => handleReplyToQuestion(q.id)}
+                                disabled={!questionReplyText.trim()}
+                                className="px-2.5 py-1 text-[10px] rounded-lg bg-gradient-to-r from-accent-gold to-accent-gold-hover text-background font-bold shadow-md cursor-pointer disabled:opacity-50"
+                              >
+                                Enviar Respuesta
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => {
+                              setReplyingToQuestionId(q.id);
+                              setQuestionReplyText("");
+                            }}
+                            className="w-full py-2 text-center text-[10px] font-bold rounded-lg border border-accent-gold/30 hover:border-accent-gold text-accent-gold hover:bg-accent-gold/5 transition-all cursor-pointer"
+                          >
+                            Responder Consulta
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+
         {/* TAB 4: Rewards & Benefits */}
         {activeTab === "rewards" && (
           <div className="w-full flex flex-col gap-6">
@@ -2289,7 +2697,7 @@ export default function DashboardPage() {
                           defaultValue={selectedListingForReward}
                           onChange={setSelectedListingForReward}
                           options={myListings.filter(l => l.status === "APPROVED").map((l) => ({
-                            name: `${l.products?.name ?? "Publicación"} ($${l.price.toLocaleString("es-AR")})`,
+                            name: `${l.products?.name ?? "Publicación"} (${currencies.find((c) => c.id === l.currency_id)?.symbol ?? "$"}${l.price.toLocaleString("es-AR")})`,
                             value: l.id
                           }))}
                         />
@@ -2382,96 +2790,144 @@ export default function DashboardPage() {
         )}
 
         {activeTab === "profile" && (
-          <div className="max-w-2xl mx-auto w-full rounded-2xl glass-panel p-8">
+          <div className="max-w-4xl mx-auto w-full rounded-2xl glass-panel p-8">
             <h2 className="font-heading text-lg font-bold text-foreground mb-1">Mis Datos</h2>
             <p className="text-xs text-text-muted mb-6">Actualizá los datos de tu perfil de vendedor.</p>
 
 
-            <form onSubmit={handleSaveProfile} className="flex flex-col gap-5">
+            <form id="profile-form" onSubmit={handleSaveProfile} className="flex flex-col gap-5">
               <div className="flex flex-col gap-2">
-                <label className="text-xs font-bold text-foreground">Correo Electrónico</label>
-                <input
-                  type="email"
-                  value={userEmail ?? ""}
-                  disabled
-                  readOnly
-                  className="w-full bg-card-border/20 border border-card-border rounded-xl px-4 py-3 text-xs text-text-muted cursor-not-allowed"
-                />
-                <p className="text-[10px] text-text-muted">El correo no se puede modificar desde acá.</p>
+                <label className="text-xs font-bold text-foreground">
+                  {profileType === "BUSINESS_SELLER" ? "Logo del Comercio" : "Foto de Perfil"}
+                </label>
+                <div className="flex items-center gap-4">
+                  <div className="relative h-16 w-16 shrink-0 overflow-hidden border border-card-border shadow-sm rounded-full">
+                    <SellerAvatar
+                      src={avatarUrl}
+                      alt={profileType === "BUSINESS_SELLER" ? "Logo del comercio" : "Tu foto de perfil"}
+                    />
+                  </div>
+                  <label className="cursor-pointer rounded-xl border border-card-border px-4 py-2 text-xs font-bold text-foreground hover:border-accent-gold hover:text-accent-gold transition-colors">
+                    {avatarUploading ? "Subiendo..." : avatarUrl ? "Cambiar imagen" : "Elegir imagen"}
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,image/gif"
+                      onChange={handleAvatarChange}
+                      disabled={avatarUploading}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+                {avatarError && <p className="text-[10px] text-red-500">{avatarError}</p>}
+                <p className="text-[10px] text-text-muted">
+                  Se sube al instante — no hace falta apretar &quot;Guardar Cambios&quot;.
+                </p>
               </div>
 
-              <div className="flex flex-col gap-2">
-                <label className="text-xs font-bold text-foreground">Nombre Completo / Razón Social</label>
-                <input
-                  type="text"
-                  required
-                  value={profileName}
-                  onChange={(e) => setProfileName(e.target.value)}
-                  className="w-full bg-background border border-card-border rounded-xl px-4 py-3 text-xs text-foreground focus:outline-none focus:border-accent-gold"
-                />
-              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div className="flex flex-col gap-2">
+                  <label className="text-xs font-bold text-foreground">Correo Electrónico</label>
+                  <input
+                    type="email"
+                    value={userEmail ?? ""}
+                    disabled
+                    readOnly
+                    className="w-full bg-card-border/20 border border-card-border rounded-xl px-4 py-3 text-xs text-text-muted cursor-not-allowed"
+                  />
+                  <p className="text-[10px] text-text-muted">El correo no se puede modificar desde acá.</p>
+                </div>
 
-              <div className="flex flex-col gap-2">
-                <label className="text-xs font-bold text-foreground">Tipo de Vendedor / Cuenta</label>
-                <div className="grid grid-cols-2 gap-3 bg-background border border-card-border p-1 rounded-xl">
-                  <button
-                    type="button"
-                    onClick={() => setProfileType("PERSONAL_SELLER")}
-                    className={`py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                      profileType === "PERSONAL_SELLER" ? "bg-accent-blue text-background shadow-md" : "text-text-muted hover:text-foreground"
-                    }`}
-                  >
-                    Particular
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setProfileType("BUSINESS_SELLER")}
-                    className={`py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                      profileType === "BUSINESS_SELLER" ? "bg-accent-blue text-background shadow-md" : "text-text-muted hover:text-foreground"
-                    }`}
-                  >
-                    Comercio
-                  </button>
+                <div className="flex flex-col gap-2">
+                  <label className="text-xs font-bold text-foreground">Nombre de Usuario</label>
+                  <input
+                    type="text"
+                    value={sellerProfile.username ? `@${sellerProfile.username}` : "Sin asignar"}
+                    disabled
+                    readOnly
+                    className="w-full bg-card-border/20 border border-card-border rounded-xl px-4 py-3 text-xs text-text-muted cursor-not-allowed"
+                  />
+                  <p className="text-[10px] text-text-muted">Por ahora no se puede modificar desde acá.</p>
                 </div>
               </div>
 
-              <div className="flex flex-col gap-2">
-                <label className="text-xs font-bold text-foreground">Celular</label>
-                <input
-                  type="tel"
-                  required
-                  value={profilePhone}
-                  onChange={(e) => setProfilePhone(e.target.value)}
-                  placeholder="Ej. 2954123456"
-                  className="w-full bg-background border border-card-border rounded-xl px-4 py-3 text-xs text-foreground focus:outline-none focus:border-accent-gold"
-                />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div className="flex flex-col gap-2">
+                  <label className="text-xs font-bold text-foreground">Nombre Completo / Razón Social</label>
+                  <input
+                    type="text"
+                    required
+                    value={profileName}
+                    onChange={(e) => setProfileName(e.target.value)}
+                    className="w-full bg-background border border-card-border rounded-xl px-4 py-3 text-xs text-foreground focus:outline-none focus:border-accent-gold"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <label className="text-xs font-bold text-foreground">Tipo de Vendedor / Cuenta</label>
+                  <div className="grid grid-cols-2 gap-3 bg-background border border-card-border p-1 rounded-xl">
+                    <button
+                      type="button"
+                      onClick={() => setProfileType("PERSONAL_SELLER")}
+                      className={`py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        profileType === "PERSONAL_SELLER" ? "bg-accent-blue text-background shadow-md" : "text-text-muted hover:text-foreground"
+                      }`}
+                    >
+                      Particular
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setProfileType("BUSINESS_SELLER")}
+                      className={`py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        profileType === "BUSINESS_SELLER" ? "bg-accent-blue text-background shadow-md" : "text-text-muted hover:text-foreground"
+                      }`}
+                    >
+                      Comercio
+                    </button>
+                  </div>
+                </div>
               </div>
 
-              <div className="flex flex-col gap-2">
-                <label className="text-xs font-bold text-foreground">
-                  {profileType === "PERSONAL_SELLER" ? "DNI / CUIL" : "CUIT"}
-                </label>
-                <input
-                  type="text"
-                  value={profileDocumentNumber}
-                  onChange={(e) => setProfileDocumentNumber(e.target.value)}
-                  placeholder={profileType === "PERSONAL_SELLER" ? "Ej. 20-35444333-8" : "Ej. 30-71112223-9"}
-                  className="w-full bg-background border border-card-border rounded-xl px-4 py-3 text-xs text-foreground focus:outline-none focus:border-accent-gold"
-                />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div className="flex flex-col gap-2">
+                  <label className="text-xs font-bold text-foreground">Celular</label>
+                  <input
+                    type="tel"
+                    required
+                    value={profilePhone}
+                    onChange={(e) => setProfilePhone(e.target.value)}
+                    placeholder="Ej. 2954123456"
+                    className="w-full bg-background border border-card-border rounded-xl px-4 py-3 text-xs text-foreground focus:outline-none focus:border-accent-gold"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <label className="text-xs font-bold text-foreground">
+                    {profileType === "PERSONAL_SELLER" ? "DNI / CUIL" : "CUIT"}
+                  </label>
+                  <input
+                    type="text"
+                    value={profileDocumentNumber}
+                    onChange={(e) => setProfileDocumentNumber(e.target.value)}
+                    placeholder={profileType === "PERSONAL_SELLER" ? "Ej. 20-35444333-8" : "Ej. 30-71112223-9"}
+                    className="w-full bg-background border border-card-border rounded-xl px-4 py-3 text-xs text-foreground focus:outline-none focus:border-accent-gold"
+                  />
+                </div>
               </div>
 
-              <div className="flex flex-col gap-2">
-                <label className="text-xs font-bold text-foreground">Ciudad</label>
-                <CustomDropdown
-                  name="location"
-                  defaultValue={profileLocation}
-                  showSearch
-                  onChange={(value) => setProfileLocation(value)}
-                  options={[
-                    { name: "Seleccioná tu ciudad", value: "" },
-                    ...LA_PAMPA_CITIES.map((city) => ({ name: city, value: city })),
-                  ]}
-                />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div className="flex flex-col gap-2">
+                  <label className="text-xs font-bold text-foreground">Ciudad</label>
+                  <CustomDropdown
+                    name="location"
+                    defaultValue={profileLocation}
+                    showSearch
+                    onChange={(value) => setProfileLocation(value)}
+                    options={[
+                      { name: "Seleccioná tu ciudad", value: "" },
+                      ...LA_PAMPA_CITIES.map((city) => ({ name: city, value: city })),
+                    ]}
+                  />
+                </div>
               </div>
 
               <div className="flex flex-col gap-2">
@@ -2507,14 +2963,6 @@ export default function DashboardPage() {
                   />
                 </div>
               </div>
-
-              <button
-                type="submit"
-                disabled={profileSaving}
-                className="rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover py-4 text-xs font-extrabold text-background shadow-md hover:opacity-95 transition-all mt-2 disabled:opacity-50 cursor-pointer"
-              >
-                {profileSaving ? "Guardando..." : "Guardar Cambios"}
-              </button>
             </form>
 
             <div className="border-t border-card-border/50 mt-8 pt-6 flex flex-col gap-3">
@@ -2572,6 +3020,20 @@ export default function DashboardPage() {
                 </div>
               </div>
             )}
+
+            {/* Fuera del <form> a propósito (queda debajo de Mercado Pago y
+                Transferencias por confirmar) — se conecta al formulario de
+                arriba vía el atributo form="profile-form". */}
+            <div className="border-t border-card-border/50 mt-8 pt-6 flex justify-center">
+              <button
+                type="submit"
+                form="profile-form"
+                disabled={profileSaving}
+                className="rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover px-12 py-3 text-xs font-extrabold text-background shadow-md hover:opacity-95 transition-all disabled:opacity-50 cursor-pointer"
+              >
+                {profileSaving ? "Guardando..." : "Guardar Cambios"}
+              </button>
+            </div>
           </div>
         )}
 

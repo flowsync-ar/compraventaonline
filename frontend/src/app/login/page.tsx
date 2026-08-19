@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/lib/supabase/types"
 import CustomDropdown from "@/components/CustomDropdown"
+import GenericAvatar from "@/components/GenericAvatar"
 import { LA_PAMPA_CITIES } from "@/lib/constants/laPampaCities"
 
 export default function LoginPage() {
@@ -44,11 +45,118 @@ export default function LoginPage() {
   const [location, setLocation] = useState("")
   const [acceptTerms, setAcceptTerms] = useState(false)
 
+  // Username — always lowercase (see register/route.ts for why), must be
+  // explicitly checked (button click, not on-the-fly) before it can be
+  // submitted. Any edit after a check invalidates it back to "idle".
+  const [username, setUsername] = useState("")
+  const [usernameStatus, setUsernameStatus] = useState<"idle" | "checking" | "available" | "taken" | "invalid">("idle")
+  const [usernameMsg, setUsernameMsg] = useState("")
+
+  // Avatar — optional. Preview is a local object URL, never uploaded until
+  // the whole registration form is submitted (see fileToBase64 in handleSubmit).
+  const [avatarFile, setAvatarFile] = useState<File | null>(null)
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
+
+  const USERNAME_PATTERN = /^[a-z0-9_.]{3,30}$/
+
+  const handleUsernameChange = (value: string) => {
+    setUsername(value.toLowerCase())
+    setUsernameStatus("idle")
+    setUsernameMsg("")
+  }
+
+  const checkUsernameAvailability = async (candidate: string): Promise<boolean> => {
+    const { data, error } = await getSupabase().from("sellers").select("id").eq("username", candidate).maybeSingle()
+    // A query error (network issue, missing column, whatever) must NOT be
+    // read as "no row found" — that would silently report a taken/unverified
+    // username as available.
+    if (error) throw error
+    return !data
+  }
+
+  const handleCheckUsername = async () => {
+    const trimmed = username.trim()
+    if (!USERNAME_PATTERN.test(trimmed)) {
+      setUsernameStatus("invalid")
+      setUsernameMsg("Usá entre 3 y 30 caracteres: letras, números, puntos o guiones bajos.")
+      return
+    }
+    setUsernameStatus("checking")
+    try {
+      const available = await checkUsernameAvailability(trimmed)
+      if (available) {
+        setUsernameStatus("available")
+        setUsernameMsg("¡Disponible!")
+      } else {
+        setUsernameStatus("taken")
+        setUsernameMsg("Este nombre de usuario ya existe.")
+      }
+    } catch {
+      setUsernameStatus("idle")
+      setUsernameMsg("No se pudo comprobar la disponibilidad. Intentá de nuevo.")
+    }
+  }
+
+  const slugifyForUsername = (text: string) =>
+    text
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9\s]/g, "")
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .join(".")
+
+  const handleSuggestUsername = async () => {
+    const base = (slugifyForUsername(fullName) || slugifyForUsername(email.split("@")[0] ?? "") || "usuario").slice(0, 25)
+    setUsernameStatus("checking")
+    try {
+      let candidate = base
+      for (let attempt = 0; attempt < 6; attempt++) {
+        if (await checkUsernameAvailability(candidate)) {
+          setUsername(candidate)
+          setUsernameStatus("available")
+          setUsernameMsg("¡Disponible! Te sugerimos este nombre de usuario.")
+          return
+        }
+        candidate = `${base}${Math.floor(100 + Math.random() * 900)}`
+      }
+      setUsernameStatus("idle")
+      setUsernameMsg("No pudimos encontrar una sugerencia libre, probá escribiendo una vos.")
+    } catch {
+      setUsernameStatus("idle")
+      setUsernameMsg("No se pudo generar una sugerencia. Intentá de nuevo.")
+    }
+  }
+
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 3 * 1024 * 1024) {
+      setErrorMsg("La foto de perfil no puede superar los 3MB.")
+      return
+    }
+    setAvatarFile(file)
+    setAvatarPreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev)
+      return URL.createObjectURL(file)
+    })
+  }
+
+  const fileToBase64 = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(reader.result as string)
+      reader.onerror = reject
+      reader.readAsDataURL(file)
+    })
+
   // Redirect if already logged in
   useEffect(() => {
     getSupabase().auth.getSession().then(({ data: { session } }) => {
       if (session) {
-        router.push("/dashboard")
+        router.push("/")
       }
     })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -74,7 +182,7 @@ export default function LoginPage() {
 
         setSuccessMsg("¡Inicio de sesión exitoso! Redireccionando...")
         setTimeout(() => {
-          router.push("/dashboard")
+          router.push("/")
           router.refresh()
         }, 1000)
 
@@ -83,6 +191,11 @@ export default function LoginPage() {
         if (!acceptTerms) {
           throw new Error("Debes aceptar los términos y condiciones de la comunidad.")
         }
+        if (usernameStatus !== "available") {
+          throw new Error("Comprobá la disponibilidad de tu nombre de usuario antes de continuar.")
+        }
+
+        const avatarDataUrl = avatarFile ? await fileToBase64(avatarFile) : null
 
         // Create auth user + send confirmation email server-side (own Zoho SMTP,
         // not Supabase's shared mailer). The trigger handle_new_user creates
@@ -98,6 +211,8 @@ export default function LoginPage() {
             documentNumber,
             phone,
             location,
+            username,
+            avatarDataUrl,
           }),
         })
 
@@ -252,6 +367,30 @@ export default function LoginPage() {
         )}
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+          {/* Avatar (Registration only, optional) */}
+          {!isLogin && (
+            <div className="flex flex-col gap-2 items-center">
+              <label className="text-xs font-bold text-foreground self-start">Foto de Perfil (opcional)</label>
+              <div className="flex items-center gap-4">
+                <div className="relative h-16 w-16 shrink-0 rounded-full overflow-hidden border border-card-border">
+                  {avatarPreview ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={avatarPreview} alt="Vista previa de tu foto de perfil" className="h-full w-full object-cover" />
+                  ) : (
+                    <GenericAvatar />
+                  )}
+                </div>
+                <label className="cursor-pointer rounded-xl border border-card-border px-4 py-2 text-xs font-bold text-foreground hover:border-accent-gold hover:text-accent-gold transition-colors">
+                  {avatarFile ? "Cambiar foto" : "Elegir foto"}
+                  <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={handleAvatarChange} className="hidden" />
+                </label>
+              </div>
+              <p className="text-[10px] text-text-muted self-start">
+                Si no elegís una, tu perfil muestra una foto genérica hasta que subas la tuya.
+              </p>
+            </div>
+          )}
+
           {/* Full Name (Registration only) */}
           {!isLogin && (
             <div className="flex flex-col gap-2">
@@ -264,6 +403,55 @@ export default function LoginPage() {
                 placeholder="Ej. Juan Pérez o Ferretería Luro"
                 className="w-full bg-background border border-card-border rounded-xl px-4 py-3 text-xs text-foreground focus:outline-none focus:border-accent-gold"
               />
+            </div>
+          )}
+
+          {/* Username (Registration only) */}
+          {!isLogin && (
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-bold text-foreground">Nombre de Usuario</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  required
+                  value={username}
+                  onChange={(e) => handleUsernameChange(e.target.value)}
+                  placeholder="Ej. juan.perez"
+                  className="flex-1 min-w-0 bg-background border border-card-border rounded-xl px-4 py-3 text-xs text-foreground focus:outline-none focus:border-accent-gold"
+                />
+                <button
+                  type="button"
+                  onClick={handleCheckUsername}
+                  disabled={!username.trim() || usernameStatus === "checking"}
+                  className="shrink-0 rounded-xl border border-card-border px-3 py-2 text-[11px] font-bold text-foreground hover:border-accent-gold hover:text-accent-gold transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  {usernameStatus === "checking" ? "Comprobando..." : "Comprobar disponibilidad"}
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between gap-2">
+                {usernameMsg && (
+                  <p
+                    className={`text-[11px] font-semibold ${
+                      usernameStatus === "available"
+                        ? "text-accent-green"
+                        : usernameStatus === "taken" || usernameStatus === "invalid"
+                          ? "text-red-500"
+                          : "text-text-muted"
+                    }`}
+                  >
+                    {usernameMsg}
+                  </p>
+                )}
+                <button
+                  type="button"
+                  onClick={handleSuggestUsername}
+                  disabled={usernameStatus === "checking"}
+                  className="ml-auto text-[11px] font-bold text-accent-gold hover:underline cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Sugerir nombre de usuario
+                </button>
+              </div>
             </div>
           )}
 

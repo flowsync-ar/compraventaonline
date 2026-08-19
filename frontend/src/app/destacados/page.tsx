@@ -1,9 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import Link from "next/link";
 
 type HighlightRow = {
   id: string;
-  plan: string;
   listings: {
     id: string;
     price: number;
@@ -17,10 +17,12 @@ type HighlightRow = {
       categories: { name: string } | null;
     } | null;
     sellers: {
+      id: string;
       name: string;
       score: number;
       tier: string;
     } | null;
+    currencies: { symbol: string } | null;
   } | null;
 };
 
@@ -33,7 +35,6 @@ async function getHighlightedListings(): Promise<HighlightRow[]> {
       .from("highlighted_products")
       .select(`
         id,
-        plan,
         listings (
           id,
           price,
@@ -47,14 +48,15 @@ async function getHighlightedListings(): Promise<HighlightRow[]> {
             categories ( name )
           ),
           sellers (
+            id,
             name,
             score,
             tier
-          )
+          ),
+          currencies ( symbol )
         )
       `)
-      .gt("end_date", now)
-      .order("plan", { ascending: true });
+      .gt("end_date", now);
 
     if (error) {
       console.error("[destacados] Error fetching highlights:", error.message);
@@ -62,10 +64,14 @@ async function getHighlightedListings(): Promise<HighlightRow[]> {
     }
     if (!data) return [];
 
-    // Sort: PREMIUM first, then FEATURED
+    // Sort: PREMIUM first, then FEATURED. The plan lives on
+    // listings.featured_plan, not on highlighted_products (that table only
+    // tracks the highlight's validity window).
     const sorted = (data as unknown as HighlightRow[]).sort((a, b) => {
-      if (a.plan === "PREMIUM" && b.plan !== "PREMIUM") return -1;
-      if (a.plan !== "PREMIUM" && b.plan === "PREMIUM") return 1;
+      const aPremium = a.listings?.featured_plan === "PREMIUM";
+      const bPremium = b.listings?.featured_plan === "PREMIUM";
+      if (aPremium && !bPremium) return -1;
+      if (!aPremium && bPremium) return 1;
       return 0;
     });
 
@@ -76,8 +82,35 @@ async function getHighlightedListings(): Promise<HighlightRow[]> {
   }
 }
 
+// Sellers with at least one PAID order — used to avoid showing the default
+// score/tier (DB default: score 80, tier BRONCE) as if it were an earned
+// reputation for sellers who never actually sold anything.
+// Uses the admin client: `orders` RLS only lets the buyer/seller read their
+// own rows, but this page is public and needs the full picture.
+async function getSellersWithSales(): Promise<Set<string>> {
+  try {
+    const supabase = createAdminClient();
+    const { data, error } = await supabase
+      .from("orders")
+      .select("seller_id")
+      .eq("status", "PAID");
+
+    if (error) {
+      console.error("[destacados] Error fetching sellers with sales:", error.message);
+      return new Set();
+    }
+    return new Set((data ?? []).map((o) => o.seller_id));
+  } catch (err) {
+    console.error("[destacados] Unexpected error fetching sellers with sales:", err);
+    return new Set();
+  }
+}
+
 export default async function DestacadosPage() {
-  const highlights = await getHighlightedListings();
+  const [highlights, sellersWithSales] = await Promise.all([
+    getHighlightedListings(),
+    getSellersWithSales(),
+  ]);
 
   return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12 w-full flex flex-col gap-10">
@@ -124,7 +157,7 @@ export default async function DestacadosPage() {
           {highlights.map((highlight) => {
             const item = highlight.listings;
             if (!item) return null;
-            const isPremium = highlight.plan === "PREMIUM";
+            const isPremium = item.featured_plan === "PREMIUM";
             const product = item.products;
             const seller = item.sellers;
             const image = product?.images?.[0] ?? "https://images.unsplash.com/photo-1531403009284-440f080d1e12?q=80&w=600&auto=format&fit=crop";
@@ -187,9 +220,13 @@ export default async function DestacadosPage() {
                     </div>
                     <div className="flex flex-col items-end gap-0.5">
                       <span className="text-text-muted">Reputación</span>
-                      <span className="font-extrabold text-accent-green">
-                        {seller?.score ?? 0}/100
-                      </span>
+                      {seller?.id && sellersWithSales.has(seller.id) ? (
+                        <span className="font-extrabold text-accent-green">
+                          {seller.score}/100
+                        </span>
+                      ) : (
+                        <span className="font-bold text-text-muted italic">🌱 Nuevo, sin ventas</span>
+                      )}
                     </div>
                   </div>
 
@@ -198,7 +235,7 @@ export default async function DestacadosPage() {
                     <div className="flex flex-col">
                       <span className="text-[9px] text-text-muted uppercase font-semibold">Precio</span>
                       <span className="font-heading text-lg font-extrabold text-foreground">
-                        ${item.price.toLocaleString("es-AR")}
+                        {item.currencies?.symbol ?? "$"}{item.price.toLocaleString("es-AR")}
                       </span>
                     </div>
                     <span

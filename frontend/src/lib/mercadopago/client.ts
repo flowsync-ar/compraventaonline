@@ -79,7 +79,8 @@ export async function createCheckoutPreference(params: {
 
   const data = await res.json()
   if (!res.ok) {
-    throw new Error(data.message || data.error || "Error al crear preferencia de Mercado Pago")
+    console.error("[mercadopago/client] createCheckoutPreference failed", data)
+    throw new Error("Error al crear preferencia de Mercado Pago")
   }
 
   return {
@@ -95,7 +96,8 @@ export async function getPayment(accessToken: string, paymentId: string): Promis
   })
   const data = await res.json()
   if (!res.ok) {
-    throw new Error(data.message || "Error al consultar pago en Mercado Pago")
+    console.error("[mercadopago/client] getPayment failed", data)
+    throw new Error("Error al consultar pago en Mercado Pago")
   }
   return data as MpPaymentInfo
 }
@@ -113,7 +115,8 @@ export async function getMercadoPagoUser(accessToken: string): Promise<MpUser> {
   })
   const data = (await res.json()) as MpUser & { message?: string; error?: string }
   if (!res.ok) {
-    throw new Error(data.message || data.error || "Token rechazado por Mercado Pago")
+    console.error("[mercadopago/client] getMercadoPagoUser failed", data)
+    throw new Error("Token rechazado por Mercado Pago")
   }
   return data
 }

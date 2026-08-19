@@ -74,7 +74,7 @@ async function postToken(body: Record<string, string>): Promise<MpOAuthTokenResp
   const data = (await res.json()) as MpOAuthTokenResponse & { message?: string; error?: string }
   if (!res.ok) {
     console.error("[mp-oauth] token error", data)
-    throw new Error(data.message || data.error || "Error al obtener token de Mercado Pago")
+    throw new Error("Error al obtener token de Mercado Pago")
   }
   return data
 }

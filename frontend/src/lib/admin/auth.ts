@@ -11,7 +11,7 @@ const ADMIN_SESSION_MAX_AGE_SECONDS = 60 * 60 * 8 // 8h
 function getSecretKey() {
   const secret = process.env.ADMIN_SESSION_SECRET
   if (!secret) {
-    throw new Error("Missing ADMIN_SESSION_SECRET env var")
+    throw new Error("Falta configurar la variable de entorno ADMIN_SESSION_SECRET")
   }
   return new TextEncoder().encode(secret)
 }
@@ -20,7 +20,7 @@ export function verifyCredentials(email: string, password: string): boolean {
   const adminEmail = process.env.ADMIN_EMAIL
   const adminPassword = process.env.ADMIN_PASSWORD
   if (!adminEmail || !adminPassword) {
-    throw new Error("Missing ADMIN_EMAIL/ADMIN_PASSWORD env vars")
+    throw new Error("Faltan configurar las variables de entorno ADMIN_EMAIL/ADMIN_PASSWORD")
   }
   return (
     email.trim().toLowerCase() === adminEmail.trim().toLowerCase() &&

@@ -69,7 +69,13 @@ export default function ResetPasswordPage() {
     setLoading(true)
     try {
       const { error: updateError } = await getSupabase().auth.updateUser({ password })
-      if (updateError) throw new Error(updateError.message)
+      if (updateError) {
+        const knownErrors: Record<string, string> = {
+          "New password should be different from the old password.":
+            "La nueva contraseña debe ser distinta de la anterior.",
+        }
+        throw new Error(knownErrors[updateError.message] ?? updateError.message)
+      }
 
       setSuccess(true)
       setTimeout(() => router.push("/login"), 2000)

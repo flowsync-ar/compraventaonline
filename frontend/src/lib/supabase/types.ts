@@ -405,34 +405,46 @@ export type Database = {
       questions: {
         Row: {
           answer: string | null
+          answer_deleted: boolean
           buyer_id: string
           created_at: string
+          hidden_by_seller: boolean
           id: string
+          is_read_by_buyer: boolean
           is_read_by_seller: boolean
           listing_id: string
           question: string
+          question_deleted: boolean
           status: Database["public"]["Enums"]["question_status"]
           updated_at: string
         }
         Insert: {
           answer?: string | null
+          answer_deleted?: boolean
           buyer_id: string
           created_at?: string
+          hidden_by_seller?: boolean
           id?: string
+          is_read_by_buyer?: boolean
           is_read_by_seller?: boolean
           listing_id: string
           question: string
+          question_deleted?: boolean
           status?: Database["public"]["Enums"]["question_status"]
           updated_at?: string
         }
         Update: {
           answer?: string | null
+          answer_deleted?: boolean
           buyer_id?: string
           created_at?: string
+          hidden_by_seller?: boolean
           id?: string
+          is_read_by_buyer?: boolean
           is_read_by_seller?: boolean
           listing_id?: string
           question?: string
+          question_deleted?: boolean
           status?: Database["public"]["Enums"]["question_status"]
           updated_at?: string
         }
@@ -451,6 +463,56 @@ export type Database = {
             referencedRelation: "listings"
             referencedColumns: ["id"]
           },
+        ]
+      }
+      page_views: {
+        Row: {
+          created_at: string
+          id: string
+          path: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          path: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          path?: string
+        }
+        Relationships: []
+      }
+      listing_views: {
+        Row: {
+          created_at: string
+          id: string
+          listing_id: string
+          viewed_date: string
+          viewer_key: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          listing_id: string
+          viewed_date?: string
+          viewer_key: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          listing_id?: string
+          viewed_date?: string
+          viewer_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "listing_views_listing_id_fkey"
+            columns: ["listing_id"]
+            isOneToOne: false
+            referencedRelation: "listings"
+            referencedColumns: ["id"]
+          }
         ]
       }
       seller_rewards: {
@@ -515,6 +577,7 @@ export type Database = {
           type: Database["public"]["Enums"]["seller_type"]
           updated_at: string
           user_id: string
+          username: string | null
         }
         Insert: {
           avatar_url?: string | null
@@ -536,6 +599,7 @@ export type Database = {
           type?: Database["public"]["Enums"]["seller_type"]
           updated_at?: string
           user_id: string
+          username?: string | null
         }
         Update: {
           avatar_url?: string | null
@@ -557,6 +621,7 @@ export type Database = {
           type?: Database["public"]["Enums"]["seller_type"]
           updated_at?: string
           user_id?: string
+          username?: string | null
         }
         Relationships: []
       }
@@ -837,6 +902,19 @@ export type QuestionWithBuyer =
         })
       | null
   }
+
+// A question the current user asked (as buyer) that a seller has since
+// answered — used for the "your question got answered" notification.
+export type AnsweredQuestionForBuyer = Pick<
+  Database["public"]["Tables"]["questions"]["Row"],
+  "id" | "question" | "answer" | "updated_at"
+> & {
+  listing:
+    | (Pick<Database["public"]["Tables"]["listings"]["Row"], "id"> & {
+        product: Pick<Database["public"]["Tables"]["products"]["Row"], "name"> | null
+      })
+    | null
+}
 
 export type ListingWithDetails =
   Database["public"]["Tables"]["listings"]["Row"] & {

@@ -1,5 +1,4 @@
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import Link from "next/link";
 import CategorySubcategoryFilter from "../../components/CategorySubcategoryFilter";
 import CustomDropdown from "../../components/CustomDropdown";
@@ -30,6 +29,7 @@ type ListingRow = {
   sellers: {
     id: string;
     name: string;
+    username: string | null;
     score: number;
     tier: string;
     location: string | null;
@@ -72,6 +72,7 @@ async function searchListings(params: {
   condition?: string;
   location?: string;
   sort?: string;
+  seller?: string;
 }): Promise<ListingRow[]> {
   try {
     const supabase = await createClient();
@@ -93,6 +94,7 @@ async function searchListings(params: {
         sellers (
           id,
           name,
+          username,
           score,
           tier,
           location
@@ -100,6 +102,10 @@ async function searchListings(params: {
         currencies ( symbol )
       `)
       .eq("status", "APPROVED");
+
+    if (params.seller) {
+      query = query.eq("seller_id", params.seller);
+    }
 
     if (params.condition) {
       query = query.eq("condition", params.condition as "NEW" | "USED");
@@ -165,30 +171,6 @@ async function searchListings(params: {
   }
 }
 
-// Sellers with at least one PAID order — used to avoid showing the default
-// score/tier (DB default: score 80, tier BRONCE) as if it were an earned
-// reputation for sellers who never actually sold anything.
-// Uses the admin client: `orders` RLS only lets the buyer/seller read their
-// own rows, but this page is public and needs the full picture.
-async function getSellersWithSales(): Promise<Set<string>> {
-  try {
-    const supabase = createAdminClient();
-    const { data, error } = await supabase
-      .from("orders")
-      .select("seller_id")
-      .eq("status", "PAID");
-
-    if (error) {
-      console.error("[search] Error fetching sellers with sales:", error.message);
-      return new Set();
-    }
-    return new Set((data ?? []).map((o) => o.seller_id));
-  } catch (err) {
-    console.error("[search] Unexpected error fetching sellers with sales:", err);
-    return new Set();
-  }
-}
-
 interface SearchCategory {
   name: string;
   slug: string;
@@ -232,14 +214,25 @@ async function fetchCategories(): Promise<SearchCategory[]> {
 export default async function SearchPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; category?: string; subcategory?: string; condition?: string; location?: string; sort?: string }>;
+  searchParams: Promise<{ q?: string; category?: string; subcategory?: string; condition?: string; location?: string; sort?: string; seller?: string }>;
 }) {
   const params = await searchParams;
-  const [listings, categories, sellersWithSales] = await Promise.all([
+  const [listings, categories] = await Promise.all([
     searchListings(params),
     fetchCategories(),
-    getSellersWithSales(),
   ]);
+
+  // Only needed for the "Mostrando publicaciones de: X" banner — the
+  // listings query already embeds sellers, but if this seller has zero
+  // APPROVED listings right now `listings` would be empty and we'd have
+  // no name to show at all, so it's resolved separately from whichever
+  // listing happens to match (any row's embedded seller has the same
+  // name/username since they're all filtered to this one seller_id).
+  const sellerLabel = params.seller
+    ? listings[0]?.sellers?.username
+      ? `@${listings[0].sellers.username}`
+      : listings[0]?.sellers?.name
+    : null;
 
   return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-10 w-full">
@@ -252,6 +245,11 @@ export default async function SearchPage({
         <aside className="w-full lg:w-64 shrink-0">
           <form action="/search" method="GET" className="flex flex-col gap-6 p-6 rounded-2xl glass-panel">
             <h3 className="font-heading text-sm font-extrabold text-foreground uppercase tracking-wider border-b border-card-border pb-3">Filtros</h3>
+
+            {/* Preserva el filtro por vendedor (llegado desde "Más
+                artículos de este vendedor" en el detalle de una
+                publicación) cuando se refina con otros filtros. */}
+            {params.seller && <input type="hidden" name="seller" value={params.seller} />}
 
             {/* Input Search */}
             <div className="flex flex-col gap-2">
@@ -318,7 +316,7 @@ export default async function SearchPage({
               Aplicar Filtros
             </button>
 
-            {(params.q || params.category || params.condition || params.location || params.sort) && (
+            {(params.q || params.category || params.condition || params.location || params.sort || params.seller) && (
               <Link
                 href="/search"
                 className="w-full text-center rounded-xl border border-card-border py-2.5 text-xs font-bold text-foreground hover:bg-card-border/50 hover:text-accent-gold transition-all"
@@ -331,6 +329,16 @@ export default async function SearchPage({
 
         {/* Search Results Grid */}
         <section className="flex-1">
+          {params.seller && (
+            <div className="flex items-center justify-between gap-3 bg-accent-gold/5 border border-accent-gold/30 rounded-xl px-4 py-3 mb-4">
+              <span className="text-xs font-semibold text-foreground">
+                Mostrando publicaciones de: <strong>{sellerLabel ?? "este vendedor"}</strong>
+              </span>
+              <Link href="/search" className="text-[11px] font-bold text-accent-gold hover:underline shrink-0">
+                Ver todas
+              </Link>
+            </div>
+          )}
           <div className="flex items-center justify-between border-b border-card-border pb-4 mb-6">
             <span className="text-xs font-bold text-text-muted">
               Se encontraron <span className="text-foreground">{listings.length}</span> publicaciones
@@ -347,7 +355,6 @@ export default async function SearchPage({
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {listings.map((listing) => {
                 const product = listing.products;
-                const seller = listing.sellers;
                 const image = product?.images?.[0] ?? "https://images.unsplash.com/photo-1531403009284-440f080d1e12?q=80&w=600&auto=format&fit=crop";
                 return (
                   <Link key={listing.id} href={`/listings/${listing.id}`} className="group flex flex-col rounded-2xl glass-card overflow-hidden relative cursor-pointer">
@@ -380,6 +387,9 @@ export default async function SearchPage({
                         {product?.description}
                       </p>
 
+                      {/* Quién vendE queda para el detalle de la
+                          publicación — esta tarjeta es solo un vistazo
+                          rápido del producto. */}
                       <div className="flex items-baseline gap-1 mt-auto">
                         <span className="font-heading text-lg font-extrabold text-foreground">
                           {listing.currencies?.symbol ?? "$"}
@@ -387,25 +397,6 @@ export default async function SearchPage({
                         <span className="font-heading text-lg font-extrabold text-foreground">
                           {Number(listing.price).toLocaleString("es-AR")}
                         </span>
-                      </div>
-
-                      <div className="border-t border-card-border/50 pt-3 mt-1 flex items-center justify-between">
-                        <div className="flex flex-col">
-                          <span className="text-[10px] font-bold text-foreground leading-none">{seller?.name ?? "Vendedor"}</span>
-                          {seller?.id && sellersWithSales.has(seller.id) ? (
-                            <span className="text-[8px] text-text-muted mt-0.5 uppercase">Reputación: {seller.tier}</span>
-                          ) : (
-                            <span className="text-[8px] text-text-muted mt-0.5 uppercase">🌱 Vendedor nuevo</span>
-                          )}
-                        </div>
-                        {seller?.id && sellersWithSales.has(seller.id) ? (
-                          <div className="flex items-center gap-0.5 text-xs text-accent-gold font-bold">
-                            <span>★</span>
-                            <span className="text-[10px]">{(seller.score / 10).toFixed(1)}</span>
-                          </div>
-                        ) : (
-                          <span className="text-[10px] font-semibold text-text-muted italic">Sin ventas aún</span>
-                        )}
                       </div>
                     </div>
                   </Link>

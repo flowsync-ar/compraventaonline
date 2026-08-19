@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo, Suspense } from "react";
+import { useState, useEffect, useRef, useMemo, Suspense, Fragment } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import CustomDropdown from "@/components/CustomDropdown";
@@ -84,6 +84,12 @@ interface BackendCategory {
   attributesSchema?: any;
 }
 
+const SOCIAL_PLATFORMS: { key: "INSTAGRAM" | "FACEBOOK" | "TIKTOK"; label: string; icon: string }[] = [
+  { key: "INSTAGRAM", label: "Instagram", icon: "📷" },
+  { key: "FACEBOOK", label: "Facebook", icon: "📘" },
+  { key: "TIKTOK", label: "TikTok", icon: "🎵" },
+];
+
 // useSearchParams() (used below to react to the header's "Vender" CTA
 // navigating to /dashboard?tab=publish while already on this page) requires
 // a Suspense boundary around whatever calls it, or `next build` fails
@@ -127,8 +133,27 @@ function DashboardPageContent() {
   // viewCounts[listing.id] ?? 0 per row.
   const [viewCounts, setViewCounts] = useState<Record<string, number>>({});
   const [categories, setCategories] = useState<BackendCategory[]>([]);
-  const [activeTab, setActiveTab] = useState<"summary" | "publish" | "inventory" | "questions" | "rewards" | "profile">("summary");
+  const [activeTab, setActiveTab] = useState<"summary" | "publish" | "inventory" | "questions" | "rewards" | "profile" | "social">("summary");
   const [rewards, setRewards] = useState<any[]>([]);
+
+  // Redes Sociales — NOT real OAuth yet (see 020_social_accounts.sql):
+  // "vincular" just records the handle the seller wants associated with
+  // their shares, until Meta/TikTok approve real publishing permissions.
+  type SocialAccount = { id: string; platform: "INSTAGRAM" | "FACEBOOK" | "TIKTOK"; handle: string; connected_at: string };
+  const [socialAccounts, setSocialAccounts] = useState<SocialAccount[]>([]);
+  const [socialAccountsLoaded, setSocialAccountsLoaded] = useState(false);
+  const [socialHandleInputs, setSocialHandleInputs] = useState<Record<string, string>>({ INSTAGRAM: "", FACEBOOK: "", TIKTOK: "" });
+  const [socialConnecting, setSocialConnecting] = useState<string | null>(null);
+  const [socialDisconnecting, setSocialDisconnecting] = useState<string | null>(null);
+
+  // Publicar Artículo: qué redes tildó el vendedor para esta publicación.
+  const [shareToSocial, setShareToSocial] = useState<string[]>([]);
+  const [shareConsent, setShareConsent] = useState(false);
+
+  // Modal post-publicación: imagen con sello + texto listos para pegar a
+  // mano en cada red (hasta que exista el auto-posteo real).
+  const [shareModalData, setShareModalData] = useState<{ imageDataUrl: string; caption: string } | null>(null);
+  const [shareModalLoading, setShareModalLoading] = useState(false);
 
   // Consultas — same data/answer/hide logic as the header bell dropdown
   // (HeaderSessionBar.tsx), but rendered as a full tab so a seller can
@@ -248,6 +273,23 @@ function DashboardPageContent() {
   const [bulkRowDragOver, setBulkRowDragOver] = useState<number | null>(null);
   const [bulkDraggingImage, setBulkDraggingImage] = useState<{ row: number; index: number } | null>(null);
 
+  // Bulk category assignment: search by name (e.g. "notebook"), select the
+  // matching rows, assign a category to all of them in one shot — instead
+  // of opening each row's dropdown one by one when 10+ rows share the
+  // same category.
+  const [bulkSearch, setBulkSearch] = useState("");
+  const [bulkSelectedRows, setBulkSelectedRows] = useState<Set<number>>(new Set());
+  const [bulkAssignCategoryId, setBulkAssignCategoryId] = useState("");
+  // Opens the "Imágenes — N productos" modal: one card per selected row,
+  // each with its own "Subir fotos" upload (reuses handleBulkRowImageFiles
+  // per row) — not one shared photo set slapped onto every product.
+  const [bulkImagesModalOpen, setBulkImagesModalOpen] = useState(false);
+  // Table view: which single row (if any) has its detail panel (category
+  // dropdown + photo grid) expanded open below it.
+  const [bulkExpandedRow, setBulkExpandedRow] = useState<number | null>(null);
+  // Which card's thumbnail is being dragged over in the images modal.
+  const [bulkModalDragOver, setBulkModalDragOver] = useState<number | null>(null);
+
   // Check auth and mount
   useEffect(() => {
     setMounted(true);
@@ -291,7 +333,7 @@ function DashboardPageContent() {
   // mount-only effect would silently never see the new ?tab= value.
   useEffect(() => {
     const tab = searchParams.get("tab");
-    if (tab === "publish" || tab === "inventory" || tab === "questions" || tab === "rewards" || tab === "summary" || tab === "profile") {
+    if (tab === "publish" || tab === "inventory" || tab === "questions" || tab === "rewards" || tab === "summary" || tab === "profile" || tab === "social") {
       setActiveTab(tab);
     }
 
@@ -524,6 +566,9 @@ function DashboardPageContent() {
     setBulkPreviewRows(null);
     setCsvFile(null);
     setBulkErrors([]);
+    setBulkSearch("");
+    setBulkSelectedRows(new Set());
+    setBulkAssignCategoryId("");
   };
 
   const handleBulkRowCategoryChange = (rowNumber: number, categoryId: string) => {
@@ -678,6 +723,48 @@ function DashboardPageContent() {
     ],
     [categories]
   );
+
+  // Rows visible after the "notebook"-style name search — case/accent
+  // insensitive, same normalize() trick as the public /search page.
+  const bulkFilteredRows = useMemo(() => {
+    if (!bulkPreviewRows) return [];
+    const q = bulkSearch.trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+    if (!q) return bulkPreviewRows;
+    return bulkPreviewRows.filter((r) =>
+      (r.name ?? "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").includes(q)
+    );
+  }, [bulkPreviewRows, bulkSearch]);
+
+  const bulkSelectableRowNumbers = useMemo(
+    () => bulkFilteredRows.filter((r) => r.valid).map((r) => r.rowNumber),
+    [bulkFilteredRows]
+  );
+
+  const toggleBulkRowSelected = (rowNumber: number) => {
+    setBulkSelectedRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(rowNumber)) next.delete(rowNumber);
+      else next.add(rowNumber);
+      return next;
+    });
+  };
+
+  const handleToggleSelectAllFilteredRows = () => {
+    const allSelected =
+      bulkSelectableRowNumbers.length > 0 && bulkSelectableRowNumbers.every((n) => bulkSelectedRows.has(n));
+    setBulkSelectedRows(allSelected ? new Set() : new Set(bulkSelectableRowNumbers));
+  };
+
+  // The actual "cargador masivo de categoría": one dropdown pick applied
+  // to every selected row at once.
+  const handleBulkAssignCategory = () => {
+    if (!bulkAssignCategoryId || bulkSelectedRows.size === 0) return;
+    setBulkPreviewRows((prev) =>
+      prev ? prev.map((r) => (bulkSelectedRows.has(r.rowNumber) ? { ...r, categoryId: bulkAssignCategoryId } : r)) : prev
+    );
+    setBulkSelectedRows(new Set());
+    setBulkAssignCategoryId("");
+  };
 
   // Funciones para la gestión de imágenes
   // Uploads files to Supabase Storage bucket "listings" and stores public URLs
@@ -936,6 +1023,13 @@ function DashboardPageContent() {
         setMyListings([listingData as unknown as Listing, ...myListings]);
         setSuccessMsg("¡Publicación creada con éxito! Ya se encuentra activa.");
 
+        // Si tildó compartir en redes, generamos ya la imagen con sello +
+        // texto listo para pegar (ver comentario en handlePublishAndShare
+        // más abajo sobre por qué esto no es un auto-posteo real todavía).
+        if (shareConsent && shareToSocial.length > 0) {
+          handleGenerateSocialShareAssets(listingData.id, shareToSocial);
+        }
+
         // Reset form
         setProductName("");
         setBrand("");
@@ -947,6 +1041,8 @@ function DashboardPageContent() {
         setCategoryId(categories.length > 0 ? categories[0].id : "");
         setFeaturedPlan("FREE");
         setDynamicAttributes({});
+        setShareToSocial([]);
+        setShareConsent(false);
       }
     } catch (err: any) {
       console.error("Error al procesar la publicación:", err);
@@ -1201,6 +1297,161 @@ function DashboardPageContent() {
     fetchViewCounts();
   }, [activeTab, myListings]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Loaded once (not per-tab): both the "Redes Sociales" tab AND the
+  // "Compartir en redes sociales" checkboxes on the publish form need to
+  // know which platforms are already connected.
+  useEffect(() => {
+    if (!userId || socialAccountsLoaded) return;
+
+    const fetchSocialAccounts = async () => {
+      try {
+        const res = await fetch("/api/sellers/social-accounts");
+        if (!res.ok) return;
+        const data = await res.json();
+        setSocialAccounts(data.accounts ?? []);
+      } catch (err) {
+        console.error("Error al cargar las redes sociales:", err);
+      } finally {
+        setSocialAccountsLoaded(true);
+      }
+    };
+
+    fetchSocialAccounts();
+  }, [userId, socialAccountsLoaded]);
+
+  // "Vincular" hoy es manual (guardamos el handle), no OAuth real — ver
+  // 020_social_accounts.sql para por qué (aprobación pendiente de
+  // Meta/TikTok). Deja la cuenta lista para cuando sí exista OAuth.
+  const handleConnectSocial = async (platform: "INSTAGRAM" | "FACEBOOK" | "TIKTOK") => {
+    const handle = socialHandleInputs[platform]?.trim();
+    if (!handle) return;
+
+    setSocialConnecting(platform);
+    try {
+      const res = await fetch("/api/sellers/social-accounts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ platform, handle }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "No se pudo vincular la cuenta.");
+
+      setSocialAccounts((prev) => [...prev.filter((a) => a.platform !== platform), data.account]);
+      setSocialHandleInputs((prev) => ({ ...prev, [platform]: "" }));
+    } catch (err: any) {
+      console.error("Error al vincular red social:", err);
+      setErrorMsg(err.message || "No se pudo vincular la cuenta.");
+    } finally {
+      setSocialConnecting(null);
+    }
+  };
+
+  const handleDisconnectSocial = async (platform: "INSTAGRAM" | "FACEBOOK" | "TIKTOK") => {
+    setSocialDisconnecting(platform);
+    try {
+      const res = await fetch(`/api/sellers/social-accounts/${platform}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("No se pudo desvincular la cuenta.");
+      setSocialAccounts((prev) => prev.filter((a) => a.platform !== platform));
+      setShareToSocial((prev) => prev.filter((p) => p !== platform));
+    } catch (err: any) {
+      console.error("Error al desvincular red social:", err);
+      setErrorMsg(err.message || "No se pudo desvincular la cuenta.");
+    } finally {
+      setSocialDisconnecting(null);
+    }
+  };
+
+  const toggleShareToSocial = (platform: string) => {
+    setShareToSocial((prev) =>
+      prev.includes(platform) ? prev.filter((p) => p !== platform) : [...prev, platform]
+    );
+  };
+
+  // Genera la imagen con el sello de Compraventa Online + el texto listo
+  // para pegar, y los muestra en un modal — hasta que exista el
+  // auto-posteo real (OAuth aprobado), esto es lo que le da valor HOY al
+  // vendedor: nosotros armamos el material, él lo pega a mano.
+  const handleGenerateSocialShareAssets = async (listingId: string, platforms: string[]) => {
+    setShareModalLoading(true);
+    setShareModalData(null);
+    try {
+      const res = await fetch(`/api/listings/${listingId}/social-share`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ platforms }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "No se pudo generar el material para compartir.");
+      setShareModalData({ imageDataUrl: data.imageDataUrl, caption: data.caption });
+    } catch (err: any) {
+      console.error("Error al generar el material para redes:", err);
+      setErrorMsg(err.message || "No se pudo generar el material para compartir.");
+    } finally {
+      setShareModalLoading(false);
+    }
+  };
+
+  // Turns the watermarked data URL into a real File — required by
+  // navigator.share({ files }), which is what lets the OS share sheet
+  // hand the actual image (not just a link) to Instagram/WhatsApp.
+  const dataUrlToFile = async (dataUrl: string, filename: string): Promise<File> => {
+    const res = await fetch(dataUrl);
+    const blob = await res.blob();
+    return new File([blob], filename, { type: blob.type || "image/png" });
+  };
+
+  // Mobile (Chrome Android / Safari iOS 15+): navigator.share with an
+  // actual image file pops the native OS share sheet with the photo
+  // already attached — the user taps Instagram/WhatsApp there and the
+  // official app opens ready to post, nothing more for them to configure.
+  // Desktop has no equivalent (no browser can force-open a native app with
+  // content preloaded), so there we fall back to copying the caption and
+  // opening the platform's own site — same tradeoff every browser-based
+  // "share to social" flow makes, not something we can code around.
+  const shareImageNatively = async (caption: string, imageDataUrl: string): Promise<boolean> => {
+    if (typeof navigator === "undefined" || !navigator.share || !navigator.canShare) return false;
+    try {
+      const file = await dataUrlToFile(imageDataUrl, "compraventaonline.png");
+      if (!navigator.canShare({ files: [file] })) return false;
+      await navigator.share({ files: [file], text: caption });
+      return true;
+    } catch (err) {
+      // AbortError = user cancelled the share sheet, not a real failure.
+      if ((err as Error)?.name !== "AbortError") {
+        console.error("Error al compartir de forma nativa:", err);
+      }
+      return true; // sheet did open — don't also run the desktop fallback
+    }
+  };
+
+  const handleShareToInstagram = async () => {
+    if (!shareModalData) return;
+    const shared = await shareImageNatively(shareModalData.caption, shareModalData.imageDataUrl);
+    if (shared) return;
+
+    // Desktop: Instagram's web version doesn't accept a prefilled post via
+    // URL, so the fastest honest path is "copiá el texto, te dejamos la
+    // pestaña de Instagram abierta, pegá la foto que ya descargaste".
+    try {
+      await navigator.clipboard.writeText(shareModalData.caption);
+    } catch (err) {
+      console.error("Error al copiar el texto:", err);
+    }
+    window.open("https://www.instagram.com/", "_blank", "noopener,noreferrer");
+  };
+
+  const handleShareToWhatsAppStatus = async () => {
+    if (!shareModalData) return;
+    const shared = await shareImageNatively(shareModalData.caption, shareModalData.imageDataUrl);
+    if (shared) return;
+
+    // Desktop: there's no web-triggerable way into WhatsApp's Status
+    // composer specifically (only WhatsApp's own mobile UI has that) —
+    // wa.me opens WhatsApp Web's chat compose instead, which is the
+    // closest real equivalent from a desktop browser.
+    window.open(`https://wa.me/?text=${encodeURIComponent(shareModalData.caption)}`, "_blank", "noopener,noreferrer");
+  };
+
   const handleReplyToQuestion = async (questionId: string) => {
     if (!questionReplyText.trim()) return;
     const supabase = getSupabase();
@@ -1450,6 +1701,106 @@ function DashboardPageContent() {
         {profileErrorMsg && <Toast type="error" message={profileErrorMsg} onClose={() => setProfileErrorMsg("")} />}
         {profileSuccessMsg && <Toast type="success" message={profileSuccessMsg} onClose={() => setProfileSuccessMsg("")} />}
       </div>
+
+      {/* Badge flotante llamativo — desaparece solo una vez que vinculó
+          al menos una red, para no seguir insistiendo después de eso. */}
+      {socialAccountsLoaded && socialAccounts.length === 0 && activeTab !== "social" && (
+        <button
+          type="button"
+          onClick={() => { setActiveTab("social"); setSuccessMsg(""); setErrorMsg(""); }}
+          className="fixed bottom-6 right-6 z-[90] flex items-center gap-2 rounded-full bg-gradient-to-r from-accent-gold to-accent-gold-hover text-background pl-4 pr-5 py-3 text-xs font-extrabold shadow-2xl hover:scale-105 active:scale-95 transition-transform cursor-pointer animate-bounce"
+        >
+          <span className="text-base">📱</span>
+          Publicá también en tus redes sociales
+        </button>
+      )}
+
+      {/* Modal "compartir" post-publicación: imagen con sello + texto
+          listo para pegar en cada red, hasta que exista el auto-posteo
+          real (ver 020_social_accounts.sql). */}
+      {(shareModalLoading || shareModalData) && (
+        <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-card-bg-solid border border-card-border rounded-3xl w-full max-w-md max-h-[85vh] overflow-y-auto flex flex-col shadow-2xl p-6 gap-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="font-heading text-base font-bold text-foreground">¡Listo para compartir!</h3>
+                <p className="text-[11px] text-text-muted mt-0.5">
+                  Descargá la imagen y copiá el texto para pegarlo en tus redes.
+                </p>
+              </div>
+              <button
+                onClick={() => setShareModalData(null)}
+                className="text-text-muted hover:text-foreground text-lg cursor-pointer shrink-0"
+              >
+                ✕
+              </button>
+            </div>
+
+            {shareModalLoading ? (
+              <div className="flex flex-col items-center gap-3 py-10">
+                <div className="h-8 w-8 animate-spin rounded-full border-2 border-accent-gold border-t-transparent"></div>
+                <span className="text-xs font-bold text-text-muted">Armando la imagen con el sello...</span>
+              </div>
+            ) : shareModalData && (
+              <>
+                <div className="rounded-xl overflow-hidden border border-card-border bg-background">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={shareModalData.imageDataUrl} alt="Imagen para compartir" className="w-full h-auto" />
+                </div>
+
+                {/* En el celular esto abre la bandeja nativa de compartir
+                    con la foto ya adjunta — el usuario solo elige la app y
+                    presiona publicar. En computadora no hay forma de
+                    precargar una app nativa, así que copiamos el texto y
+                    abrimos la web de la plataforma para pegar la foto a
+                    mano (ver comentario en shareImageNatively). */}
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={handleShareToInstagram}
+                    className="flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-fuchsia-600 to-orange-400 py-3 text-xs font-extrabold text-white shadow-md hover:opacity-90 transition-all cursor-pointer"
+                  >
+                    📸 Instagram
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleShareToWhatsAppStatus}
+                    className="flex items-center justify-center gap-1.5 rounded-xl bg-accent-green py-3 text-xs font-extrabold text-background shadow-md hover:opacity-90 transition-all cursor-pointer"
+                  >
+                    💬 Estado de WhatsApp
+                  </button>
+                </div>
+
+                <a
+                  href={shareModalData.imageDataUrl}
+                  download="compraventaonline-publicacion.png"
+                  className="text-center rounded-xl border border-card-border py-2.5 text-xs font-bold text-foreground hover:border-accent-gold hover:text-accent-gold transition-all"
+                >
+                  📥 Descargar imagen
+                </a>
+
+                <div className="flex flex-col gap-2">
+                  <span className="text-xs font-bold text-foreground">Texto para la publicación</span>
+                  <textarea
+                    readOnly
+                    value={shareModalData.caption}
+                    rows={6}
+                    className="w-full bg-background border border-card-border rounded-xl px-4 py-3 text-xs text-foreground resize-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => navigator.clipboard.writeText(shareModalData.caption)}
+                    className="rounded-xl border border-card-border py-2.5 text-xs font-bold text-foreground hover:border-accent-gold hover:text-accent-gold transition-all cursor-pointer"
+                  >
+                    📋 Copiar texto
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       {statusUpdating && (
         <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
           <div className="flex flex-col items-center gap-3 bg-card-bg border border-card-border p-6 rounded-2xl shadow-2xl animate-in zoom-in-95 duration-200">
@@ -1576,6 +1927,18 @@ function DashboardPageContent() {
             </button>
             <button
               onClick={() => {
+                setActiveTab("social");
+                setSuccessMsg("");
+                setErrorMsg("");
+              }}
+              className={`px-4 py-2 rounded-lg text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+                activeTab === "social" ? "bg-accent-blue text-background shadow-md" : "text-foreground/80 hover:text-accent-blue"
+              }`}
+            >
+              Redes Sociales
+            </button>
+            <button
+              onClick={() => {
                 setActiveTab("profile");
                 setProfileSuccessMsg("");
                 setProfileErrorMsg("");
@@ -1665,7 +2028,11 @@ function DashboardPageContent() {
 
         {/* TAB 2: Publish Form */}
         {activeTab === "publish" && (
-          <div className="max-w-3xl mx-auto w-full rounded-2xl glass-panel p-8">
+          // La carga individual se queda angosta (max-w-3xl) porque es un
+          // formulario de un solo producto — pero la subida masiva
+          // necesita todo el ancho disponible para que la tabla de
+          // revisión no quede apretada con 8 columnas.
+          <div className={`${publishMode === "bulk" ? "max-w-none" : "max-w-3xl"} mx-auto w-full rounded-2xl glass-panel p-8`}>
             <h2 className="font-heading text-lg font-bold text-foreground mb-4">
               {selectedListingToEdit ? "Editar Publicación" : "Publicación de Artículos"}
             </h2>
@@ -2097,6 +2464,57 @@ function DashboardPageContent() {
                   )}
                 </div>
 
+                {/* Compartir en redes sociales — solo al crear (no al
+                    editar) y solo si hay al menos una cuenta vinculada. */}
+                {!selectedListingToEdit && (
+                  <div className="rounded-xl border border-card-border bg-card-bg/40 p-4 flex flex-col gap-3 mt-2">
+                    <span className="text-xs font-bold text-foreground">📱 Compartir en redes sociales</span>
+                    {socialAccounts.length === 0 ? (
+                      <p className="text-[11px] text-text-muted">
+                        Todavía no vinculaste ninguna red.{" "}
+                        <button
+                          type="button"
+                          onClick={() => setActiveTab("social")}
+                          className="text-accent-gold font-bold hover:underline cursor-pointer"
+                        >
+                          Vincular ahora
+                        </button>
+                      </p>
+                    ) : (
+                      <>
+                        <div className="flex flex-wrap gap-3">
+                          {socialAccounts.map((account) => {
+                            const platformInfo = SOCIAL_PLATFORMS.find((p) => p.key === account.platform);
+                            return (
+                              <label key={account.platform} className="flex items-center gap-2 text-xs font-semibold text-foreground cursor-pointer select-none">
+                                <input
+                                  type="checkbox"
+                                  checked={shareToSocial.includes(account.platform)}
+                                  onChange={() => toggleShareToSocial(account.platform)}
+                                  className="h-4 w-4 rounded border-card-border text-accent-gold focus:ring-accent-gold cursor-pointer"
+                                />
+                                {platformInfo?.icon} {platformInfo?.label} (@{account.handle})
+                              </label>
+                            );
+                          })}
+                        </div>
+                        {shareToSocial.length > 0 && (
+                          <label className="flex items-start gap-2 text-[11px] text-text-muted cursor-pointer select-none">
+                            <input
+                              type="checkbox"
+                              checked={shareConsent}
+                              onChange={(e) => setShareConsent(e.target.checked)}
+                              className="h-4 w-4 mt-0.5 rounded border-card-border text-accent-gold focus:ring-accent-gold cursor-pointer shrink-0"
+                            />
+                            Autorizo publicar la descripción de este artículo y el link a esta
+                            publicación en las redes sociales que tildé arriba.
+                          </label>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
+
                 <div className="flex flex-col sm:flex-row gap-4 mt-4">
                   {selectedListingToEdit && (
                     <button
@@ -2222,8 +2640,9 @@ function DashboardPageContent() {
                 </button>
               </div>
             ) : (
-              // Paso 2: revisión — categoría (dropdown) y fotos (arrastrar y
-              // soltar) por producto, antes de publicar nada.
+              // Paso 2: revisión en tabla — la categoría y las fotos se
+              // asignan por acción masiva (seleccionar filas + aplicar),
+              // o abriendo el detalle de una sola fila con el botón ▼.
               <div className="flex flex-col gap-6">
                 <div className="flex items-center justify-between gap-3">
                   <div>
@@ -2240,140 +2659,284 @@ function DashboardPageContent() {
                   </button>
                 </div>
 
-                <div className="flex flex-col gap-4">
-                  {bulkPreviewRows.map((row) => (
-                    <div
-                      key={row.rowNumber}
-                      className={`rounded-2xl border p-4 flex flex-col gap-3 ${
-                        !row.valid ? "border-red-500/30 bg-red-500/5" : "border-card-border bg-card-bg"
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <span className="text-[10px] font-bold text-text-muted uppercase tracking-wide">Fila {row.rowNumber}</span>
-                          {row.valid ? (
-                            <>
-                              <h5 className="text-sm font-bold text-foreground">{row.name}</h5>
-                              <p className="text-[11px] text-text-muted">
-                                {row.condition === "NEW" ? "Nuevo" : "Usado"} · Stock {row.stock}
-                              </p>
-                            </>
-                          ) : (
-                            <p className="text-xs font-bold text-red-500 mt-1">⚠️ {row.reason}</p>
-                          )}
-                        </div>
-                        {row.valid && (
-                          <span className="text-sm font-extrabold text-foreground whitespace-nowrap">
-                            {row.currencyCode === "USD" ? "US$" : "$"} {Number(row.price).toLocaleString("es-AR")}
-                          </span>
-                        )}
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3 bg-card-bg-solid border border-card-border rounded-xl p-3.5">
+                  <input
+                    type="text"
+                    value={bulkSearch}
+                    onChange={(e) => setBulkSearch(e.target.value)}
+                    placeholder="Buscar por nombre (ej: notebook)..."
+                    className="flex-1 bg-background border border-card-border rounded-xl px-4 py-2.5 text-xs text-foreground focus:outline-none focus:border-accent-gold"
+                  />
+                  {bulkSelectableRowNumbers.length > 0 && (
+                    <label className="flex items-center gap-2 text-[11px] font-bold text-foreground cursor-pointer select-none shrink-0">
+                      <input
+                        type="checkbox"
+                        checked={bulkSelectableRowNumbers.every((n) => bulkSelectedRows.has(n))}
+                        onChange={handleToggleSelectAllFilteredRows}
+                        className="h-4 w-4 rounded border-card-border text-accent-gold focus:ring-accent-gold cursor-pointer"
+                      />
+                      Seleccionar {bulkSearch.trim() ? "los filtrados" : "todos"} ({bulkSelectableRowNumbers.length})
+                    </label>
+                  )}
+                </div>
+
+                {/* Acción masiva: buscá (ej. "notebook"), tildá las filas
+                    que matchean y aplicales categoría y/o fotos a todas
+                    juntas — sin entrar fila por fila. */}
+                {bulkSelectedRows.size > 0 && (
+                  <div className="flex flex-col gap-3 bg-accent-gold/5 border border-accent-gold/30 rounded-xl p-3.5">
+                    <span className="text-[11px] font-bold text-foreground">
+                      {bulkSelectedRows.size} fila{bulkSelectedRows.size === 1 ? "" : "s"} seleccionada{bulkSelectedRows.size === 1 ? "" : "s"} — acción masiva:
+                    </span>
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                      <div className="flex-1 max-w-xs">
+                        <CustomDropdown
+                          name="bulk-assign-category"
+                          defaultValue={bulkAssignCategoryId}
+                          onChange={setBulkAssignCategoryId}
+                          options={bulkCategoryOptions}
+                          showSearch
+                          placeholder="Buscar categoría..."
+                        />
                       </div>
+                      <button
+                        onClick={handleBulkAssignCategory}
+                        disabled={!bulkAssignCategoryId}
+                        className="rounded-lg bg-accent-gold text-background px-4 py-2 text-[11px] font-extrabold hover:opacity-90 transition-all disabled:opacity-40 cursor-pointer shrink-0"
+                      >
+                        Cambiar categoría
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setBulkImagesModalOpen(true)}
+                        className="inline-flex items-center justify-center rounded-lg border border-card-border bg-card-bg hover:border-accent-gold px-4 py-2 text-[11px] font-extrabold text-foreground transition-all cursor-pointer shrink-0"
+                      >
+                        📸 Agregar imágenes
+                      </button>
+                    </div>
+                  </div>
+                )}
 
-                      {row.valid && (
-                        <>
-                          <div className="max-w-xs">
-                            <CustomDropdown
-                              name={`bulk-category-${row.rowNumber}`}
-                              defaultValue={row.categoryId ?? ""}
-                              onChange={(val) => handleBulkRowCategoryChange(row.rowNumber, val)}
-                              options={bulkCategoryOptions}
-                              showSearch
-                              placeholder="Buscar categoría..."
-                            />
-                          </div>
-
-                          {/* Drag-and-drop de fotos, mismo patrón que la
-                              publicación individual — la primera es la
-                              portada, se reordena arrastrando. */}
-                          <div
-                            className={`border-2 border-dashed rounded-xl p-4 text-center flex flex-col items-center justify-center gap-1.5 transition-colors ${
-                              bulkRowDragOver === row.rowNumber
-                                ? "border-accent-gold bg-accent-gold/5"
-                                : "border-card-border hover:border-accent-gold/50"
-                            }`}
-                            onDragOver={(e) => { e.preventDefault(); setBulkRowDragOver(row.rowNumber); }}
-                            onDragLeave={() => setBulkRowDragOver(null)}
-                            onDrop={(e) => {
-                              e.preventDefault();
-                              setBulkRowDragOver(null);
-                              if (e.dataTransfer.files?.length) {
-                                handleBulkRowImageFiles(row.rowNumber, e.dataTransfer.files);
-                              }
-                            }}
-                          >
-                            {bulkUploadingRow === row.rowNumber ? (
-                              <p className="text-[11px] font-bold text-foreground">Subiendo fotos...</p>
-                            ) : (
-                              <>
-                                <span className="text-lg">📸</span>
-                                <p className="text-[11px] font-bold text-foreground">Arrastrá las fotos de este producto acá</p>
-                                <input
-                                  type="file"
-                                  accept="image/*"
-                                  multiple
-                                  className="hidden"
-                                  id={`bulk-row-images-${row.rowNumber}`}
-                                  onChange={(e) => {
-                                    if (e.target.files?.length) handleBulkRowImageFiles(row.rowNumber, e.target.files);
-                                  }}
-                                />
-                                <label
-                                  htmlFor={`bulk-row-images-${row.rowNumber}`}
-                                  className="text-[10px] font-bold text-accent-gold hover:underline cursor-pointer"
-                                >
-                                  o hacé clic para elegirlas
-                                </label>
-                              </>
-                            )}
-                          </div>
-
-                          {row.images.length > 0 && (
-                            <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">
-                              {row.images.map((img, idx) => (
-                                <div
-                                  key={idx}
-                                  draggable
-                                  onDragStart={() => handleBulkImageDragStart(row.rowNumber, idx)}
-                                  onDragOver={(e) => e.preventDefault()}
-                                  onDrop={() => handleBulkImageDrop(row.rowNumber, idx)}
-                                  onDragEnd={() => setBulkDraggingImage(null)}
-                                  className={`relative aspect-square rounded-lg overflow-hidden bg-background border cursor-grab active:cursor-grabbing group select-none ${
-                                    bulkDraggingImage?.row === row.rowNumber && bulkDraggingImage.index === idx
-                                      ? "opacity-30 scale-95"
-                                      : "border-card-border hover:border-accent-gold/40"
-                                  }`}
-                                  title="Arrastrá para reordenar"
-                                >
-                                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                                  <img
-                                    src={img}
-                                    alt={`Foto ${idx + 1} de ${row.name}`}
-                                    className="w-full h-full object-contain pointer-events-none"
+                <div className="overflow-x-auto rounded-2xl border border-card-border">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-card-border bg-card-bg-solid text-[10px] font-bold text-text-muted uppercase tracking-wide">
+                        <th className="p-3 text-left w-8"></th>
+                        <th className="p-3 text-left">Producto</th>
+                        <th className="p-3 text-left">Categoría</th>
+                        <th className="p-3 text-right">Precio</th>
+                        <th className="p-3 text-center">Cond. / Stock</th>
+                        <th className="p-3 text-center">Fotos</th>
+                        <th className="p-3 text-center">Estado</th>
+                        <th className="p-3 text-center w-10"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-card-border/50">
+                      {bulkFilteredRows.map((row) => {
+                        const categoryName = row.categoryId
+                          ? categories.find((c) => c.id === row.categoryId)?.name
+                          : null;
+                        const isExpanded = bulkExpandedRow === row.rowNumber;
+                        return (
+                          <Fragment key={row.rowNumber}>
+                            <tr className={!row.valid ? "bg-red-500/5" : "hover:bg-card-bg/40 transition-colors"}>
+                              <td className="p-3 align-top">
+                                {row.valid && (
+                                  <input
+                                    type="checkbox"
+                                    checked={bulkSelectedRows.has(row.rowNumber)}
+                                    onChange={() => toggleBulkRowSelected(row.rowNumber)}
+                                    className="h-4 w-4 rounded border-card-border text-accent-gold focus:ring-accent-gold cursor-pointer"
                                   />
-                                  {idx === 0 && (
-                                    <span className="absolute bottom-1 left-1 bg-accent-gold text-background text-[8px] font-extrabold px-1 py-0.5 rounded uppercase pointer-events-none">
-                                      Portada
-                                    </span>
+                                )}
+                              </td>
+                              <td className="p-3 align-top">
+                                <div className="flex items-center gap-2.5">
+                                  <div className="h-9 w-9 rounded-lg overflow-hidden bg-background border border-card-border shrink-0 flex items-center justify-center">
+                                    {row.images[0] ? (
+                                      // eslint-disable-next-line @next/next/no-img-element
+                                      <img src={row.images[0]} alt="" className="h-full w-full object-contain" />
+                                    ) : (
+                                      <span className="text-text-muted text-xs">📦</span>
+                                    )}
+                                  </div>
+                                  {row.valid ? (
+                                    <div>
+                                      <span className="font-bold text-foreground block">{row.name}</span>
+                                      {row.brand && <span className="text-[10px] text-text-muted">{row.brand}</span>}
+                                    </div>
+                                  ) : (
+                                    <div>
+                                      <span className="font-bold text-red-500 block">Fila {row.rowNumber}</span>
+                                      <span className="text-[10px] text-red-500/80">{row.reason}</span>
+                                    </div>
                                   )}
+                                </div>
+                              </td>
+                              <td className="p-3 align-top">
+                                {row.valid ? (
                                   <button
                                     type="button"
-                                    onClick={() => handleBulkRemoveImage(row.rowNumber, idx)}
-                                    className="absolute top-1 right-1 h-4 w-4 rounded-full bg-black/60 text-white text-[9px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                                    onClick={() => setBulkExpandedRow(isExpanded ? null : row.rowNumber)}
+                                    className={`font-semibold hover:underline cursor-pointer ${
+                                      categoryName ? "text-foreground" : "text-yellow-600 dark:text-yellow-400"
+                                    }`}
                                   >
-                                    ✕
+                                    {categoryName ?? "Sin categoría"}
                                   </button>
-                                </div>
-                              ))}
-                            </div>
-                          )}
+                                ) : (
+                                  "—"
+                                )}
+                              </td>
+                              <td className="p-3 align-top text-right font-extrabold text-foreground whitespace-nowrap">
+                                {row.valid
+                                  ? `${row.currencyCode === "USD" ? "US$" : "$"} ${Number(row.price).toLocaleString("es-AR")}`
+                                  : "—"}
+                              </td>
+                              <td className="p-3 align-top text-center text-text-muted whitespace-nowrap">
+                                {row.valid ? `${row.condition === "NEW" ? "Nuevo" : "Usado"} · ${row.stock}` : "—"}
+                              </td>
+                              <td className="p-3 align-top text-center text-text-muted">
+                                {row.valid ? (row.images.length > 0 ? `📷 ${row.images.length}` : "—") : "—"}
+                              </td>
+                              <td className="p-3 align-top text-center">
+                                {!row.valid ? (
+                                  <span className="px-2 py-0.5 rounded text-[9px] font-extrabold bg-red-500/10 text-red-500 uppercase whitespace-nowrap">
+                                    Error
+                                  </span>
+                                ) : row.categoryId ? (
+                                  <span className="px-2 py-0.5 rounded text-[9px] font-extrabold bg-accent-green/10 text-accent-green uppercase whitespace-nowrap">
+                                    Lista
+                                  </span>
+                                ) : (
+                                  <span className="px-2 py-0.5 rounded text-[9px] font-extrabold bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 uppercase whitespace-nowrap">
+                                    Pendiente
+                                  </span>
+                                )}
+                              </td>
+                              <td className="p-3 align-top text-center">
+                                {row.valid && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setBulkExpandedRow(isExpanded ? null : row.rowNumber)}
+                                    className="text-text-muted hover:text-accent-gold transition-colors cursor-pointer"
+                                    title="Ver detalle"
+                                  >
+                                    {isExpanded ? "▲" : "▼"}
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
 
-                          {!row.categoryId && (
-                            <p className="text-[10px] font-bold text-yellow-600 dark:text-yellow-400">⚠️ Falta elegir la categoría</p>
-                          )}
-                        </>
-                      )}
-                    </div>
-                  ))}
+                            {isExpanded && row.valid && (
+                              <tr>
+                                <td colSpan={8} className="p-4 bg-background">
+                                  <div className="flex flex-col gap-3">
+                                    <div className="max-w-xs">
+                                      <CustomDropdown
+                                        name={`bulk-category-${row.rowNumber}`}
+                                        defaultValue={row.categoryId ?? ""}
+                                        onChange={(val) => handleBulkRowCategoryChange(row.rowNumber, val)}
+                                        options={bulkCategoryOptions}
+                                        showSearch
+                                        placeholder="Buscar categoría..."
+                                      />
+                                    </div>
+
+                                    {/* Drag-and-drop de fotos, mismo patrón
+                                        que la publicación individual — la
+                                        primera es la portada, se reordena
+                                        arrastrando. */}
+                                    <div
+                                      className={`border-2 border-dashed rounded-xl p-4 text-center flex flex-col items-center justify-center gap-1.5 transition-colors ${
+                                        bulkRowDragOver === row.rowNumber
+                                          ? "border-accent-gold bg-accent-gold/5"
+                                          : "border-card-border hover:border-accent-gold/50"
+                                      }`}
+                                      onDragOver={(e) => { e.preventDefault(); setBulkRowDragOver(row.rowNumber); }}
+                                      onDragLeave={() => setBulkRowDragOver(null)}
+                                      onDrop={(e) => {
+                                        e.preventDefault();
+                                        setBulkRowDragOver(null);
+                                        if (e.dataTransfer.files?.length) {
+                                          handleBulkRowImageFiles(row.rowNumber, e.dataTransfer.files);
+                                        }
+                                      }}
+                                    >
+                                      {bulkUploadingRow === row.rowNumber ? (
+                                        <p className="text-[11px] font-bold text-foreground">Subiendo fotos...</p>
+                                      ) : (
+                                        <>
+                                          <span className="text-lg">📸</span>
+                                          <p className="text-[11px] font-bold text-foreground">Arrastrá las fotos de este producto acá</p>
+                                          <input
+                                            type="file"
+                                            accept="image/*"
+                                            multiple
+                                            className="hidden"
+                                            id={`bulk-row-images-${row.rowNumber}`}
+                                            onChange={(e) => {
+                                              if (e.target.files?.length) handleBulkRowImageFiles(row.rowNumber, e.target.files);
+                                            }}
+                                          />
+                                          <label
+                                            htmlFor={`bulk-row-images-${row.rowNumber}`}
+                                            className="text-[10px] font-bold text-accent-gold hover:underline cursor-pointer"
+                                          >
+                                            o hacé clic para elegirlas
+                                          </label>
+                                        </>
+                                      )}
+                                    </div>
+
+                                    {row.images.length > 0 && (
+                                      <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">
+                                        {row.images.map((img, idx) => (
+                                          <div
+                                            key={idx}
+                                            draggable
+                                            onDragStart={() => handleBulkImageDragStart(row.rowNumber, idx)}
+                                            onDragOver={(e) => e.preventDefault()}
+                                            onDrop={() => handleBulkImageDrop(row.rowNumber, idx)}
+                                            onDragEnd={() => setBulkDraggingImage(null)}
+                                            className={`relative aspect-square rounded-lg overflow-hidden bg-card-bg border cursor-grab active:cursor-grabbing group select-none ${
+                                              bulkDraggingImage?.row === row.rowNumber && bulkDraggingImage.index === idx
+                                                ? "opacity-30 scale-95"
+                                                : "border-card-border hover:border-accent-gold/40"
+                                            }`}
+                                            title="Arrastrá para reordenar"
+                                          >
+                                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                                            <img
+                                              src={img}
+                                              alt={`Foto ${idx + 1} de ${row.name}`}
+                                              className="w-full h-full object-contain pointer-events-none"
+                                            />
+                                            {idx === 0 && (
+                                              <span className="absolute bottom-1 left-1 bg-accent-gold text-background text-[8px] font-extrabold px-1 py-0.5 rounded uppercase pointer-events-none">
+                                                Portada
+                                              </span>
+                                            )}
+                                            <button
+                                              type="button"
+                                              onClick={() => handleBulkRemoveImage(row.rowNumber, idx)}
+                                              className="absolute top-1 right-1 h-4 w-4 rounded-full bg-black/60 text-white text-[9px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                                            >
+                                              ✕
+                                            </button>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                          </Fragment>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
 
                 {bulkErrors.length > 0 && (
@@ -3129,6 +3692,67 @@ function DashboardPageContent() {
           </div>
         )}
 
+        {activeTab === "social" && (
+          <div className="max-w-3xl mx-auto w-full rounded-2xl glass-panel p-8 flex flex-col gap-6">
+            <div>
+              <h2 className="font-heading text-lg font-bold text-foreground mb-1">Redes Sociales</h2>
+              <p className="text-xs text-text-muted leading-relaxed">
+                Vinculá tus cuentas para poder compartir tus publicaciones ahí también. Por ahora
+                &quot;vincular&quot; guarda tu usuario y con eso te armamos la foto con nuestro sello
+                y el texto listo para pegar — el posteo automático llega en cuanto Instagram/TikTok
+                aprueben el acceso que les pedimos (no depende de nosotros, es un trámite de ellos).
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-4">
+              {SOCIAL_PLATFORMS.map(({ key, label, icon }) => {
+                const account = socialAccounts.find((a) => a.platform === key);
+                return (
+                  <div key={key} className="rounded-2xl border border-card-border bg-card-bg p-5 flex flex-wrap items-center gap-4">
+                    <span className="h-11 w-11 rounded-xl bg-background border border-card-border flex items-center justify-center text-xl shrink-0">
+                      {icon}
+                    </span>
+                    <div className="flex-1 min-w-[140px]">
+                      <h4 className="text-sm font-bold text-foreground">{label}</h4>
+                      {account ? (
+                        <p className="text-xs text-accent-green font-semibold">✓ Vinculada como @{account.handle}</p>
+                      ) : (
+                        <p className="text-xs text-text-muted">No vinculada todavía</p>
+                      )}
+                    </div>
+                    {account ? (
+                      <button
+                        onClick={() => handleDisconnectSocial(key)}
+                        disabled={socialDisconnecting === key}
+                        className="rounded-lg border border-card-border px-4 py-2 text-[11px] font-bold text-text-muted hover:text-red-500 hover:border-red-500/40 transition-all cursor-pointer disabled:opacity-50 shrink-0"
+                      >
+                        {socialDisconnecting === key ? "Desvinculando..." : "Desvincular"}
+                      </button>
+                    ) : (
+                      <div className="flex items-center gap-2 shrink-0">
+                        <input
+                          type="text"
+                          placeholder="@usuario"
+                          value={socialHandleInputs[key] ?? ""}
+                          onChange={(e) => setSocialHandleInputs((prev) => ({ ...prev, [key]: e.target.value }))}
+                          className="w-32 bg-background border border-card-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:border-accent-gold"
+                        />
+                        <button
+                          onClick={() => handleConnectSocial(key)}
+                          disabled={socialConnecting === key || !socialHandleInputs[key]?.trim()}
+                          className="rounded-lg bg-accent-gold text-background px-4 py-2 text-[11px] font-extrabold hover:opacity-90 transition-all cursor-pointer disabled:opacity-40 whitespace-nowrap"
+                        >
+                          {socialConnecting === key ? "Vinculando..." : "Vincular"}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {activeTab === "profile" && (
           <div className="max-w-4xl mx-auto w-full rounded-2xl glass-panel p-8">
             <h2 className="font-heading text-lg font-bold text-foreground mb-1">Mis Datos</h2>
@@ -3376,6 +4000,120 @@ function DashboardPageContent() {
             </div>
           </div>
         )}
+
+        {/* Modal "Imágenes — N productos": una card por fila seleccionada,
+            cada una con su propio botón de subida — no un mismo set de
+            fotos pegado en todos los productos. Cada subida ya persiste
+            al instante en Storage (mismo mecanismo que el resto del
+            dashboard), así que Cancelar/Guardar todo solo cierran el
+            modal; no hay nada más que "guardar". */}
+        {bulkImagesModalOpen && bulkPreviewRows && (() => {
+          const selectedRows = bulkPreviewRows.filter((r) => bulkSelectedRows.has(r.rowNumber));
+          const withPhotos = selectedRows.filter((r) => r.images.length > 0).length;
+          return (
+            <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="bg-card-bg-solid border border-card-border rounded-3xl w-full max-w-4xl max-h-[85vh] flex flex-col shadow-2xl">
+                <div className="flex items-start justify-between gap-3 p-6 border-b border-card-border">
+                  <div className="flex items-center gap-3">
+                    <span className="h-10 w-10 rounded-xl bg-accent-green/10 border border-accent-green/20 flex items-center justify-center text-lg shrink-0">
+                      🖼️
+                    </span>
+                    <div>
+                      <h3 className="font-heading text-base font-bold text-foreground">
+                        Imágenes — {selectedRows.length} producto{selectedRows.length === 1 ? "" : "s"}
+                      </h3>
+                      <p className="text-[11px] text-text-muted mt-0.5">Subí fotos para cada producto seleccionado.</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setBulkImagesModalOpen(false)}
+                    className="text-text-muted hover:text-foreground text-lg cursor-pointer shrink-0"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 overflow-y-auto p-6">
+                  {selectedRows.map((row) => (
+                    <div key={row.rowNumber} className="rounded-2xl border border-card-border bg-card-bg overflow-hidden flex flex-col">
+                      {/* El thumbnail entero es el selector: clic para
+                          buscar el archivo o arrastrá la imagen directo
+                          encima. Sigue funcionando con imagen ya cargada
+                          (agrega más), no solo cuando está vacío. */}
+                      <label
+                        htmlFor={`bulk-modal-images-${row.rowNumber}`}
+                        className={`relative aspect-square flex items-center justify-center cursor-pointer transition-colors ${
+                          bulkModalDragOver === row.rowNumber ? "bg-accent-gold/10" : "bg-background hover:bg-card-bg-solid"
+                        }`}
+                        onDragOver={(e) => { e.preventDefault(); setBulkModalDragOver(row.rowNumber); }}
+                        onDragLeave={() => setBulkModalDragOver(null)}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          setBulkModalDragOver(null);
+                          if (e.dataTransfer.files?.length) handleBulkRowImageFiles(row.rowNumber, e.dataTransfer.files);
+                        }}
+                      >
+                        {bulkUploadingRow === row.rowNumber ? (
+                          <span className="text-[10px] font-bold text-text-muted">Subiendo...</span>
+                        ) : row.images[0] ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={row.images[0]} alt={row.name} className="h-full w-full object-contain pointer-events-none" />
+                        ) : (
+                          <div className="flex flex-col items-center gap-1 pointer-events-none">
+                            <span className="text-2xl text-text-muted">🖼️</span>
+                            <span className="text-[9px] font-bold text-text-muted">Sin imagen</span>
+                          </div>
+                        )}
+                        {row.images.length > 0 && (
+                          <span className="absolute top-2 left-2 bg-accent-green text-background text-[9px] font-extrabold px-2 py-0.5 rounded-full pointer-events-none">
+                            {row.images.length} foto{row.images.length === 1 ? "" : "s"}
+                          </span>
+                        )}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          className="hidden"
+                          id={`bulk-modal-images-${row.rowNumber}`}
+                          disabled={bulkUploadingRow === row.rowNumber}
+                          onChange={(e) => {
+                            if (e.target.files?.length) handleBulkRowImageFiles(row.rowNumber, e.target.files);
+                          }}
+                        />
+                      </label>
+                      <div className="p-3">
+                        {row.brand && (
+                          <span className="text-[9px] font-bold text-text-muted uppercase tracking-wide block">{row.brand}</span>
+                        )}
+                        <span className="text-xs font-bold text-foreground line-clamp-2">{row.name}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex items-center justify-between gap-3 p-4 border-t border-card-border">
+                  <span className="text-[11px] text-text-muted">
+                    {withPhotos === 0 ? "Sin fotos aún" : `${withPhotos} de ${selectedRows.length} productos con fotos`}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setBulkImagesModalOpen(false)}
+                      className="rounded-lg border border-card-border px-4 py-2 text-[11px] font-bold text-foreground hover:border-accent-gold transition-all cursor-pointer"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={() => { setBulkImagesModalOpen(false); setBulkSelectedRows(new Set()); }}
+                      className="rounded-lg bg-accent-gold text-background px-4 py-2 text-[11px] font-extrabold hover:opacity-90 transition-all cursor-pointer"
+                    >
+                      ✓ Guardar todo
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Modal de Confirmación de Eliminación */}
         <ConfirmModal

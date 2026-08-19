@@ -26,6 +26,7 @@ interface RegisterPayload {
   phone: string
   location?: string
   username: string
+  acceptTerms: boolean
   // data: URL ("data:image/png;base64,...") from FileReader.readAsDataURL —
   // optional, the user may skip the avatar entirely.
   avatarDataUrl?: string | null
@@ -62,10 +63,21 @@ export async function POST(request: NextRequest) {
   // lookup (ILIKE would misread a literal underscore in the username as
   // its single-char wildcard).
   const username = body.username?.trim().toLowerCase()
+  const acceptTerms = body.acceptTerms === true
   const avatarDataUrl = body.avatarDataUrl?.trim() || null
 
   if (!email || !password || !fullName || !sellerType || !phone || !username) {
     return NextResponse.json({ error: "Faltan campos obligatorios" }, { status: 400 })
+  }
+
+  // Defense in depth — the client already blocks submission without this,
+  // but terms_acceptances is meant to be a real audit record, not
+  // something we assume happened just because the request arrived.
+  if (!acceptTerms) {
+    return NextResponse.json(
+      { error: "Debes aceptar los términos y condiciones para registrarte." },
+      { status: 400 }
+    )
   }
 
   if (!USERNAME_PATTERN.test(username)) {
@@ -231,7 +243,7 @@ export async function POST(request: NextRequest) {
   // concurrent signup and lost — that one must not be swallowed, or the
   // account ships with a document_number/username the uniqueness
   // constraints were supposed to guarantee is unique.
-  const { error: sellerError } = await admin
+  const { data: updatedSeller, error: sellerError } = await admin
     .from("sellers")
     .update({
       phone,
@@ -241,6 +253,8 @@ export async function POST(request: NextRequest) {
       ...(avatarUrl ? { avatar_url: avatarUrl } : {}),
     })
     .eq("user_id", userId)
+    .select("id")
+    .single()
 
   if (sellerError?.code === "23505") {
     const message = sellerError.message.includes("username")
@@ -251,6 +265,34 @@ export async function POST(request: NextRequest) {
 
   if (sellerError) {
     console.warn("Could not update seller phone/document_number/username:", sellerError.message)
+  }
+
+  // terms_acceptances has existed since 001_initial.sql but nothing ever
+  // wrote to it — the register flow only ever gated on a client-side
+  // checkbox with no server record. Non-fatal on failure: this is an
+  // audit trail, not something that should block account creation.
+  //
+  // ip_address: x-forwarded-for can carry a proxy chain ("client, proxy1,
+  // proxy2") — the first entry is the original client. x-real-ip is the
+  // fallback some proxies set instead. NextRequest has no reliable `.ip`
+  // on the Node runtime (that's Vercel Edge-only), so headers are it.
+  if (updatedSeller?.id) {
+    const ipAddress =
+      request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      request.headers.get("x-real-ip") ||
+      null
+    const userAgent = request.headers.get("user-agent")
+
+    const { error: termsError } = await admin.from("terms_acceptances").insert({
+      seller_id: updatedSeller.id,
+      user_id: userId,
+      terms_version: "1.0",
+      ip_address: ipAddress,
+      user_agent: userAgent,
+    })
+    if (termsError) {
+      console.warn("Could not record terms acceptance:", termsError.message)
+    }
   }
 
   const mail = await sendConfirmationEmail({

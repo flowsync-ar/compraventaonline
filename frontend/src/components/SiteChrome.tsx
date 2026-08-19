@@ -1,17 +1,19 @@
 "use client"
 
 import { useEffect, useRef, useState, type ReactNode } from "react"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import Link from "next/link"
 import ThemeToggle from "./ThemeToggle"
 import HeaderSessionBar from "./HeaderSessionBar"
 import HeaderSearch from "./HeaderSearch"
 import ThemedImage from "./ThemedImage"
+import { createClient } from "@/lib/supabase/client"
 
 // The /admin panel is a separate dashboard experience — it never shows the
 // public marketplace header/footer (nav, search, cart, etc).
 export default function SiteChrome({ children }: { children: ReactNode }) {
   const pathname = usePathname()
+  const router = useRouter()
   const isAdmin = pathname?.startsWith("/admin")
 
   // Mobile nav dropdown (<md only — from md up the horizontal nav has
@@ -48,6 +50,27 @@ export default function SiteChrome({ children }: { children: ReactNode }) {
       // best-effort — a dropped beacon shouldn't surface anywhere
     })
   }, [pathname, isAdmin])
+
+  // Sends the visitor back to the homepage the instant their session ends —
+  // no matter which page they were on, and no matter WHY it ended. The
+  // "Cerrar sesión" buttons (HeaderSessionBar, dashboard) already do their
+  // own router.push("/"), but that only covers an explicit click. A session
+  // can also end on its own (expired/rejected refresh token) or from
+  // another tab (Supabase's client syncs sign-out across tabs) — those
+  // paths never went through this component before, so a signed-out user
+  // could keep sitting on e.g. /dashboard with a dead session. This is the
+  // single place that reacts to every case, not just the button.
+  useEffect(() => {
+    if (isAdmin) return
+    const supabase = createClient()
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_OUT") {
+        router.push("/")
+        router.refresh()
+      }
+    })
+    return () => subscription.unsubscribe()
+  }, [isAdmin, router])
 
   if (isAdmin) {
     return <>{children}</>

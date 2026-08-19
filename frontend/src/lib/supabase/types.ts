@@ -260,6 +260,7 @@ export type Database = {
           price: number
           product_id: string
           seller_id: string
+          share_to_social: Database["public"]["Enums"]["social_platform"][] | null
           status: Database["public"]["Enums"]["listing_status"]
           stock: number
           updated_at: string
@@ -274,6 +275,7 @@ export type Database = {
           price: number
           product_id: string
           seller_id: string
+          share_to_social?: Database["public"]["Enums"]["social_platform"][] | null
           status?: Database["public"]["Enums"]["listing_status"]
           stock?: number
           updated_at?: string
@@ -288,6 +290,7 @@ export type Database = {
           price?: number
           product_id?: string
           seller_id?: string
+          share_to_social?: Database["public"]["Enums"]["social_platform"][] | null
           status?: Database["public"]["Enums"]["listing_status"]
           stock?: number
           updated_at?: string
@@ -515,6 +518,44 @@ export type Database = {
           }
         ]
       }
+      seller_social_accounts: {
+        Row: {
+          access_token: string | null
+          connected_at: string
+          handle: string
+          id: string
+          platform: Database["public"]["Enums"]["social_platform"]
+          refresh_token: string | null
+          seller_id: string
+        }
+        Insert: {
+          access_token?: string | null
+          connected_at?: string
+          handle: string
+          id?: string
+          platform: Database["public"]["Enums"]["social_platform"]
+          refresh_token?: string | null
+          seller_id: string
+        }
+        Update: {
+          access_token?: string | null
+          connected_at?: string
+          handle?: string
+          id?: string
+          platform?: Database["public"]["Enums"]["social_platform"]
+          refresh_token?: string | null
+          seller_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "seller_social_accounts_seller_id_fkey"
+            columns: ["seller_id"]
+            isOneToOne: false
+            referencedRelation: "sellers"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       seller_rewards: {
         Row: {
           claimed: boolean
@@ -722,20 +763,29 @@ export type Database = {
         Row: {
           accepted_at: string
           id: string
+          ip_address: string | null
           seller_id: string
-          version: string
+          terms_version: string
+          user_agent: string | null
+          user_id: string
         }
         Insert: {
           accepted_at?: string
           id?: string
+          ip_address?: string | null
           seller_id: string
-          version?: string
+          terms_version?: string
+          user_agent?: string | null
+          user_id: string
         }
         Update: {
           accepted_at?: string
           id?: string
+          ip_address?: string | null
           seller_id?: string
-          version?: string
+          terms_version?: string
+          user_agent?: string | null
+          user_id?: string
         }
         Relationships: [
           {
@@ -765,6 +815,7 @@ export type Database = {
       reward_type: "HIGHLIGHT" | "DISCOUNT" | "FREE_LISTING"
       seller_status: "ACTIVE" | "SUSPENDED"
       seller_type: "PERSONAL_SELLER" | "BUSINESS_SELLER"
+      social_platform: "INSTAGRAM" | "FACEBOOK" | "TIKTOK"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -948,6 +999,7 @@ export const Constants = {
       reward_type: ["HIGHLIGHT", "DISCOUNT", "FREE_LISTING"],
       seller_status: ["ACTIVE", "SUSPENDED"],
       seller_type: ["PERSONAL_SELLER", "BUSINESS_SELLER"],
+      social_platform: ["INSTAGRAM", "FACEBOOK", "TIKTOK"],
     },
   },
 } as const

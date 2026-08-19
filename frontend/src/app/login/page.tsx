@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
-import { useRouter } from "next/navigation"
+import { useState, useEffect, useRef, Suspense } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
 import type { SupabaseClient } from "@supabase/supabase-js"
@@ -9,10 +9,26 @@ import type { Database } from "@/lib/supabase/types"
 import CustomDropdown from "@/components/CustomDropdown"
 import GenericAvatar from "@/components/GenericAvatar"
 import Toast from "@/components/Toast"
+import TermsAcceptanceModal from "@/components/TermsAcceptanceModal"
 import { LA_PAMPA_CITIES } from "@/lib/constants/laPampaCities"
 
+// useSearchParams() requires a Suspense boundary in Next.js 16 (same fix
+// as the dashboard's "Vender" tab-sync bug) — needed here so the header's
+// <Link href="/login"> actually does something when the visitor is
+// already on /login viewing the register form: without a query-param
+// driving `isLogin`, a Link to the exact same pathname is a client-side
+// no-op (no URL change => no re-render), so "INGRESAR" appeared dead.
 export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginPageContent />
+    </Suspense>
+  )
+}
+
+function LoginPageContent() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   // Lazy client init to avoid prerender errors when env vars are missing at build time
   const supabaseRef = useRef<SupabaseClient<Database> | null>(null)
   const getSupabase = () => {
@@ -23,6 +39,17 @@ export default function LoginPage() {
   }
 
   const [isLogin, setIsLogin] = useState(true)
+
+  // Single source of truth for which form is showing: the `mode` query
+  // param, not just local state. Toggling in-page updates both (instant
+  // feedback + a real URL to navigate back to), so a Link from anywhere
+  // else on the site pointing at /login (login) or /login?mode=register
+  // always lands on the right view, even if the visitor is already on
+  // /login — a URL change to a different `mode` is what makes Next.js
+  // actually re-run this effect instead of treating the click as a no-op.
+  useEffect(() => {
+    setIsLogin(searchParams.get("mode") !== "register")
+  }, [searchParams])
   const [errorMsg, setErrorMsg] = useState("")
   const [successMsg, setSuccessMsg] = useState("")
   const [loading, setLoading] = useState(false)
@@ -45,6 +72,7 @@ export default function LoginPage() {
   const [phone, setPhone] = useState("")
   const [location, setLocation] = useState("")
   const [acceptTerms, setAcceptTerms] = useState(false)
+  const [showTermsModal, setShowTermsModal] = useState(false)
 
   // Username — always lowercase (see register/route.ts for why), must be
   // explicitly checked (button click, not on-the-fly) before it can be
@@ -230,7 +258,9 @@ export default function LoginPage() {
 
         // Create auth user + send confirmation email server-side (own Zoho SMTP,
         // not Supabase's shared mailer). The trigger handle_new_user creates
-        // sellers + terms_acceptances automatically from the metadata below.
+        // the sellers row; the route itself records terms_acceptances (the
+        // trigger never touched that table, despite what this comment used
+        // to claim — see TermsAcceptanceModal for the actual consent UI).
         const res = await fetch("/api/auth/register", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -243,6 +273,7 @@ export default function LoginPage() {
             phone,
             location,
             username,
+            acceptTerms,
             avatarDataUrl,
           }),
         })
@@ -290,15 +321,22 @@ export default function LoginPage() {
     {/* Fixed to the viewport (not the form card) on purpose — a long
         registration form scrolls, and an inline banner up top would go
         unseen once the user's scrolled down to e.g. the terms checkbox.
-        Centered on screen (inset-0 + items/justify-center) instead of
-        pinned to a corner, so it's impossible to miss regardless of
-        scroll position or header height. */}
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 pointer-events-none">
+        Horizontally centered but pinned near the TOP (not true dead-center)
+        — dead-center used to sit right on top of the form card and hide
+        it; floating just below the header keeps it visible without
+        covering anything the user actually needs to see. */}
+    <div className="fixed inset-x-0 top-24 z-[100] flex items-start justify-center p-4 pointer-events-none">
       <div className="flex flex-col gap-3 w-full max-w-sm">
         {errorMsg && <Toast type="error" message={errorMsg} onClose={() => setErrorMsg("")} />}
         {successMsg && <Toast type="success" message={successMsg} onClose={() => setSuccessMsg("")} />}
       </div>
     </div>
+    {showTermsModal && (
+      <TermsAcceptanceModal
+        onAccept={() => { setAcceptTerms(true); setShowTermsModal(false); }}
+        onClose={() => setShowTermsModal(false)}
+      />
+    )}
     {showConfirmModal && (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
         <div className="bg-card-bg border border-card-border rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl flex flex-col gap-5">
@@ -318,7 +356,7 @@ export default function LoginPage() {
             ¿No lo encontrás? Revisá la carpeta de <span className="text-accent-gold font-bold">Spam</span> o Promociones.
           </p>
           <button
-            onClick={() => { setShowConfirmModal(false); setIsLogin(true) }}
+            onClick={() => { setShowConfirmModal(false); setIsLogin(true); router.push("/login") }}
             className="w-full rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover py-3 text-xs font-extrabold text-background shadow-md hover:opacity-95 transition-all cursor-pointer"
           >
             Entendido, volver al inicio de sesión
@@ -621,7 +659,15 @@ export default function LoginPage() {
                   className="mt-1 h-4 w-4 rounded border-card-border bg-background text-accent-gold accent-accent-gold focus:ring-accent-gold"
                 />
                 <label htmlFor="terms" className="text-xs text-text-muted select-none leading-relaxed cursor-pointer">
-                  Acepto los <Link href="/terms" className="text-accent-gold hover:underline">Términos y Condiciones</Link> y las <Link href="/rules" className="text-accent-gold hover:underline">Reglas de la Comunidad</Link> de CompraVentaOnline.
+                  Acepto los{" "}
+                  <button
+                    type="button"
+                    onClick={(e) => { e.preventDefault(); setShowTermsModal(true); }}
+                    className="text-accent-gold hover:underline font-semibold cursor-pointer"
+                  >
+                    Términos y Condiciones
+                  </button>{" "}
+                  y las <Link href="/rules" className="text-accent-gold hover:underline">Reglas de la Comunidad</Link> de CompraVentaOnline.
                 </label>
               </div>
             </>
@@ -646,7 +692,7 @@ export default function LoginPage() {
               ¿No tenés una cuenta?{" "}
               <button
                 type="button"
-                onClick={() => { setIsLogin(false); setErrorMsg(""); setSuccessMsg(""); }}
+                onClick={() => { setIsLogin(false); setErrorMsg(""); setSuccessMsg(""); router.push("/login?mode=register"); }}
                 className="text-accent-gold font-bold hover:underline cursor-pointer"
               >
                 Registrate como vendedor
@@ -657,7 +703,7 @@ export default function LoginPage() {
               ¿Ya estás registrado?{" "}
               <button
                 type="button"
-                onClick={() => { setIsLogin(true); setErrorMsg(""); setSuccessMsg(""); }}
+                onClick={() => { setIsLogin(true); setErrorMsg(""); setSuccessMsg(""); router.push("/login"); }}
                 className="text-accent-gold font-bold hover:underline cursor-pointer"
               >
                 Ingresá con tu cuenta

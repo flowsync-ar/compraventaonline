@@ -27,6 +27,7 @@ interface Listing {
   sellers: {
     id: string;
     name: string;
+    username: string | null;
     avatar_url: string | null;
     score: number;
     tier: string;
@@ -85,6 +86,7 @@ export default function ListingDetailPage() {
   // Interactive Modals
   const [showContactModal, setShowContactModal] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
   const [showSellerModal, setShowSellerModal] = useState(false);
 
   // Contact Form States
@@ -214,6 +216,7 @@ export default function ListingDetailPage() {
             sellers (
               id,
               name,
+              username,
               avatar_url,
               score,
               tier,
@@ -564,6 +567,33 @@ export default function ListingDetailPage() {
       setOrderError("No se pudo procesar la compra. Intentá de nuevo.");
     } finally {
       setPaymentLoading(false);
+    }
+  };
+
+  // Public "share this listing" — any visitor, not just the seller. Uses
+  // the native share sheet on mobile (WhatsApp/Instagram/whatever's
+  // installed); desktop browsers mostly don't implement navigator.share,
+  // so there it just copies the link with a quick "¡Copiado!" confirmation
+  // instead of silently failing.
+  const handleShareListing = async () => {
+    const url = window.location.href;
+    const title = product?.name ?? "Publicación en CompraVentaOnline";
+
+    if (navigator.share) {
+      try {
+        await navigator.share({ title, url });
+      } catch {
+        // User cancelled the share sheet — not an error, do nothing.
+      }
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(url);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    } catch (err) {
+      console.error("Error al copiar el enlace:", err);
     }
   };
 
@@ -1038,7 +1068,20 @@ export default function ListingDetailPage() {
               </button>
             </div>
 
-            <div className="border-t border-card-border pt-5 flex justify-end items-center text-[10px] text-text-muted font-semibold">
+            <div className="border-t border-card-border pt-5 flex justify-between items-center text-sm text-text-muted font-semibold">
+              <button
+                onClick={handleShareListing}
+                className="flex items-center gap-1.5 text-foreground hover:text-accent-gold transition-all cursor-pointer"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+                  <circle cx="18" cy="5" r="3" />
+                  <circle cx="6" cy="12" r="3" />
+                  <circle cx="18" cy="19" r="3" />
+                  <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+                  <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+                </svg>
+                {linkCopied ? "✓ ¡Enlace copiado!" : "Compartir publicación"}
+              </button>
               <button
                 onClick={() => setShowReportModal(true)}
                 className="text-red-500 hover:underline transition-all cursor-pointer"
@@ -1050,34 +1093,51 @@ export default function ListingDetailPage() {
           </div>
 
           {/* Seller Trust Box — clickable to see the seller's profile
-              photo/logo and bio without leaving the listing. */}
+              photo/logo and bio without leaving the listing. The "Más
+              artículos" link sits outside the modal-opening <button> on
+              purpose: a <Link> can't be nested inside a <button> (invalid
+              HTML — two interactive elements fighting over the click). */}
           <div className="flex flex-col gap-2">
             <span className="text-[10px] text-text-muted font-semibold uppercase tracking-wide">Publicado por</span>
-            <button
-              type="button"
-              onClick={() => setShowSellerModal(true)}
-              className="w-full text-left rounded-2xl bg-card-bg border border-card-border p-6 shadow-md flex items-center gap-4 cursor-pointer hover:border-accent-gold/40 transition-colors"
-            >
-              <div className="relative h-12 w-12 shrink-0 rounded-xl overflow-hidden shadow-lg">
-                <SellerAvatar src={seller?.avatar_url} alt={seller?.name ?? "Vendedor"} />
+            <div className="w-full rounded-2xl bg-card-bg border border-card-border p-6 shadow-md flex flex-col gap-3">
+              <div className="flex items-center gap-4">
+                <button
+                  type="button"
+                  onClick={() => setShowSellerModal(true)}
+                  className="flex items-center gap-4 flex-1 text-left cursor-pointer group"
+                >
+                  <div className="relative h-12 w-12 shrink-0 rounded-xl overflow-hidden shadow-lg">
+                    <SellerAvatar src={seller?.avatar_url} alt={seller?.name ?? "Vendedor"} />
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="text-sm font-bold text-foreground group-hover:text-accent-gold transition-colors">
+                      {seller?.username ? `@${seller.username}` : seller?.name}
+                    </h4>
+                    <span className="text-[10px] text-text-muted block mt-0.5">
+                      {sellerHasSales ? `Vendedor nivel ${seller?.tier}` : "🌱 Recién se suma a la comunidad"}
+                    </span>
+                  </div>
+                </button>
+                <div className="text-right shrink-0">
+                  {sellerHasSales ? (
+                    <>
+                      <span className="text-sm font-extrabold text-accent-gold block">★ {((seller?.score ?? 0) / 10).toFixed(1)}</span>
+                      <span className="text-[8px] text-text-muted block uppercase">Puntaje pampeano</span>
+                    </>
+                  ) : (
+                    <span className="text-[9px] font-bold text-text-muted italic">Sin ventas aún</span>
+                  )}
+                </div>
               </div>
-              <div className="flex-1">
-                <h4 className="text-xs font-bold text-foreground">{seller?.name}</h4>
-                <span className="text-[10px] text-text-muted block mt-0.5">
-                  {sellerHasSales ? `Vendedor nivel ${seller?.tier}` : "🌱 Recién se suma a la comunidad"}
-                </span>
-              </div>
-              <div className="text-right">
-                {sellerHasSales ? (
-                  <>
-                    <span className="text-sm font-extrabold text-accent-gold block">★ {((seller?.score ?? 0) / 10).toFixed(1)}</span>
-                    <span className="text-[8px] text-text-muted block uppercase">Puntaje pampeano</span>
-                  </>
-                ) : (
-                  <span className="text-[9px] font-bold text-text-muted italic">Sin ventas aún</span>
-                )}
-              </div>
-            </button>
+              {seller?.id && (
+                <Link
+                  href={`/search?seller=${seller.id}`}
+                  className="text-xs font-bold text-accent-gold hover:underline"
+                >
+                  Más artículos de este vendedor →
+                </Link>
+              )}
+            </div>
           </div>
 
         </div>

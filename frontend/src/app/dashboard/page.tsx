@@ -1406,6 +1406,18 @@ function DashboardPageContent() {
     return new File([blob], filename, { type: blob.type || "image/png" });
   };
 
+  // macOS Safari/Chrome also implement navigator.share/canShare for files,
+  // but the OS share sheet they pop has no Instagram target (there's no
+  // native Mac app) — only Mail/Messages/AirDrop/etc. So feature-detecting
+  // navigator.share isn't enough to decide the desktop fallback; we need to
+  // know it's an actual mobile device first.
+  const isMobileDevice = (): boolean => {
+    if (typeof navigator === "undefined") return false;
+    const uaData = (navigator as { userAgentData?: { mobile?: boolean } }).userAgentData;
+    if (uaData && typeof uaData.mobile === "boolean") return uaData.mobile;
+    return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  };
+
   // Mobile (Chrome Android / Safari iOS 15+): navigator.share with an
   // actual image file pops the native OS share sheet with the photo
   // already attached — the user taps Instagram/WhatsApp there and the
@@ -1415,6 +1427,7 @@ function DashboardPageContent() {
   // opening the platform's own site — same tradeoff every browser-based
   // "share to social" flow makes, not something we can code around.
   const shareImageNatively = async (caption: string, imageDataUrl: string): Promise<boolean> => {
+    if (!isMobileDevice()) return false;
     if (typeof navigator === "undefined" || !navigator.share || !navigator.canShare) return false;
     try {
       const file = await dataUrlToFile(imageDataUrl, "compraventaonline.png");

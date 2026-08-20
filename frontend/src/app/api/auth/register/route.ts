@@ -176,16 +176,19 @@ export async function POST(request: NextRequest) {
 
   if (linkError || !linkData?.user) {
     // "Database error saving new user" is Supabase's generic wrapper for
-    // when handle_new_user's INSERT fails — in practice this almost always
-    // means a stray/unconfirmed auth.users row already exists for this
-    // email from a previous incomplete signup, colliding with the unique
-    // index on lower(email) (see 008_seller_uniqueness.sql). Whatever the
-    // exact trigger failure, it's not something the user can act on, so we
-    // don't leak the raw message — same fix as the "already" case below.
-    const isGenericDbError = linkError?.message === "Database error saving new user"
-    const message = linkError?.message?.includes("already") || isGenericDbError
+    // when the auth.users insert (or its AFTER INSERT trigger,
+    // handle_new_user) fails. We PREVIOUSLY assumed this always meant a
+    // duplicate email and mapped it to that message — that theory was
+    // wrong (confirmed via the SQL Editor: the sellers insert itself is
+    // fine even for a completely fresh email). The REAL cause, found via
+    // Postgres Logs: handle_new_user's `::seller_type` cast couldn't
+    // resolve the type because the function had no pinned search_path —
+    // fixed in 024_fix_handle_new_user_search_path.sql. Kept the message
+    // honest/generic here regardless: even a well-understood DB error
+    // isn't something the user can act on, so no need to leak internals.
+    const message = linkError?.message?.includes("already")
       ? "Ese email ya está registrado."
-      : linkError?.message ?? "No se pudo crear la cuenta. Intentá de nuevo."
+      : "No se pudo crear la cuenta. Volvé a intentar en unos minutos."
     console.error("[register] generateLink failed:", linkError?.message)
     return NextResponse.json({ error: message }, { status: 400 })
   }

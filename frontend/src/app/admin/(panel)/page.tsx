@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import ConfirmModal from "@/components/ConfirmModal"
 
 interface Stats {
   sellers: { total: number; last7Days: number; last30Days: number }
@@ -36,8 +37,11 @@ export default function AdminDashboardPage() {
   const [stats, setStats] = useState<Stats | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
+  const [showResetConfirm, setShowResetConfirm] = useState(false)
+  const [resetting, setResetting] = useState(false)
 
-  useEffect(() => {
+  const loadStats = () => {
+    setLoading(true)
     fetch("/api/admin/stats")
       .then(async (res) => {
         const data = await res.json()
@@ -46,7 +50,26 @@ export default function AdminDashboardPage() {
       })
       .catch((err) => setError(err instanceof Error ? err.message : "No se pudieron cargar las estadísticas."))
       .finally(() => setLoading(false))
+  }
+
+  useEffect(() => {
+    loadStats()
   }, [])
+
+  const handleResetVisits = async () => {
+    setResetting(true)
+    try {
+      const res = await fetch("/api/admin/stats/reset-visits", { method: "POST" })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? "No se pudo reiniciar el contador.")
+      setShowResetConfirm(false)
+      loadStats()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo reiniciar el contador.")
+    } finally {
+      setResetting(false)
+    }
+  }
 
   return (
     <div className="flex flex-col gap-8 max-w-6xl">
@@ -108,7 +131,16 @@ export default function AdminDashboardPage() {
           </section>
 
           <section className="flex flex-col gap-3">
-            <h2 className="text-xs font-extrabold text-text-muted uppercase tracking-wide">Visitas al Sitio</h2>
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <h2 className="text-xs font-extrabold text-text-muted uppercase tracking-wide">Visitas al Sitio</h2>
+              <button
+                type="button"
+                onClick={() => setShowResetConfirm(true)}
+                className="text-[11px] font-bold text-text-muted hover:text-red-500 transition-colors cursor-pointer"
+              >
+                ↺ Reiniciar contador
+              </button>
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <StatCard
                 icon="👁️"
@@ -127,11 +159,24 @@ export default function AdminDashboardPage() {
               />
             </div>
             <p className="text-[10px] text-text-muted/70 italic">
-              Cada carga de página del sitio público cuenta como una visita. No distingue visitantes únicos.
+              Cuenta visitantes únicos por día — si la misma persona entra varias veces el mismo día, o recarga
+              la página, solo suma una vez.
             </p>
           </section>
         </>
       ) : null}
+
+      <ConfirmModal
+        isOpen={showResetConfirm}
+        title="¿Reiniciar el contador de visitas?"
+        description="Se van a borrar todas las visitas registradas hasta ahora. Esta acción no se puede deshacer."
+        confirmText="Reiniciar"
+        cancelText="Cancelar"
+        onConfirm={handleResetVisits}
+        onCancel={() => setShowResetConfirm(false)}
+        isLoading={resetting}
+        type="danger"
+      />
     </div>
   )
 }

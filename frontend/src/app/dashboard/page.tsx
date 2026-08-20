@@ -280,15 +280,13 @@ function DashboardPageContent() {
   const [bulkSearch, setBulkSearch] = useState("");
   const [bulkSelectedRows, setBulkSelectedRows] = useState<Set<number>>(new Set());
   const [bulkAssignCategoryId, setBulkAssignCategoryId] = useState("");
-  // Opens the "Imágenes — N productos" modal: one card per selected row,
-  // each with its own "Subir fotos" upload (reuses handleBulkRowImageFiles
-  // per row) — not one shared photo set slapped onto every product.
-  const [bulkImagesModalOpen, setBulkImagesModalOpen] = useState(false);
   // Table view: which single row (if any) has its detail panel (category
   // dropdown + photo grid) expanded open below it.
   const [bulkExpandedRow, setBulkExpandedRow] = useState<number | null>(null);
-  // Which card's thumbnail is being dragged over in the images modal.
-  const [bulkModalDragOver, setBulkModalDragOver] = useState<number | null>(null);
+  // Which row's thumbnail (in the "Fotos" table column) is being dragged
+  // over — that thumbnail is itself the click/drop target now, no
+  // separate "Agregar imágenes" modal anymore.
+  const [photoColumnDragOver, setPhotoColumnDragOver] = useState<number | null>(null);
 
   // Check auth and mount
   useEffect(() => {
@@ -416,8 +414,6 @@ function DashboardPageContent() {
             parentId: c.parent_id,
           }));
           setCategories(flatCategories);
-          const firstRoot = flatCategories.find((c) => !c.parentId) ?? flatCategories[0];
-          setCategoryId(firstRoot.id);
         }
 
         // 3. Fetch this seller's listings
@@ -766,6 +762,16 @@ function DashboardPageContent() {
     setBulkAssignCategoryId("");
   };
 
+  // Saca las filas seleccionadas de la pre-carga por completo — para
+  // productos del Excel que en realidad no querés publicar (no toca la
+  // base, esto todavía es solo la revisión previa a "Confirmar y Publicar").
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
+  const handleBulkDeleteSelected = () => {
+    setBulkPreviewRows((prev) => (prev ? prev.filter((r) => !bulkSelectedRows.has(r.rowNumber)) : prev));
+    setBulkSelectedRows(new Set());
+    setShowBulkDeleteConfirm(false);
+  };
+
   // Funciones para la gestión de imágenes
   // Uploads files to Supabase Storage bucket "listings" and stores public URLs
   const handleImageFiles = async (files: FileList) => {
@@ -922,7 +928,7 @@ function DashboardPageContent() {
       }
 
       const supabase = getSupabase();
-      const defaultImage = "https://images.unsplash.com/photo-1531403009284-440f080d1e12?q=80&w=600&auto=format&fit=crop";
+      const defaultImage = "/sinimagen.png";
       const imageList = productImages.length > 0 ? productImages : [defaultImage];
 
       if (selectedListingToEdit) {
@@ -971,7 +977,7 @@ function DashboardPageContent() {
         setStock("1");
         setProductImages([]);
         setSelectedImages([]);
-        setCategoryId(categories.length > 0 ? categories[0].id : "");
+        setCategoryId("");
         setFeaturedPlan("FREE");
         setDynamicAttributes({});
         setStatus("APPROVED");
@@ -1038,7 +1044,7 @@ function DashboardPageContent() {
         setStock("1");
         setProductImages([]);
         setSelectedImages([]);
-        setCategoryId(categories.length > 0 ? categories[0].id : "");
+        setCategoryId("");
         setFeaturedPlan("FREE");
         setDynamicAttributes({});
         setShareToSocial([]);
@@ -1583,7 +1589,7 @@ function DashboardPageContent() {
     setPrice(listing.price.toString());
     setCondition(listing.condition);
     setStock(listing.stock.toString());
-    setCategoryId(product?.category_id ?? (categories.length > 0 ? categories[0].id : ""));
+    setCategoryId(product?.category_id ?? "");
     setFeaturedPlan(listing.featured_plan ?? "FREE");
     setCurrencyId(listing.currency_id ?? "");
     setStatus(listing.status);
@@ -1844,7 +1850,7 @@ function DashboardPageContent() {
                   setStock("1");
                   setProductImages([]);
                   setSelectedImages([]);
-                  setCategoryId(categories.length > 0 ? categories[0].id : "");
+                  setCategoryId("");
                   setFeaturedPlan("FREE");
                   setDynamicAttributes({});
                   setStatus("APPROVED");
@@ -1870,7 +1876,7 @@ function DashboardPageContent() {
                   setStock("1");
                   setProductImages([]);
                   setSelectedImages([]);
-                  setCategoryId(categories.length > 0 ? categories[0].id : "");
+                  setCategoryId("");
                   setFeaturedPlan("FREE");
                   setDynamicAttributes({});
                   setStatus("APPROVED");
@@ -1910,7 +1916,7 @@ function DashboardPageContent() {
                   setStock("1");
                   setProductImages([]);
                   setSelectedImages([]);
-                  setCategoryId(categories.length > 0 ? categories[0].id : "");
+                  setCategoryId("");
                   setFeaturedPlan("FREE");
                   setDynamicAttributes({});
                   setStatus("APPROVED");
@@ -2196,9 +2202,8 @@ function DashboardPageContent() {
                 </div>
 
                 <div className="flex flex-col gap-2">
-                  <label className="text-xs font-bold text-foreground">Descripción Técnica</label>
-                  <textarea 
-                    required
+                  <label className="text-xs font-bold text-foreground">Descripción Técnica (opcional)</label>
+                  <textarea
                     rows={4}
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
@@ -2529,7 +2534,7 @@ function DashboardPageContent() {
                         setStock("1");
                         setProductImages([]);
                         setSelectedImages([]);
-                        setCategoryId(categories.length > 0 ? categories[0].id : "");
+                        setCategoryId("");
                         setFeaturedPlan("FREE");
                         setDynamicAttributes({});
                         setStatus("APPROVED");
@@ -2577,7 +2582,11 @@ function DashboardPageContent() {
 
                 <div
                   className={`border-2 border-dashed rounded-xl p-8 text-center flex flex-col items-center justify-center gap-3 transition-colors ${
-                    isDragging ? "border-accent-gold bg-accent-gold/5" : "border-card-border hover:border-accent-gold/50"
+                    isDragging
+                      ? "border-accent-gold bg-accent-gold/5"
+                      : csvFile
+                        ? "border-accent-green/40 bg-accent-green/5"
+                        : "border-card-border hover:border-accent-gold/50"
                   }`}
                   onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
                   onDragLeave={() => setIsDragging(false)}
@@ -2589,11 +2598,23 @@ function DashboardPageContent() {
                     }
                   }}
                 >
-                  <span className="text-3xl">📄</span>
-                  <div>
-                    <p className="text-xs font-bold text-foreground">Arrastrá tu archivo Excel aquí o hacé clic para buscar</p>
-                    <p className="text-[10px] text-text-muted mt-1">Solo archivos .xlsx de hasta 5MB</p>
-                  </div>
+                  {csvFile ? (
+                    <>
+                      <span className="h-10 w-10 rounded-full bg-accent-green/15 text-accent-green flex items-center justify-center text-xl">✓</span>
+                      <div>
+                        <p className="text-xs font-bold text-foreground">{csvFile.name}</p>
+                        <p className="text-[10px] text-text-muted mt-1">{(csvFile.size / 1024).toFixed(1)} KB — listo para revisar</p>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-3xl">📄</span>
+                      <div>
+                        <p className="text-xs font-bold text-foreground">Arrastrá tu archivo Excel aquí o hacé clic para buscar</p>
+                        <p className="text-[10px] text-text-muted mt-1">Solo archivos .xlsx de hasta 5MB</p>
+                      </div>
+                    </>
+                  )}
                   <input
                     type="file"
                     accept=".xlsx"
@@ -2609,27 +2630,9 @@ function DashboardPageContent() {
                     htmlFor="csv-file-input"
                     className="inline-flex items-center rounded-lg bg-card-bg border border-card-border hover:border-accent-gold px-4 py-2 text-[11px] font-bold text-foreground cursor-pointer transition-all mt-1"
                   >
-                    Seleccionar Archivo
+                    {csvFile ? "Seleccionar otro archivo" : "Seleccionar Archivo"}
                   </label>
                 </div>
-
-                {csvFile && (
-                  <div className="bg-card-bg border border-card-border p-3.5 rounded-xl flex items-center justify-between">
-                    <div className="flex items-center gap-2.5">
-                      <span className="text-xl">📊</span>
-                      <div className="flex flex-col">
-                        <span className="text-xs font-bold text-foreground">{csvFile.name}</span>
-                        <span className="text-[10px] text-text-muted">{(csvFile.size / 1024).toFixed(1)} KB</span>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => setCsvFile(null)}
-                      className="text-text-muted hover:text-red-500 text-xs font-bold cursor-pointer"
-                    >
-                      Quitar
-                    </button>
-                  </div>
-                )}
 
                 <button
                   onClick={handleBulkPreview}
@@ -2708,10 +2711,10 @@ function DashboardPageContent() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => setBulkImagesModalOpen(true)}
-                        className="inline-flex items-center justify-center rounded-lg border border-card-border bg-card-bg hover:border-accent-gold px-4 py-2 text-[11px] font-extrabold text-foreground transition-all cursor-pointer shrink-0"
+                        onClick={() => setShowBulkDeleteConfirm(true)}
+                        className="inline-flex items-center justify-center rounded-lg border border-red-500/30 text-red-500 hover:bg-red-500/5 px-4 py-2 text-[11px] font-extrabold transition-all cursor-pointer shrink-0"
                       >
-                        📸 Agregar imágenes
+                        🗑 Eliminar
                       </button>
                     </div>
                   </div>
@@ -2796,8 +2799,53 @@ function DashboardPageContent() {
                               <td className="p-3 align-top text-center text-text-muted whitespace-nowrap">
                                 {row.valid ? `${row.condition === "NEW" ? "Nuevo" : "Usado"} · ${row.stock}` : "—"}
                               </td>
-                              <td className="p-3 align-top text-center text-text-muted">
-                                {row.valid ? (row.images.length > 0 ? `📷 ${row.images.length}` : "—") : "—"}
+                              <td className="p-3 align-top text-center">
+                                {row.valid ? (
+                                  <label
+                                    htmlFor={`row-photo-${row.rowNumber}`}
+                                    title={row.images.length > 0 ? `${row.images.length} foto(s) — clic para agregar más` : "Sin foto — clic o arrastrá para subir"}
+                                    className={`relative inline-flex h-10 w-10 items-center justify-center rounded-lg border overflow-hidden cursor-pointer transition-colors ${
+                                      photoColumnDragOver === row.rowNumber
+                                        ? "border-accent-gold bg-accent-gold/10"
+                                        : "border-card-border bg-background hover:border-accent-gold/50"
+                                    }`}
+                                    onDragOver={(e) => { e.preventDefault(); setPhotoColumnDragOver(row.rowNumber); }}
+                                    onDragLeave={() => setPhotoColumnDragOver(null)}
+                                    onDrop={(e) => {
+                                      e.preventDefault();
+                                      setPhotoColumnDragOver(null);
+                                      if (e.dataTransfer.files?.length) handleBulkRowImageFiles(row.rowNumber, e.dataTransfer.files);
+                                    }}
+                                  >
+                                    {bulkUploadingRow === row.rowNumber ? (
+                                      <span className="text-[7px] font-bold text-text-muted leading-tight">...</span>
+                                    ) : row.images[0] ? (
+                                      // eslint-disable-next-line @next/next/no-img-element
+                                      <img src={row.images[0]} alt="" className="h-full w-full object-contain pointer-events-none" />
+                                    ) : (
+                                      // eslint-disable-next-line @next/next/no-img-element
+                                      <img src="/sinimagen.png" alt="Sin imagen" className="h-full w-full object-cover pointer-events-none" />
+                                    )}
+                                    {row.images.length > 0 && (
+                                      <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-accent-green text-background text-[8px] font-extrabold flex items-center justify-center pointer-events-none">
+                                        {row.images.length}
+                                      </span>
+                                    )}
+                                    <input
+                                      type="file"
+                                      accept="image/*"
+                                      multiple
+                                      className="hidden"
+                                      id={`row-photo-${row.rowNumber}`}
+                                      disabled={bulkUploadingRow === row.rowNumber}
+                                      onChange={(e) => {
+                                        if (e.target.files?.length) handleBulkRowImageFiles(row.rowNumber, e.target.files);
+                                      }}
+                                    />
+                                  </label>
+                                ) : (
+                                  <span className="text-text-muted">—</span>
+                                )}
                               </td>
                               <td className="p-3 align-top text-center">
                                 {!row.valid ? (
@@ -4001,120 +4049,6 @@ function DashboardPageContent() {
           </div>
         )}
 
-        {/* Modal "Imágenes — N productos": una card por fila seleccionada,
-            cada una con su propio botón de subida — no un mismo set de
-            fotos pegado en todos los productos. Cada subida ya persiste
-            al instante en Storage (mismo mecanismo que el resto del
-            dashboard), así que Cancelar/Guardar todo solo cierran el
-            modal; no hay nada más que "guardar". */}
-        {bulkImagesModalOpen && bulkPreviewRows && (() => {
-          const selectedRows = bulkPreviewRows.filter((r) => bulkSelectedRows.has(r.rowNumber));
-          const withPhotos = selectedRows.filter((r) => r.images.length > 0).length;
-          return (
-            <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-              <div className="bg-card-bg-solid border border-card-border rounded-3xl w-full max-w-4xl max-h-[85vh] flex flex-col shadow-2xl">
-                <div className="flex items-start justify-between gap-3 p-6 border-b border-card-border">
-                  <div className="flex items-center gap-3">
-                    <span className="h-10 w-10 rounded-xl bg-accent-green/10 border border-accent-green/20 flex items-center justify-center text-lg shrink-0">
-                      🖼️
-                    </span>
-                    <div>
-                      <h3 className="font-heading text-base font-bold text-foreground">
-                        Imágenes — {selectedRows.length} producto{selectedRows.length === 1 ? "" : "s"}
-                      </h3>
-                      <p className="text-[11px] text-text-muted mt-0.5">Subí fotos para cada producto seleccionado.</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setBulkImagesModalOpen(false)}
-                    className="text-text-muted hover:text-foreground text-lg cursor-pointer shrink-0"
-                  >
-                    ✕
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 overflow-y-auto p-6">
-                  {selectedRows.map((row) => (
-                    <div key={row.rowNumber} className="rounded-2xl border border-card-border bg-card-bg overflow-hidden flex flex-col">
-                      {/* El thumbnail entero es el selector: clic para
-                          buscar el archivo o arrastrá la imagen directo
-                          encima. Sigue funcionando con imagen ya cargada
-                          (agrega más), no solo cuando está vacío. */}
-                      <label
-                        htmlFor={`bulk-modal-images-${row.rowNumber}`}
-                        className={`relative aspect-square flex items-center justify-center cursor-pointer transition-colors ${
-                          bulkModalDragOver === row.rowNumber ? "bg-accent-gold/10" : "bg-background hover:bg-card-bg-solid"
-                        }`}
-                        onDragOver={(e) => { e.preventDefault(); setBulkModalDragOver(row.rowNumber); }}
-                        onDragLeave={() => setBulkModalDragOver(null)}
-                        onDrop={(e) => {
-                          e.preventDefault();
-                          setBulkModalDragOver(null);
-                          if (e.dataTransfer.files?.length) handleBulkRowImageFiles(row.rowNumber, e.dataTransfer.files);
-                        }}
-                      >
-                        {bulkUploadingRow === row.rowNumber ? (
-                          <span className="text-[10px] font-bold text-text-muted">Subiendo...</span>
-                        ) : row.images[0] ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={row.images[0]} alt={row.name} className="h-full w-full object-contain pointer-events-none" />
-                        ) : (
-                          <div className="flex flex-col items-center gap-1 pointer-events-none">
-                            <span className="text-2xl text-text-muted">🖼️</span>
-                            <span className="text-[9px] font-bold text-text-muted">Sin imagen</span>
-                          </div>
-                        )}
-                        {row.images.length > 0 && (
-                          <span className="absolute top-2 left-2 bg-accent-green text-background text-[9px] font-extrabold px-2 py-0.5 rounded-full pointer-events-none">
-                            {row.images.length} foto{row.images.length === 1 ? "" : "s"}
-                          </span>
-                        )}
-                        <input
-                          type="file"
-                          accept="image/*"
-                          multiple
-                          className="hidden"
-                          id={`bulk-modal-images-${row.rowNumber}`}
-                          disabled={bulkUploadingRow === row.rowNumber}
-                          onChange={(e) => {
-                            if (e.target.files?.length) handleBulkRowImageFiles(row.rowNumber, e.target.files);
-                          }}
-                        />
-                      </label>
-                      <div className="p-3">
-                        {row.brand && (
-                          <span className="text-[9px] font-bold text-text-muted uppercase tracking-wide block">{row.brand}</span>
-                        )}
-                        <span className="text-xs font-bold text-foreground line-clamp-2">{row.name}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="flex items-center justify-between gap-3 p-4 border-t border-card-border">
-                  <span className="text-[11px] text-text-muted">
-                    {withPhotos === 0 ? "Sin fotos aún" : `${withPhotos} de ${selectedRows.length} productos con fotos`}
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setBulkImagesModalOpen(false)}
-                      className="rounded-lg border border-card-border px-4 py-2 text-[11px] font-bold text-foreground hover:border-accent-gold transition-all cursor-pointer"
-                    >
-                      Cancelar
-                    </button>
-                    <button
-                      onClick={() => { setBulkImagesModalOpen(false); setBulkSelectedRows(new Set()); }}
-                      className="rounded-lg bg-accent-gold text-background px-4 py-2 text-[11px] font-extrabold hover:opacity-90 transition-all cursor-pointer"
-                    >
-                      ✓ Guardar todo
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          );
-        })()}
-
         {/* Modal de Confirmación de Eliminación */}
         <ConfirmModal
           isOpen={listingIdToDelete !== null}
@@ -4129,6 +4063,17 @@ function DashboardPageContent() {
           }}
           onCancel={() => setListingIdToDelete(null)}
           isLoading={loading}
+          type="danger"
+        />
+
+        <ConfirmModal
+          isOpen={showBulkDeleteConfirm}
+          title="¿Sacar filas de la carga?"
+          description={`Se van a sacar ${bulkSelectedRows.size} fila${bulkSelectedRows.size === 1 ? "" : "s"} de la pre-carga. No se van a publicar.`}
+          confirmText="Sacar filas"
+          cancelText="Cancelar"
+          onConfirm={handleBulkDeleteSelected}
+          onCancel={() => setShowBulkDeleteConfirm(false)}
           type="danger"
         />
 

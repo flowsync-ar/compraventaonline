@@ -197,7 +197,7 @@ export default async function HomePage() {
             if (!listing) return null;
             const product = listing.products;
             const seller = listing.sellers;
-            const image = product?.images?.[0] ?? "https://images.unsplash.com/photo-1531403009284-440f080d1e12?q=80&w=600&auto=format&fit=crop";
+            const image = product?.images?.[0] ?? "/sinimagen.png";
             return (
               <Link
                 key={highlight.id}

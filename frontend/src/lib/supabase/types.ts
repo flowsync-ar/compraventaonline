@@ -473,16 +473,22 @@ export type Database = {
           created_at: string
           id: string
           path: string
+          visit_date: string
+          visitor_key: string
         }
         Insert: {
           created_at?: string
           id?: string
           path: string
+          visit_date?: string
+          visitor_key: string
         }
         Update: {
           created_at?: string
           id?: string
           path?: string
+          visit_date?: string
+          visitor_key?: string
         }
         Relationships: []
       }

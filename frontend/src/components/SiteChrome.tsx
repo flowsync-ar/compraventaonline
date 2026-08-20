@@ -8,6 +8,7 @@ import HeaderSessionBar from "./HeaderSessionBar"
 import HeaderSearch from "./HeaderSearch"
 import ThemedImage from "./ThemedImage"
 import { createClient } from "@/lib/supabase/client"
+import { getOrCreateVisitorId } from "@/lib/visitorId"
 
 // The /admin panel is a separate dashboard experience — it never shows the
 // public marketplace header/footer (nav, search, cart, etc).
@@ -38,13 +39,15 @@ export default function SiteChrome({ children }: { children: ReactNode }) {
   // Lightweight visit counter for the admin stats dashboard — public site
   // only (never /admin, guarded inside the effect body since hooks can't
   // be called conditionally). Fire-and-forget: a visitor's page must never
-  // wait on or break over this.
+  // wait on or break over this. visitorId (same anon cookie used for
+  // listing views) lets the backend dedupe by unique visitor/day instead
+  // of counting every single page load — see 026_unique_page_views.sql.
   useEffect(() => {
     if (isAdmin || !pathname) return
     fetch("/api/track-visit", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ path: pathname }),
+      body: JSON.stringify({ path: pathname, visitorId: getOrCreateVisitorId() }),
       keepalive: true,
     }).catch(() => {
       // best-effort — a dropped beacon shouldn't surface anywhere

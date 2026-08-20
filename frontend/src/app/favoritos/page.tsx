@@ -232,7 +232,7 @@ export default function FavoritesPage() {
             const image =
               listing?.image_url ??
               product?.images?.[0] ??
-              "https://images.unsplash.com/photo-1531403009284-440f080d1e12?q=80&w=600&auto=format&fit=crop";
+              "/sinimagen.png";
             const price = listing?.price ?? null;
             const currencySymbol = listing?.currencies?.symbol ?? "$";
             const condition = listing?.condition === "NEW" ? "Nuevo" : listing?.condition === "USED" ? "Usado" : null;

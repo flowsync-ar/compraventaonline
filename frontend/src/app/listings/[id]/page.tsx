@@ -693,7 +693,7 @@ export default function ListingDetailPage() {
   const product = listing.products;
   const seller = listing.sellers;
   const images = product?.images ?? [];
-  const mainImage = activeImage ?? images[0] ?? "/placeholder.png";
+  const mainImage = activeImage ?? images[0] ?? "/sinimagen.png";
 
   const openImageModal = (img: string) => {
     const idx = images.indexOf(img);

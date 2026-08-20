@@ -393,7 +393,7 @@ export default function HeaderSessionBar() {
       </Link>
 
       {isLoggedIn ? (
-        <div className="flex items-center gap-2.5 sm:gap-4 relative">
+        <div className="flex items-center gap-1.5 sm:gap-4 relative">
 
           {/* User Profile Indicator / Dropdown */}
           <div ref={userMenuRef} className="relative">
@@ -402,7 +402,7 @@ export default function HeaderSessionBar() {
                 setShowUserMenu(!showUserMenu)
                 setShowCart(false)
               }}
-              className="flex items-center gap-2 bg-card-bg border border-card-border/50 pl-1.5 pr-2 md:pr-3 py-1 rounded-full shadow-sm hover:border-card-border transition-colors cursor-pointer select-none"
+              className="flex items-center gap-2 bg-card-bg border border-card-border/50 pl-1.5 pr-1.5 md:pr-3 py-1 rounded-full shadow-sm hover:border-card-border transition-colors cursor-pointer select-none"
             >
               <div className="relative h-7 w-7 shrink-0 rounded-full overflow-hidden shadow-sm">
                 <SellerAvatar src={profile?.avatar_url} alt={profile?.name ?? "Vendedor"} />

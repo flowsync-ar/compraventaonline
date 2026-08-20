@@ -174,9 +174,9 @@ export default function SiteChrome({ children }: { children: ReactNode }) {
               </Link>
             </div>
 
-            <div className="flex shrink-0 items-center gap-1.5 sm:gap-2.5 lg:col-start-3 lg:row-start-1">
+            <div className="flex shrink-0 items-center gap-1 sm:gap-2.5 lg:col-start-3 lg:row-start-1">
               <HeaderSessionBar />
-              <div className="pl-1.5 sm:pl-2.5 border-l border-card-border/40">
+              <div className="pl-1 sm:pl-2.5 border-l border-card-border/40">
                 <ThemeToggle />
               </div>
             </div>

@@ -271,25 +271,25 @@ export default function PurchasesPage() {
                     </span>
                   </div>
 
-                  <div className="flex flex-wrap md:flex-col gap-2 w-full md:w-auto shrink-0 md:min-w-[170px]">
+                  <div className="flex flex-col gap-2 w-full md:w-auto shrink-0 md:min-w-[170px]">
                     {order.status === "PAID" && !ratedOrderIds.has(order.id) && (
                       <button
                         onClick={() => { setRatingValue(null); setRatingComment(""); setRatingOrder(order); }}
-                        className="flex-1 md:w-full rounded-xl bg-accent-gold/10 border border-accent-gold/30 text-accent-gold px-4 py-2.5 text-xs font-bold hover:bg-accent-gold/20 transition-all cursor-pointer text-center"
+                        className="w-full rounded-xl bg-accent-gold/10 border border-accent-gold/30 text-accent-gold px-4 py-2.5 text-xs font-bold hover:bg-accent-gold/20 transition-all cursor-pointer text-center"
                       >
                         ⭐ Calificar vendedor
                       </button>
                     )}
                     <button
                       onClick={() => { setSelectedOrder(order); setShowContactModal(true); }}
-                      className="flex-1 md:w-full rounded-xl bg-card-bg border border-card-border px-4 py-2.5 text-xs font-bold text-foreground hover:text-accent-gold hover:border-accent-gold/30 transition-all cursor-pointer text-center"
+                      className="w-full rounded-xl bg-card-bg border border-card-border px-4 py-2.5 text-xs font-bold text-foreground hover:text-accent-gold hover:border-accent-gold/30 transition-all cursor-pointer text-center"
                     >
                       Contactar vendedor
                     </button>
                     {order.listings?.id && (
                       <Link
                         href={`/listings/${order.listings.id}`}
-                        className="flex-1 md:w-full rounded-xl border border-card-border px-4 py-2.5 text-xs font-bold text-foreground hover:text-accent-gold hover:border-accent-gold/30 transition-all text-center"
+                        className="w-full rounded-xl border border-card-border px-4 py-2.5 text-xs font-bold text-foreground hover:text-accent-gold hover:border-accent-gold/30 transition-all text-center"
                       >
                         Ver publicación
                       </Link>

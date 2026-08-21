@@ -15,6 +15,7 @@ interface Listing {
   price: number;
   condition: string;
   featured_plan: string;
+  status: string;
   stock: number;
   image_url: string | null;
   products: {
@@ -211,6 +212,7 @@ export default function ListingDetailPage() {
             price,
             condition,
             featured_plan,
+            status,
             stock,
             image_url,
             products (
@@ -345,8 +347,12 @@ export default function ListingDetailPage() {
   // isPaid only ever gets set right after confirming in this same session,
   // so a buyer who reopens the page later would keep seeing "Comprar
   // Ahora" despite already having confirmed a purchase.
+  // MUST filter by buyer_id: without it, a seller viewing their OWN sold
+  // listing also matched this query (RLS lets a seller read their own
+  // orders too) and incorrectly saw the buyer-facing "confirmaste tu
+  // compra" message on their own product.
   useEffect(() => {
-    if (!userId || !id) return;
+    if (!sellerId || !id) return;
 
     async function checkExistingOrder() {
       const supabase = getSupabase();
@@ -355,6 +361,7 @@ export default function ListingDetailPage() {
           .from("orders")
           .select("id")
           .eq("listing_id", id)
+          .eq("buyer_id", sellerId)
           .neq("status", "CANCELLED")
           .limit(1)
           .maybeSingle();
@@ -366,7 +373,38 @@ export default function ListingDetailPage() {
     }
 
     checkExistingOrder();
-  }, [userId, id]);
+  }, [sellerId, id]);
+
+  // Seller viewing their OWN sold listing — fetch who bought it so we can
+  // show "felicitaciones, comunicate con el comprador" instead of the
+  // buyer-facing messaging.
+  const [soldToBuyer, setSoldToBuyer] = useState<{ name: string; phone: string | null } | null>(null);
+  const isOwnSoldListing = !!sellerId && listing?.sellers?.id === sellerId && listing?.status === "SOLD";
+  useEffect(() => {
+    if (!isOwnSoldListing || !id) return;
+
+    async function fetchBuyer() {
+      const supabase = getSupabase();
+      try {
+        const { data, error } = await supabase
+          .from("orders")
+          .select("id, paid_at, buyer:sellers!orders_buyer_id_fkey(name, phone)")
+          .eq("listing_id", id)
+          .eq("status", "PAID")
+          .order("paid_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (error) throw error;
+        const buyer = (data as unknown as { buyer: { name: string; phone: string | null } | null } | null)?.buyer;
+        if (buyer) setSoldToBuyer(buyer);
+      } catch (err) {
+        console.error("Error fetching buyer info:", err);
+      }
+    }
+
+    fetchBuyer();
+  }, [isOwnSoldListing, id]);
 
   // Check if listing is favorited
   useEffect(() => {
@@ -652,6 +690,7 @@ export default function ListingDetailPage() {
 
   const product = listing.products;
   const seller = listing.sellers;
+  const isOwnListing = !!sellerId && seller?.id === sellerId;
   const images = product?.images ?? [];
   const mainImage = activeImage ?? images[0] ?? "/sinimagen.png";
 
@@ -701,6 +740,20 @@ export default function ListingDetailPage() {
   const formattedWhatsAppUrl = sellerWhatsAppNumber
     ? `https://wa.me/${sellerWhatsAppNumber}?text=${encodeURIComponent(
         `Hola! Te contacto desde CompraVentaOnline.com.ar por el artículo "${product?.name}" (${currencySymbol}${Number(listing.price).toLocaleString("es-AR")}). Sigue disponible?`
+      )}`
+    : null;
+
+  // Same AR-number formatting as above, but for the buyer who bought THIS
+  // seller's own sold listing (see isOwnSoldListing).
+  const buyerPhoneDigits = soldToBuyer?.phone?.replace(/\D/g, "") ?? "";
+  const buyerWhatsAppNumber = buyerPhoneDigits
+    ? buyerPhoneDigits.startsWith("549")
+      ? buyerPhoneDigits
+      : `549${buyerPhoneDigits.replace(/^54/, "")}`
+    : null;
+  const buyerWhatsAppUrl = buyerWhatsAppNumber
+    ? `https://wa.me/${buyerWhatsAppNumber}?text=${encodeURIComponent(
+        `Hola ${soldToBuyer?.name ?? ""}, te contacto desde CompraVentaOnline.com.ar por tu compra de "${product?.name}" para coordinar la entrega.`
       )}`
     : null;
 
@@ -990,7 +1043,27 @@ export default function ListingDetailPage() {
                   {orderError}
                 </div>
               )}
-              {isPaid ? (
+              {isOwnSoldListing ? (
+                <>
+                  <div className="bg-accent-green/10 border border-accent-green/30 text-accent-green rounded-2xl p-4 text-xs font-medium text-center animate-in fade-in duration-300">
+                    🎉 ¡Felicitaciones, vendiste este producto! Comunicate con el comprador lo antes posible para coordinar la entrega.
+                  </div>
+                  {buyerWhatsAppUrl ? (
+                    <a
+                      href={buyerWhatsAppUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full rounded-xl bg-gradient-to-r from-accent-green to-emerald-600 px-6 py-4 text-xs font-extrabold text-white text-center shadow-md hover:scale-[1.01] transition-all flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <span>💬 Contactar al comprador</span>
+                    </a>
+                  ) : (
+                    <p className="text-xs text-text-muted text-center">
+                      El comprador no cargó un celular de contacto. Coordiná desde &quot;Mis Ventas&quot;.
+                    </p>
+                  )}
+                </>
+              ) : isPaid ? (
                 <>
                   <div className="bg-accent-green/10 border border-accent-green/30 text-accent-green rounded-2xl p-4 text-xs font-medium text-center animate-in fade-in duration-300">
                     ✓ ¡Confirmaste tu compra! Comunicate con el vendedor por WhatsApp para coordinar el pago y el envío.
@@ -1010,7 +1083,7 @@ export default function ListingDetailPage() {
                     </p>
                   )}
                 </>
-              ) : sellerId && seller?.id === sellerId ? (
+              ) : isOwnListing ? (
                 <div className="bg-text-muted/10 border border-card-border text-text-muted rounded-2xl p-4 text-xs font-medium text-center">
                   Esta es tu propia publicación — no podés comprarla.
                 </div>
@@ -1041,24 +1114,26 @@ export default function ListingDetailPage() {
                 </div>
               )}
 
-              <button
-                onClick={() => {
-                  if (!userId) {
-                    router.push("/login?redirect=" + encodeURIComponent(`/listings/${id}`));
-                  } else {
-                    setShowContactModal(true);
-                  }
-                }}
-                className="w-full rounded-xl bg-card-bg border border-card-border px-6 py-4 text-xs font-bold text-foreground text-center shadow-sm hover:scale-[1.01] transition-all cursor-pointer"
-              >
-                Preguntar al Vendedor
-              </button>
+              {!isOwnListing && (
+                <button
+                  onClick={() => {
+                    if (!userId) {
+                      router.push("/login?redirect=" + encodeURIComponent(`/listings/${id}`));
+                    } else {
+                      setShowContactModal(true);
+                    }
+                  }}
+                  className="w-full rounded-xl bg-card-bg border border-card-border px-6 py-4 text-xs font-bold text-foreground text-center shadow-sm hover:scale-[1.01] transition-all cursor-pointer"
+                >
+                  Preguntar al Vendedor
+                </button>
+              )}
             </div>
 
-            <div className="border-t border-card-border pt-5 flex justify-between items-center text-sm text-text-muted font-semibold">
+            <div className="border-t border-card-border pt-5 flex justify-center items-center gap-6 text-xs sm:text-sm text-text-muted font-semibold">
               <button
                 onClick={handleShareListing}
-                className="flex items-center gap-1.5 text-foreground hover:text-accent-gold transition-all cursor-pointer"
+                className="flex items-center gap-1.5 text-foreground hover:text-accent-gold transition-all cursor-pointer whitespace-nowrap"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
                   <circle cx="18" cy="5" r="3" />
@@ -1071,7 +1146,7 @@ export default function ListingDetailPage() {
               </button>
               <button
                 onClick={() => setShowReportModal(true)}
-                className="text-red-500 hover:underline transition-all cursor-pointer"
+                className="text-red-500 hover:underline transition-all cursor-pointer whitespace-nowrap"
               >
                 🚩 Denunciar publicación
               </button>

@@ -2322,13 +2322,13 @@ function DashboardPageContent() {
                 {selectedListingToEdit && (
                   <div className="flex flex-col gap-2 mt-2 animate-in fade-in duration-200">
                     <label className="text-xs font-bold text-foreground">Estado de la Publicación</label>
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-2 gap-2">
                       <button
                         type="button"
                         onClick={() => setStatus("APPROVED")}
                         className={`py-2.5 px-3 text-xs font-bold rounded-xl border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                          status === "APPROVED" 
-                            ? "bg-accent-green/10 border-accent-green text-accent-green shadow-[0_0_10px_rgba(16,185,129,0.15)]" 
+                          status === "APPROVED"
+                            ? "bg-accent-green/10 border-accent-green text-accent-green shadow-[0_0_10px_rgba(16,185,129,0.15)]"
                             : "border-card-border hover:bg-card-bg/25 text-text-muted"
                         }`}
                       >
@@ -2337,27 +2337,15 @@ function DashboardPageContent() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => setStatus("REVIEW_REQUIRED")}
+                        onClick={() => setStatus("PAUSED")}
                         className={`py-2.5 px-3 text-xs font-bold rounded-xl border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                          status === "REVIEW_REQUIRED" 
-                            ? "bg-yellow-500/10 border-yellow-500 text-yellow-600 dark:text-yellow-400 shadow-[0_0_10px_rgba(234,179,8,0.15)]" 
+                          status === "PAUSED"
+                            ? "bg-yellow-500/10 border-yellow-500 text-yellow-600 dark:text-yellow-400 shadow-[0_0_10px_rgba(234,179,8,0.15)]"
                             : "border-card-border hover:bg-card-bg/25 text-text-muted"
                         }`}
                       >
                         <span className="w-1.5 h-1.5 rounded-full bg-yellow-500"></span>
                         PAUSADO
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setStatus("BLOCKED")}
-                        className={`py-2.5 px-3 text-xs font-bold rounded-xl border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                          status === "BLOCKED" 
-                            ? "bg-red-500/10 border-red-500 text-red-500 shadow-[0_0_10px_rgba(239,68,68,0.15)]" 
-                            : "border-card-border hover:bg-card-bg/25 text-text-muted"
-                        }`}
-                      >
-                        <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
-                        SIN PUBLICAR
                       </button>
                     </div>
                   </div>
@@ -3138,7 +3126,7 @@ function DashboardPageContent() {
                 )}
               </div>
 
-              <div className="overflow-x-auto md:overflow-x-visible">
+              <div className="hidden md:block overflow-x-auto md:overflow-x-visible">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
                     <tr className="border-b border-card-border text-text-muted font-bold select-none">
@@ -3226,9 +3214,7 @@ function DashboardPageContent() {
                           </td>
                           <td className="py-4 px-4 text-center font-bold text-foreground">{listing.stock}</td>
                           <td className="py-4 px-4 text-center text-text-muted">
-                            <span className="inline-flex items-center gap-1">
-                              👁️ {viewCounts[listing.id] ?? 0}
-                            </span>
+                            ({viewCounts[listing.id] ?? 0})
                           </td>
                           <td className="py-4 px-4 text-center relative">
                             {listing.status === "SOLD" ? (
@@ -3259,14 +3245,9 @@ function DashboardPageContent() {
                                     🟢 PUBLICADO
                                   </span>
                                 )}
-                                {listing.status === "REVIEW_REQUIRED" && (
+                                {listing.status === "PAUSED" && (
                                   <span className="px-2.5 py-1 rounded-xl text-[9px] font-extrabold bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border border-yellow-500/20 uppercase tracking-wider">
                                     🟡 PAUSADO
-                                  </span>
-                                )}
-                                {listing.status === "BLOCKED" && (
-                                  <span className="px-2.5 py-1 rounded-xl text-[9px] font-extrabold bg-red-500/10 text-red-500 border border-red-500/20 uppercase tracking-wider">
-                                    🔴 SIN PUBLICAR
                                   </span>
                                 )}
                               </button>
@@ -3302,23 +3283,12 @@ function DashboardPageContent() {
                                     type="button"
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      handleUpdateStatusDirectly(listing.id, "REVIEW_REQUIRED");
+                                      handleUpdateStatusDirectly(listing.id, "PAUSED");
                                     }}
                                     className="w-full text-left px-2.5 py-1.5 rounded-lg text-[10px] font-bold hover:bg-card-bg transition-colors flex items-center gap-1.5 text-yellow-500 cursor-pointer"
                                   >
                                     <span className="w-1.5 h-1.5 rounded-full bg-yellow-500"></span>
                                     PAUSADO
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleUpdateStatusDirectly(listing.id, "BLOCKED");
-                                    }}
-                                    className="w-full text-left px-2.5 py-1.5 rounded-lg text-[10px] font-bold hover:bg-card-bg transition-colors flex items-center gap-1.5 text-red-500 cursor-pointer"
-                                  >
-                                    <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
-                                    SIN PUBLICAR
                                   </button>
                                 </div>
                               </>
@@ -3381,6 +3351,172 @@ function DashboardPageContent() {
                     )}
                   </tbody>
                 </table>
+              </div>
+
+              {/* Mobile card list — the table above is unreadable squeezed
+                  into a phone width, so <md gets its own compact layout
+                  instead of relying on horizontal scroll. */}
+              <div className="flex flex-col gap-3 md:hidden">
+                {filteredAndSortedListings.length === 0 ? (
+                  <div className="py-8 text-center text-text-muted text-xs">No se encontraron artículos</div>
+                ) : (
+                  paginatedListings.map((listing, index) => {
+                    const thumbnail = listing.image_url ?? listing.products?.images?.[0] ?? null;
+                    return (
+                      <div key={listing.id} className="rounded-2xl border border-card-border bg-card-bg-solid p-3 flex flex-col gap-3">
+                        <div className="flex items-start gap-3">
+                          <Link href={`/listings/${listing.id}`} className="h-14 w-14 rounded-lg overflow-hidden border border-card-border bg-card-bg shrink-0">
+                            {thumbnail ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={thumbnail} alt={listing.products?.name ?? "Producto"} className="h-full w-full object-contain" />
+                            ) : (
+                              <span className="h-full w-full flex items-center justify-center text-text-muted text-lg">📦</span>
+                            )}
+                          </Link>
+                          <div className="flex-1 min-w-0">
+                            <Link href={`/listings/${listing.id}`} className="font-bold text-foreground text-sm block truncate hover:text-accent-gold transition-colors">
+                              {listing.products?.name ?? "Sin nombre"}
+                            </Link>
+                            <div className="flex items-center gap-2 mt-1">
+                              <span className="text-[11px] text-text-muted">{listing.products?.brand ?? "-"}</span>
+                              <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                                listing.condition === "NEW" ? "bg-accent-green/10 text-accent-green" : "bg-text-muted/10 text-text-muted"
+                              }`}>
+                                {listing.condition === "NEW" ? "NUEVO" : "USADO"}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="relative shrink-0">
+                            {listing.status === "SOLD" ? (
+                              <span className="px-2 py-1 rounded-xl text-[9px] font-extrabold bg-text-muted/10 text-text-muted border border-card-border/60 uppercase tracking-wider whitespace-nowrap">
+                                ⚫ VENDIDO
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveStatusDropdownListingId(
+                                    activeStatusDropdownListingId === listing.id ? null : listing.id
+                                  );
+                                }}
+                                disabled={loading}
+                                className="focus:outline-none cursor-pointer active:scale-95 transition-all inline-block"
+                              >
+                                {listing.status === "APPROVED" && (
+                                  <span className="px-2 py-1 rounded-xl text-[9px] font-extrabold bg-accent-green/10 text-accent-green border border-accent-green/20 uppercase tracking-wider whitespace-nowrap">
+                                    🟢 PUBLICADO
+                                  </span>
+                                )}
+                                {listing.status === "PAUSED" && (
+                                  <span className="px-2 py-1 rounded-xl text-[9px] font-extrabold bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border border-yellow-500/20 uppercase tracking-wider whitespace-nowrap">
+                                    🟡 PAUSADO
+                                  </span>
+                                )}
+                              </button>
+                            )}
+
+                            {activeStatusDropdownListingId === listing.id && (
+                              <>
+                                <div
+                                  className="fixed inset-0 z-40 cursor-default"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setActiveStatusDropdownListingId(null);
+                                  }}
+                                />
+                                <div className={`absolute right-0 w-32 rounded-xl bg-card-bg-solid border border-card-border p-1.5 shadow-2xl z-50 flex flex-col gap-1 text-left animate-in fade-in duration-150 ${
+                                  index >= paginatedListings.length - 2 && paginatedListings.length > 2
+                                    ? "bottom-full mb-2 slide-in-from-bottom-2"
+                                    : "top-full mt-1 slide-in-from-top-2"
+                                }`}>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleUpdateStatusDirectly(listing.id, "APPROVED");
+                                    }}
+                                    className="w-full text-left px-2.5 py-1.5 rounded-lg text-[10px] font-bold hover:bg-card-bg transition-colors flex items-center gap-1.5 text-accent-green cursor-pointer"
+                                  >
+                                    <span className="w-1.5 h-1.5 rounded-full bg-accent-green"></span>
+                                    PUBLICADO
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleUpdateStatusDirectly(listing.id, "PAUSED");
+                                    }}
+                                    className="w-full text-left px-2.5 py-1.5 rounded-lg text-[10px] font-bold hover:bg-card-bg transition-colors flex items-center gap-1.5 text-yellow-500 cursor-pointer"
+                                  >
+                                    <span className="w-1.5 h-1.5 rounded-full bg-yellow-500"></span>
+                                    PAUSADO
+                                  </button>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        </div>
+
+                        {listing.status === "SOLD" && soldOrders[listing.id] && (
+                          <p className="text-[10px] text-text-muted -mt-2">
+                            Vendido a {soldOrders[listing.id].buyerName} · {new Date(soldOrders[listing.id].paidAt).toLocaleDateString("es-AR")}
+                          </p>
+                        )}
+
+                        <div className="flex items-center justify-between border-t border-card-border/30 pt-3">
+                          <div className="flex flex-col">
+                            <span className="text-[9px] text-text-muted uppercase font-semibold">Precio</span>
+                            <span className="font-extrabold text-foreground text-sm">
+                              {currencies.find((c) => c.id === listing.currency_id)?.symbol ?? "$"}
+                              {Number(listing.price).toLocaleString("es-AR")}
+                            </span>
+                          </div>
+                          <div className="flex flex-col items-center">
+                            <span className="text-[9px] text-text-muted uppercase font-semibold">Stock</span>
+                            <span className="font-bold text-foreground text-sm">{listing.stock}</span>
+                          </div>
+                          <div className="flex flex-col items-center">
+                            <span className="text-[9px] text-text-muted uppercase font-semibold">Visitas</span>
+                            <span className="font-bold text-foreground text-sm">({viewCounts[listing.id] ?? 0})</span>
+                          </div>
+                          <div className="flex gap-1.5">
+                            <button
+                              onClick={() => handleCloneListing(listing.id)}
+                              disabled={loading}
+                              className="bg-card-bg border border-card-border text-foreground hover:text-accent-gold hover:border-accent-gold/40 h-8 w-8 rounded-lg flex items-center justify-center transition-all cursor-pointer disabled:opacity-50"
+                              aria-label="Clonar"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-4 h-4">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 8.25V6a2.25 2.25 0 0 0-2.25-2.25H6A2.25 2.25 0 0 0 3.75 6v8.25A2.25 2.25 0 0 0 6 16.5h2.25m8.25-8.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-7.5A2.25 2.25 0 0 1 8.25 18v-1.5m8.25-8.25h-6a2.25 2.25 0 0 0-2.25 2.25v6" />
+                              </svg>
+                            </button>
+                            <button
+                              onClick={() => handleOpenEditModal(listing)}
+                              disabled={loading}
+                              className="bg-card-bg border border-card-border text-foreground hover:text-accent-blue hover:border-accent-blue/40 h-8 w-8 rounded-lg flex items-center justify-center transition-all cursor-pointer disabled:opacity-50"
+                              aria-label="Editar"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-4 h-4">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
+                              </svg>
+                            </button>
+                            <button
+                              onClick={() => setListingIdToDelete(listing.id)}
+                              disabled={loading}
+                              className="bg-card-bg border border-card-border text-foreground hover:text-red-500 hover:border-red-500/40 h-8 w-8 rounded-lg flex items-center justify-center transition-all cursor-pointer disabled:opacity-50"
+                              aria-label="Eliminar"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-4 h-4">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.34 9m-4.78 0L9 9m9.96-3.08c.18.04.36.08.54.13M15 3.57a48.008 48.008 0 0 0-6 0M4.5 6.08c.18-.05.36-.09.54-.13M18 6.08a48.108 48.108 0 0 0-12 0M6.25 6.08l.81 12.35c.04.83.69 1.5 1.52 1.5H15.4c.83 0 1.48-.67 1.52-1.5l.81-12.35m-9.96 0h12" />
+                              </svg>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
               </div>
 
               {/* Pagination Controls */}

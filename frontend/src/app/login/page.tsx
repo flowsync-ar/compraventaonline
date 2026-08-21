@@ -26,9 +26,18 @@ export default function LoginPage() {
   )
 }
 
+// Only accept same-origin relative paths — a bare "/foo" is safe, but
+// "//evil.com" or "https://evil.com" would send the user off-site after
+// login while looking like an internal redirect.
+function getSafeRedirect(value: string | null): string {
+  if (!value || !value.startsWith("/") || value.startsWith("//")) return "/"
+  return value
+}
+
 function LoginPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const redirectTo = getSafeRedirect(searchParams.get("redirect"))
   // Lazy client init to avoid prerender errors when env vars are missing at build time
   const supabaseRef = useRef<SupabaseClient<Database> | null>(null)
   const getSupabase = () => {
@@ -185,7 +194,7 @@ function LoginPageContent() {
   useEffect(() => {
     getSupabase().auth.getSession().then(({ data: { session } }) => {
       if (session) {
-        router.push("/")
+        router.push(redirectTo)
       }
     })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -238,7 +247,7 @@ function LoginPageContent() {
 
         setSuccessMsg("¡Inicio de sesión exitoso! Redireccionando...")
         setTimeout(() => {
-          router.push("/")
+          router.push(redirectTo)
           router.refresh()
         }, 1000)
 

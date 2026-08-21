@@ -33,6 +33,7 @@ interface Listing {
     tier: string;
     type: string;
     bio: string | null;
+    location: string | null;
     mercadopago_connected: boolean;
     bank_cbu: string | null;
     bank_alias: string | null;
@@ -78,10 +79,9 @@ export default function ListingDetailPage() {
   const [isPaid, setIsPaid] = useState(false);
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
   const [paymentLoading, setPaymentLoading] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<"MERCADOPAGO" | "TRANSFER">("MERCADOPAGO");
   const [orderError, setOrderError] = useState("");
-  const [transferInfo, setTransferInfo] = useState<{ cbu: string | null; alias: string | null; sellerName: string } | null>(null);
-  const [paymentPending, setPaymentPending] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [orderConfirmed, setOrderConfirmed] = useState(false);
 
   // Interactive Modals
   const [showContactModal, setShowContactModal] = useState(false);
@@ -126,6 +126,10 @@ export default function ListingDetailPage() {
   // Seller phone — only fetched (and only fetchable, per RLS) for logged-in users
   const [sellerPhone, setSellerPhone] = useState<string | null>(null);
 
+  // The logged-in buyer's own contact info — shown back to them in the
+  // order-confirmed modal so they know exactly what the seller now sees.
+  const [buyerContact, setBuyerContact] = useState<{ name: string; phone: string | null; email: string | null } | null>(null);
+
   // Whether this listing's seller has at least one PAID order — sellers.score
   // and sellers.tier default to 80/BRONCE at signup, which would otherwise
   // read as a real reputation for a seller who never sold anything.
@@ -145,13 +149,15 @@ export default function ListingDetailPage() {
   useEffect(() => {
     const supabase = getSupabase();
 
-    async function resolveSellerId(uid: string) {
+    async function resolveSellerId(uid: string, email: string | null) {
       try {
-        const { data } = await supabase.from("sellers").select("id").eq("user_id", uid).single();
+        const { data } = await supabase.from("sellers").select("id, name, phone").eq("user_id", uid).single();
         setSellerId(data?.id ?? null);
+        setBuyerContact(data ? { name: data.name, phone: data.phone, email } : null);
       } catch (err) {
         console.error("Error resolving seller id:", err);
         setSellerId(null);
+        setBuyerContact(null);
       }
     }
 
@@ -159,16 +165,17 @@ export default function ListingDetailPage() {
     supabase.auth.getSession().then(({ data: { session } }) => {
       const uid = session?.user?.id ?? null;
       setUserId(uid);
-      if (uid) resolveSellerId(uid);
+      if (uid) resolveSellerId(uid, session?.user?.email ?? null);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       const uid = session?.user?.id ?? null;
       setUserId(uid);
       if (uid) {
-        resolveSellerId(uid);
+        resolveSellerId(uid, session?.user?.email ?? null);
       } else {
         setSellerId(null);
+        setBuyerContact(null);
       }
     });
 
@@ -222,6 +229,7 @@ export default function ListingDetailPage() {
               tier,
               type,
               bio,
+              location,
               mercadopago_connected,
               bank_cbu,
               bank_alias
@@ -242,7 +250,6 @@ export default function ListingDetailPage() {
           const row = data as unknown as Listing;
           setListing(row);
           setActiveImage(row.image_url ?? row.products?.images?.[0] ?? null);
-          setPaymentMethod(row.sellers?.mercadopago_connected ? "MERCADOPAGO" : "TRANSFER");
         }
       } catch (err) {
         console.error("[listing] Unexpected error fetching listing:", err);
@@ -323,64 +330,21 @@ export default function ListingDetailPage() {
     fetchQuestions();
   }, [id, sellerId]);
 
-  // Handle the buyer coming back from Mercado Pago's checkout — poll the
-  // order a few times since the webhook that confirms payment can lag
-  // slightly behind the redirect.
+  // Buyer clicked "Comprar Ahora" while logged out, got sent to
+  // /login?redirect=/listings/[id]?buy=1, and is now back here logged in —
+  // reopen the checkout modal instead of making them click it again.
   useEffect(() => {
+    if (!userId) return;
     const params = new URLSearchParams(window.location.search);
-    const orderId = params.get("order");
-    const mpStatus = params.get("mp_status");
-    if (!orderId || !mpStatus) return;
-
+    if (params.get("buy") !== "1") return;
     window.history.replaceState({}, "", window.location.pathname);
+    setShowCheckoutModal(true);
+  }, [userId]);
 
-    if (mpStatus === "failure") {
-      setOrderError("El pago no se pudo completar. Podés intentar de nuevo.");
-      return;
-    }
-
-    let cancelled = false;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-
-    let attempts = 0;
-    const maxAttempts = 6;
-    const poll = async () => {
-      attempts++;
-      try {
-        const res = await fetch(`/api/orders/${orderId}`);
-        const data = await res.json();
-        if (cancelled) return;
-        // MP-paid orders now land in EN_CUSTODIA (held) rather than PAID —
-        // see 022_escrow_payments.sql — LIBERADO/DISPUTADO/REEMBOLSADO all
-        // still mean "the payment went through", just further down the
-        // escrow lifecycle.
-        const paidLikeStatuses = ["PAID", "EN_CUSTODIA", "LIBERADO", "DISPUTADO", "REEMBOLSADO"];
-        if (res.ok && paidLikeStatuses.includes(data.order?.status)) {
-          setIsPaid(true);
-          return;
-        }
-      } catch {
-        // keep retrying
-      }
-      if (cancelled) return;
-      if (attempts < maxAttempts) {
-        timer = setTimeout(poll, 2000);
-      } else {
-        setPaymentPending(true);
-      }
-    };
-    poll();
-
-    return () => {
-      cancelled = true;
-      if (timer) clearTimeout(timer);
-    };
-  }, []);
-
-  // Rehydrate "already paid" from a real order — otherwise isPaid only ever
-  // gets set inside the one-shot Mercado-Pago-redirect poll, so a buyer whose
-  // bank transfer was confirmed after they left (or who reopens the page
-  // later) would keep seeing "Comprar Ahora" despite having a paid order.
+  // Rehydrate "already committed to buy" from a real order — otherwise
+  // isPaid only ever gets set right after confirming in this same session,
+  // so a buyer who reopens the page later would keep seeing "Comprar
+  // Ahora" despite already having confirmed a purchase.
   useEffect(() => {
     if (!userId || !id) return;
 
@@ -391,7 +355,7 @@ export default function ListingDetailPage() {
           .from("orders")
           .select("id")
           .eq("listing_id", id)
-          .in("status", ["PAID", "EN_CUSTODIA", "LIBERADO", "DISPUTADO", "REEMBOLSADO"])
+          .neq("status", "CANCELLED")
           .limit(1)
           .maybeSingle();
 
@@ -523,7 +487,7 @@ export default function ListingDetailPage() {
     if (!listing) return;
 
     const savedCart = localStorage.getItem("cart");
-    let cart: { id: string; name: string; price: number; quantity: number }[] = [];
+    let cart: { id: string; name: string; price: number; quantity: number; currencySymbol: string }[] = [];
     if (savedCart) {
       try {
         cart = JSON.parse(savedCart);
@@ -535,7 +499,7 @@ export default function ListingDetailPage() {
     if (existingIndex > -1) {
       cart[existingIndex].quantity += 1;
     } else {
-      cart.push({ id: listing.id, name: productName, price: listing.price, quantity: 1 });
+      cart.push({ id: listing.id, name: productName, price: listing.price, quantity: 1, currencySymbol });
     }
 
     localStorage.setItem("cart", JSON.stringify(cart));
@@ -546,14 +510,14 @@ export default function ListingDetailPage() {
   };
 
   const handleCheckout = async () => {
-    if (!listing) return;
+    if (!listing || !acceptedTerms) return;
     setOrderError("");
     setPaymentLoading(true);
     try {
       const res = await fetch("/api/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ listingId: listing.id, paymentMethod }),
+        body: JSON.stringify({ listingId: listing.id }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -561,12 +525,8 @@ export default function ListingDetailPage() {
         return;
       }
 
-      if (paymentMethod === "MERCADOPAGO") {
-        window.location.href = data.checkoutUrl;
-        return;
-      }
-
-      setTransferInfo(data.bank);
+      setOrderConfirmed(true);
+      setIsPaid(true);
     } catch (err) {
       console.error("[listing] checkout error:", err);
       setOrderError("No se pudo procesar la compra. Intentá de nuevo.");
@@ -699,6 +659,17 @@ export default function ListingDetailPage() {
     const idx = images.indexOf(img);
     setModalImageIndex(idx >= 0 ? idx : 0);
     setShowImageModal(true);
+  };
+
+  const getTierEmoji = (tier: string) => {
+    switch (tier.toUpperCase()) {
+      case "PREMIUM": return "💎";
+      case "GOLD":
+      case "ORO": return "🥇";
+      case "PLATA":
+      case "SILVER": return "🥈";
+      default: return "🥉";
+    }
   };
 
   const getTierBadge = (tier: string) => {
@@ -845,6 +816,11 @@ export default function ListingDetailPage() {
                     <span className="text-[10px] text-text-muted mt-0.5 block">
                       Tipo: {seller?.type === "BUSINESS_SELLER" ? "Comercio Registrado" : "Vendedor Particular"}
                     </span>
+                    {seller?.location && (
+                      <span className="text-[10px] text-text-muted mt-0.5 flex items-center gap-1">
+                        📍 {seller.location}
+                      </span>
+                    )}
                   </div>
                   {sellerHasSales ? (
                     <span className={`px-2.5 py-0.5 rounded-full border text-[10px] font-extrabold uppercase tracking-wider ${getTierBadge(seller?.tier ?? "")}`}>
@@ -858,23 +834,30 @@ export default function ListingDetailPage() {
                 </div>
 
                 <div className="border-t border-card-border/50 pt-4 mt-2">
-                  {sellerHasSales ? (
-                    <>
-                      <div className="flex justify-between items-center text-xs font-bold text-foreground mb-1">
-                        <span>Score de Reputación</span>
-                        <span className="text-accent-gold">{seller?.score ?? 0} / 100</span>
-                      </div>
-                      <div className="w-full bg-card-border h-2 rounded-full overflow-hidden">
-                        <div
-                          className="bg-gradient-to-r from-accent-gold to-accent-green h-full rounded-full"
-                          style={{ width: `${seller?.score ?? 0}%` }}
-                        />
-                      </div>
-                      <p className="text-[9px] text-text-muted mt-2">
-                        Las calificaciones se actualizan dinámicamente según la satisfacción del comprador pampeano.
-                      </p>
-                    </>
-                  ) : (
+                  {sellerHasSales ? (() => {
+                    const points = seller?.score ?? 0;
+                    const tierRange = points >= 300 ? null : points >= 150 ? { from: 150, to: 300 } : points >= 50 ? { from: 50, to: 150 } : { from: 0, to: 50 };
+                    const pct = tierRange ? Math.round(((points - tierRange.from) / (tierRange.to - tierRange.from)) * 100) : 100;
+                    return (
+                      <>
+                        <div className="flex justify-between items-center text-xs font-bold text-foreground mb-1">
+                          <span>{getTierEmoji(seller?.tier ?? "")} Nivel {seller?.tier === "GOLD" ? "ORO" : seller?.tier}</span>
+                          <span className="text-accent-gold">{points} pts</span>
+                        </div>
+                        <div className="w-full bg-card-border h-2 rounded-full overflow-hidden">
+                          <div
+                            className="bg-gradient-to-r from-accent-gold to-accent-green h-full rounded-full"
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                        <p className="text-[9px] text-text-muted mt-2">
+                          {tierRange
+                            ? `A ${tierRange.to - points} pts del próximo nivel.`
+                            : "Nivel máximo alcanzado."}
+                        </p>
+                      </>
+                    );
+                  })() : (
                     <p className="text-xs text-text-muted leading-relaxed">
                       Este vendedor todavía no realizó ninguna venta. En cuanto complete su primera, vas a poder ver acá su score de reputación.
                     </p>
@@ -1007,15 +990,10 @@ export default function ListingDetailPage() {
                   {orderError}
                 </div>
               )}
-              {paymentPending && !isPaid && (
-                <div className="bg-amber-500/10 border border-amber-500/30 text-amber-500 dark:text-amber-300 rounded-2xl p-4 text-xs font-medium text-center">
-                  Estamos confirmando tu pago con Mercado Pago. Puede demorar unos segundos — actualizá la página en un momento.
-                </div>
-              )}
               {isPaid ? (
                 <>
                   <div className="bg-accent-green/10 border border-accent-green/30 text-accent-green rounded-2xl p-4 text-xs font-medium text-center animate-in fade-in duration-300">
-                    ✓ ¡Pago acreditado con éxito! Comunicate con el vendedor por WhatsApp para coordinar el envío.
+                    ✓ ¡Confirmaste tu compra! Comunicate con el vendedor por WhatsApp para coordinar el pago y el envío.
                   </div>
                   {formattedWhatsAppUrl ? (
                     <a
@@ -1032,6 +1010,10 @@ export default function ListingDetailPage() {
                     </p>
                   )}
                 </>
+              ) : sellerId && seller?.id === sellerId ? (
+                <div className="bg-text-muted/10 border border-card-border text-text-muted rounded-2xl p-4 text-xs font-medium text-center">
+                  Esta es tu propia publicación — no podés comprarla.
+                </div>
               ) : (
                 <div className="grid grid-cols-2 gap-3">
                   <button
@@ -1047,7 +1029,7 @@ export default function ListingDetailPage() {
                   <button
                     onClick={() => {
                       if (!userId) {
-                        router.push("/login?redirect=" + encodeURIComponent(`/listings/${id}`));
+                        router.push("/login?redirect=" + encodeURIComponent(`/listings/${id}?buy=1`));
                       } else {
                         setShowCheckoutModal(true);
                       }
@@ -1126,7 +1108,7 @@ export default function ListingDetailPage() {
                 <div className="text-right shrink-0">
                   {sellerHasSales ? (
                     <>
-                      <span className="text-sm font-extrabold text-accent-gold block">★ {((seller?.score ?? 0) / 10).toFixed(1)}</span>
+                      <span className="text-sm font-extrabold text-accent-gold block">{getTierEmoji(seller?.tier ?? "")} {seller?.score ?? 0} pts</span>
                       <span className="text-[8px] text-text-muted block uppercase">Puntaje pampeano</span>
                     </>
                   ) : (
@@ -1167,6 +1149,9 @@ export default function ListingDetailPage() {
                 <span className="text-[10px] text-text-muted block mt-1">
                   {seller?.type === "BUSINESS_SELLER" ? "Comercio / Empresa" : "Vendedor particular"}
                 </span>
+                {seller?.location && (
+                  <span className="text-[10px] text-text-muted block mt-0.5">📍 {seller.location}</span>
+                )}
               </div>
               <p className="text-xs text-text-muted leading-relaxed">
                 {seller?.bio?.trim() ? seller.bio : "Este vendedor todavía no agregó una descripción."}
@@ -1178,8 +1163,8 @@ export default function ListingDetailPage() {
               <div className="w-full border-t border-card-border/50 pt-4">
                 {sellerHasSales ? (
                   <>
-                    <span className="text-xl font-extrabold text-accent-gold block">★ {((seller?.score ?? 0) / 10).toFixed(1)}</span>
-                    <span className="text-[9px] text-text-muted block uppercase mt-0.5">Puntaje pampeano · Nivel {seller?.tier}</span>
+                    <span className="text-xl font-extrabold text-accent-gold block">{getTierEmoji(seller?.tier ?? "")} {seller?.score ?? 0} pts</span>
+                    <span className="text-[9px] text-text-muted block uppercase mt-0.5">Nivel {seller?.tier === "GOLD" ? "ORO" : seller?.tier}</span>
                   </>
                 ) : (
                   <span className="text-xs font-bold text-text-muted italic">Sin ventas aún en la plataforma</span>
@@ -1278,8 +1263,9 @@ export default function ListingDetailPage() {
             <button
               onClick={() => {
                 setShowCheckoutModal(false);
-                setTransferInfo(null);
                 setOrderError("");
+                setAcceptedTerms(false);
+                setOrderConfirmed(false);
               }}
               className="absolute top-4 right-4 text-text-muted hover:text-foreground text-lg cursor-pointer"
             >
@@ -1288,46 +1274,39 @@ export default function ListingDetailPage() {
 
             <div className="text-left">
               <h3 className="font-heading text-lg font-extrabold text-foreground">
-                {transferInfo ? "Datos para transferir" : "Completar Compra"}
+                {orderConfirmed ? "¡Compra Confirmada!" : "Completar Compra"}
               </h3>
-              {!transferInfo && (
-                <p className="text-text-muted text-xs mt-1">Elegí cómo querés pagarle al vendedor.</p>
+              {!orderConfirmed && (
+                <p className="text-text-muted text-xs mt-1">Confirmá tu compromiso de compra con el vendedor.</p>
               )}
             </div>
 
-            {transferInfo ? (
+            {orderConfirmed ? (
               <>
-                <div className="rounded-2xl bg-background border border-card-border p-4 flex flex-col gap-2 text-xs">
+                <p className="text-[11px] text-text-muted leading-relaxed">
+                  Le avisamos al vendedor que confirmaste la compra. Coordiná el pago y la entrega directamente con él/ella por WhatsApp.
+                </p>
+
+                <div className="rounded-2xl bg-background border border-card-border p-4 flex flex-col gap-2 text-xs text-left">
+                  <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider">Le compartimos al vendedor tus datos de contacto</span>
                   <div className="flex justify-between">
-                    <span className="text-text-muted">Titular</span>
-                    <span className="font-bold text-foreground">{transferInfo.sellerName}</span>
+                    <span className="text-text-muted">Nombre</span>
+                    <span className="font-bold text-foreground">{buyerContact?.name ?? "—"}</span>
                   </div>
-                  {transferInfo.cbu && (
-                    <div className="flex justify-between">
-                      <span className="text-text-muted">CBU</span>
-                      <span className="font-bold text-foreground">{transferInfo.cbu}</span>
-                    </div>
-                  )}
-                  {transferInfo.alias && (
-                    <div className="flex justify-between">
-                      <span className="text-text-muted">Alias</span>
-                      <span className="font-bold text-foreground">{transferInfo.alias}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between border-t border-card-border/30 pt-2 mt-1">
-                    <span className="text-text-muted">Monto</span>
-                    <span className="font-extrabold text-accent-gold">
-                      {currencySymbol}{Number(listing.price).toLocaleString("es-AR")}
-                    </span>
+                  <div className="flex justify-between">
+                    <span className="text-text-muted">Teléfono</span>
+                    <span className="font-bold text-foreground">{buyerContact?.phone ?? "No cargado"}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-text-muted">Email</span>
+                    <span className="font-bold text-foreground">{buyerContact?.email ?? "—"}</span>
                   </div>
                 </div>
-                <p className="text-[10px] text-text-muted leading-relaxed">
-                  Hacé la transferencia y avisale al vendedor por WhatsApp con el comprobante. Cuando confirme la recepción, vas a poder coordinar la entrega.
-                </p>
+
                 <button
                   onClick={() => {
                     setShowCheckoutModal(false);
-                    setTransferInfo(null);
+                    setOrderConfirmed(false);
                   }}
                   className="w-full rounded-xl bg-gradient-to-r from-accent-blue to-blue-600 py-4 text-xs font-extrabold text-white shadow-md hover:scale-[1.01] transition-all cursor-pointer"
                 >
@@ -1353,55 +1332,21 @@ export default function ListingDetailPage() {
                 <div className="rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-500 dark:text-amber-300 p-4 text-xs leading-relaxed text-left flex flex-col gap-1.5 animate-in fade-in duration-200">
                   <strong className="font-extrabold flex items-center gap-1 text-[11px] uppercase tracking-wider">⚠️ Importante: Compromiso de Compra</strong>
                   <p className="text-[10px] text-text-muted dark:text-slate-300">
-                    Al realizar la compra de este producto asumís un <span className="font-bold text-foreground">compromiso de compra firme</span>.
+                    Al realizar la compra de este producto asumís un <span className="font-bold text-foreground">compromiso de compra firme</span>. Si comprás y no concretás la operación, el vendedor puede calificarte negativamente, lo que afectará tu perfil como comprador dentro de la plataforma.
                   </p>
                 </div>
 
-                <div className="flex flex-col gap-4 text-left">
-                  <div className="flex flex-col gap-1.5">
-                    <span className="text-xs font-bold text-foreground">Medio de Pago</span>
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        disabled={!seller?.mercadopago_connected}
-                        onClick={() => setPaymentMethod("MERCADOPAGO")}
-                        className={`border rounded-xl p-3 flex flex-col gap-1 text-xs text-left transition-all ${
-                          !seller?.mercadopago_connected
-                            ? "border-card-border opacity-40 cursor-not-allowed"
-                            : paymentMethod === "MERCADOPAGO"
-                            ? "border-accent-gold bg-accent-gold/5 cursor-pointer"
-                            : "border-card-border hover:border-accent-gold/40 cursor-pointer"
-                        }`}
-                      >
-                        <span className={`font-bold ${paymentMethod === "MERCADOPAGO" ? "text-accent-gold" : "text-foreground"}`}>
-                          💳 Mercado Pago
-                        </span>
-                        <span className="text-[10px] text-text-muted">
-                          {seller?.mercadopago_connected ? "Tarjeta, dinero en cuenta" : "El vendedor no lo vinculó"}
-                        </span>
-                      </button>
-                      <button
-                        type="button"
-                        disabled={!seller?.bank_cbu && !seller?.bank_alias}
-                        onClick={() => setPaymentMethod("TRANSFER")}
-                        className={`border rounded-xl p-3 flex flex-col gap-1 text-xs text-left transition-all ${
-                          !seller?.bank_cbu && !seller?.bank_alias
-                            ? "border-card-border opacity-40 cursor-not-allowed"
-                            : paymentMethod === "TRANSFER"
-                            ? "border-accent-gold bg-accent-gold/5 cursor-pointer"
-                            : "border-card-border hover:border-accent-gold/40 cursor-pointer"
-                        }`}
-                      >
-                        <span className={`font-bold ${paymentMethod === "TRANSFER" ? "text-accent-gold" : "text-foreground"}`}>
-                          🏦 Transferencia
-                        </span>
-                        <span className="text-[10px] text-text-muted">
-                          {seller?.bank_cbu || seller?.bank_alias ? "CBU / Alias" : "El vendedor no cargó datos"}
-                        </span>
-                      </button>
-                    </div>
-                  </div>
+                <label className="flex items-start gap-2.5 text-left cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={acceptedTerms}
+                    onChange={(e) => setAcceptedTerms(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 shrink-0 accent-accent-gold cursor-pointer"
+                  />
+                  <span className="text-xs text-foreground">Acepto las condiciones</span>
+                </label>
 
+                <div className="flex flex-col gap-4 text-left">
                   {orderError && <p className="text-xs text-red-500 font-bold">{orderError}</p>}
 
                   <div className="flex justify-between items-center border-t border-card-border/30 pt-4 mt-2">
@@ -1414,7 +1359,7 @@ export default function ListingDetailPage() {
 
                 <button
                   onClick={handleCheckout}
-                  disabled={paymentLoading || (!seller?.mercadopago_connected && !seller?.bank_cbu && !seller?.bank_alias)}
+                  disabled={paymentLoading || !acceptedTerms}
                   className="w-full rounded-xl bg-gradient-to-r from-accent-blue to-blue-600 py-4 text-xs font-extrabold text-white shadow-md hover:scale-[1.01] transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
                 >
                   {paymentLoading ? (
@@ -1425,10 +1370,8 @@ export default function ListingDetailPage() {
                       </svg>
                       Procesando...
                     </>
-                  ) : paymentMethod === "MERCADOPAGO" ? (
-                    `Pagar ${currencySymbol}${Number(listing.price).toLocaleString("es-AR")} con Mercado Pago`
                   ) : (
-                    "Ver datos para transferir"
+                    "Confirmar Compra"
                   )}
                 </button>
               </>

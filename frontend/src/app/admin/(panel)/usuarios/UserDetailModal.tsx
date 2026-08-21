@@ -132,7 +132,7 @@ export default function UserDetailModal({ userId, onClose }: { userId: string; o
               </div>
               <div>
                 <span className="block text-[9px] uppercase text-text-muted/70">Score</span>
-                {hasSales ? `${user.score} / 100` : "Sin calificar (sin ventas)"}
+                {hasSales ? `${user.score} pts (${user.tier})` : "Sin calificar (sin ventas)"}
               </div>
             </div>
 

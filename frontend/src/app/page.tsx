@@ -11,6 +11,7 @@ type HighlightRow = {
     price: number;
     condition: string;
     featured_plan: string;
+    status: string;
     products: {
       name: string;
       brand: string;
@@ -27,6 +28,17 @@ type HighlightRow = {
     currencies: { symbol: string } | null;
   } | null;
 };
+
+function tierEmoji(tier: string): string {
+  switch (tier.toUpperCase()) {
+    case "PREMIUM": return "💎";
+    case "GOLD":
+    case "ORO": return "🥇";
+    case "PLATA":
+    case "SILVER": return "🥈";
+    default: return "🥉";
+  }
+}
 
 async function getHeroSlides(): Promise<HeroSlide[]> {
   try {
@@ -99,6 +111,7 @@ async function getFeaturedListings(): Promise<HighlightRow[]> {
           price,
           condition,
           featured_plan,
+          status,
           products (
             name,
             brand,
@@ -123,10 +136,17 @@ async function getFeaturedListings(): Promise<HighlightRow[]> {
     }
     if (!data) return [];
 
+    // highlighted_products has no idea if the underlying listing sold out
+    // or got paused/removed since it was featured — filter those out here,
+    // same purchasable set as PURCHASABLE_STATUSES in api/orders/route.ts.
+    const purchasable = (data as unknown as HighlightRow[]).filter(
+      (h) => h.listings?.status === "APPROVED" || h.listings?.status === "ACTIVE"
+    );
+
     // Sort: PREMIUM first, then FEATURED/DESTACADO. The plan lives on
     // listings.featured_plan, not on highlighted_products (that table only
     // tracks the highlight's validity window — see /destacados).
-    const sorted = (data as unknown as HighlightRow[]).sort((a, b) => {
+    const sorted = purchasable.sort((a, b) => {
       const aPremium = a.listings?.featured_plan === "PREMIUM";
       const bPremium = b.listings?.featured_plan === "PREMIUM";
       if (aPremium && !bPremium) return -1;
@@ -268,8 +288,8 @@ export default async function HomePage() {
                     </div>
                     {seller?.id && sellersWithSales.has(seller.id) ? (
                       <div className="flex items-center gap-0.5 text-xs text-accent-gold font-bold">
-                        <span>★</span>
-                        <span className="text-[10px]">{(seller.score / 10).toFixed(1)}</span>
+                        <span>{tierEmoji(seller.tier)}</span>
+                        <span className="text-[10px]">{seller.score} pts</span>
                       </div>
                     ) : (
                       <span className="text-[10px] font-semibold text-text-muted italic">Sin ventas aún</span>

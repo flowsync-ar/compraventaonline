@@ -29,8 +29,13 @@ export default function SupportPage() {
     },
     {
       category: "reputacion",
-      question: "¿Qué es el Score de Vendedor y el Sistema de Premios?",
-      answer: "El Score es una calificación del 1 al 100 que refleja tu reputación en la comunidad según tus ventas concretadas y las valoraciones de los compradores. Al registrarte comenzás en Tier BRONCE (100 puntos). Al concretar ventas exitosas podés subir de nivel (PLATA, ORO, PREMIUM). Cada promoción de nivel te otorga automáticamente Premios en tu panel (como destacados FEATURED o PREMIUM gratuitos de 30 días) para impulsar tus artículos gratis."
+      question: "¿Cómo se califica a los vendedores?",
+      answer: "Cada vez que concretás una venta, el comprador puede calificarte: Positiva (+10 puntos), Neutral (+2 puntos) o Negativa (-5 puntos). Esos puntos se acumulan de por vida y determinan tu nivel: 🥉 BRONCE (0-49 pts), 🥈 PLATA (50-149 pts), 🥇 ORO (150-299 pts) y 💎 PREMIUM (300+ pts). Tu nivel y puntaje se muestran en tus publicaciones para que los compradores sepan con quién están tratando."
+    },
+    {
+      category: "reputacion",
+      question: "¿Cómo se califica a los compradores?",
+      answer: "Con el mismo criterio que a los vendedores: cada vez que confirmás una compra, el vendedor puede calificarte Positiva (+10 puntos), Neutral (+2 puntos) o Negativa (-5 puntos), acumulados de por vida con los mismos niveles (🥉 BRONCE, 🥈 PLATA, 🥇 ORO, 💎 PREMIUM). Comprar y no concretar la operación puede afectar tu calificación como comprador dentro de la plataforma."
     },
     {
       category: "reputacion",

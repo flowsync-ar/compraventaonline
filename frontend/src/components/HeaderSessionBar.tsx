@@ -7,6 +7,14 @@ import { createClient } from "@/lib/supabase/client"
 import SellerAvatar from "./SellerAvatar"
 import type { SellerRow, QuestionWithBuyer, AnsweredQuestionForBuyer } from "@/lib/supabase/types"
 
+interface SaleNotification {
+  id: string
+  amount: number
+  created_at: string
+  listings: { products: { name: string } | null } | null
+  buyer: { name: string } | null
+}
+
 export default function HeaderSessionBar() {
   const router = useRouter()
   // Lazy Supabase client init — only created after first browser render.
@@ -25,7 +33,7 @@ export default function HeaderSessionBar() {
 
   // Shopping cart (local state — not yet backend-connected)
   const [showCart, setShowCart] = useState(false)
-  const [cartItems, setCartItems] = useState<{ id: string; name: string; price: number; quantity: number }[]>([])
+  const [cartItems, setCartItems] = useState<{ id: string; name: string; price: number; quantity: number; currencySymbol?: string }[]>([])
 
   // Profile dropdown
   const [showUserMenu, setShowUserMenu] = useState(false)
@@ -39,7 +47,14 @@ export default function HeaderSessionBar() {
   const [answeredNotifications, setAnsweredNotifications] = useState<AnsweredQuestionForBuyer[]>([])
   const [unreadReceivedCount, setUnreadReceivedCount] = useState(0)
   const [unreadAnsweredCount, setUnreadAnsweredCount] = useState(0)
-  const unreadCount = unreadReceivedCount + unreadAnsweredCount
+
+  // 3) "salesNotifications": new PENDING sales on this seller's listings,
+  // still needing them to confirm receipt (see /ventas) — "unread" here
+  // just means PENDING, same trick the "Transferencias por confirmar"
+  // dashboard section already uses; no separate read-tracking column.
+  const [salesNotifications, setSalesNotifications] = useState<SaleNotification[]>([])
+  const [unreadSalesCount, setUnreadSalesCount] = useState(0)
+  const unreadCount = unreadReceivedCount + unreadAnsweredCount + unreadSalesCount
   const [replyingToId, setReplyingToId] = useState<string | null>(null)
   const [replyText, setReplyText] = useState("")
 
@@ -77,8 +92,8 @@ export default function HeaderSessionBar() {
     } else {
       // Default demo cart
       const defaultCart = [
-        { id: "l1", name: "Miel de Caldén Orgánica", price: 15000, quantity: 1 },
-        { id: "l2", name: "Salame Casero de Campo", price: 8500, quantity: 2 },
+        { id: "l1", name: "Miel de Caldén Orgánica", price: 15000, quantity: 1, currencySymbol: "$" },
+        { id: "l2", name: "Salame Casero de Campo", price: 8500, quantity: 2, currencySymbol: "$" },
       ]
       localStorage.setItem("cart", JSON.stringify(defaultCart))
       setCartItems(defaultCart)
@@ -210,8 +225,28 @@ export default function HeaderSessionBar() {
       setUnreadAnsweredCount(typedData.length)
     }
 
+    // New sales on this seller's listings still PENDING confirmation.
+    const fetchSalesNotifications = async () => {
+      const { data } = await getSupabase()
+        .from("orders")
+        .select(`
+          id, amount, created_at,
+          listings ( products ( name ) ),
+          buyer:sellers!orders_buyer_id_fkey ( name )
+        `)
+        .eq("seller_id", profile.id)
+        .eq("status", "PENDING")
+        .order("created_at", { ascending: false })
+        .limit(20)
+
+      const typedData = (data ?? []) as unknown as SaleNotification[]
+      setSalesNotifications(typedData)
+      setUnreadSalesCount(typedData.length)
+    }
+
     fetchNotifications()
     fetchAnsweredNotifications()
+    fetchSalesNotifications()
   }, [showNotifications, profile]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Poll unread count every 15s (keeping existing behavior — Realtime is out of scope)
@@ -219,6 +254,7 @@ export default function HeaderSessionBar() {
     if (!profile) {
       setUnreadReceivedCount(0)
       setUnreadAnsweredCount(0)
+      setUnreadSalesCount(0)
       return
     }
 
@@ -248,6 +284,14 @@ export default function HeaderSessionBar() {
         .not("answer", "is", null)
 
       setUnreadAnsweredCount(answeredCount ?? 0)
+
+      const { count: salesCount } = await getSupabase()
+        .from("orders")
+        .select("id", { count: "exact", head: true })
+        .eq("seller_id", profile.id)
+        .eq("status", "PENDING")
+
+      setUnreadSalesCount(salesCount ?? 0)
     }
 
     checkUnread()
@@ -331,10 +375,12 @@ export default function HeaderSessionBar() {
 
   const handleLogout = async () => {
     await getSupabase().auth.signOut()
-    setShowCart(false)
-    setShowUserMenu(false)
-    router.push("/")
-    router.refresh()
+    // Hard redirect on purpose: a client-side router.push() left the user
+    // stranded on whatever page they signed out from (e.g. /compras kept
+    // rendering its already-loaded, now-stale data since that page has no
+    // reason to react to auth changes on its own). A full reload guarantees
+    // a clean, logged-out "/" every time, from anywhere.
+    window.location.href = "/"
   }
 
   const updateCart = (newItems: typeof cartItems) => {
@@ -446,6 +492,22 @@ export default function HeaderSessionBar() {
                   Mis Compras
                 </Link>
                 <Link
+                  href="/ventas"
+                  onClick={() => setShowUserMenu(false)}
+                  className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-foreground/80 hover:text-accent-gold hover:bg-card-border/30 transition-all w-full text-left cursor-pointer"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-accent-blue">
+                    <line x1="12" y1="1" x2="12" y2="23"></line>
+                    <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                  </svg>
+                  Mis Ventas
+                  {unreadSalesCount > 0 && (
+                    <span className="ml-auto inline-flex items-center justify-center h-4 min-w-4 px-1 text-[9px] font-extrabold text-background bg-accent-gold rounded-full">
+                      {unreadSalesCount}
+                    </span>
+                  )}
+                </Link>
+                <Link
                   href="/favoritos"
                   onClick={() => setShowUserMenu(false)}
                   className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-foreground/80 hover:text-accent-gold hover:bg-card-border/30 transition-all w-full text-left cursor-pointer"
@@ -549,11 +611,11 @@ export default function HeaderSessionBar() {
                           </div>
                           <div className="flex flex-col items-end gap-0.5">
                             <span className="font-extrabold text-foreground whitespace-nowrap">
-                              ${(item.price * item.quantity).toLocaleString("es-AR")}
+                              {item.currencySymbol ?? "$"}{(item.price * item.quantity).toLocaleString("es-AR")}
                             </span>
                             {item.quantity > 1 && (
                               <span className="text-[9px] text-text-muted">
-                                (${(item.price).toLocaleString("es-AR")} c/u)
+                                ({item.currencySymbol ?? "$"}{(item.price).toLocaleString("es-AR")} c/u)
                               </span>
                             )}
                           </div>
@@ -564,7 +626,7 @@ export default function HeaderSessionBar() {
                     <div className="border-t border-card-border/50 pt-2 flex justify-between items-center text-xs">
                       <span className="text-text-muted">Total:</span>
                       <span className="font-extrabold text-accent-gold text-sm">
-                        ${totalPrice.toLocaleString("es-AR")}
+                        {cartItems[0]?.currencySymbol ?? "$"}{totalPrice.toLocaleString("es-AR")}
                       </span>
                     </div>
 
@@ -576,7 +638,7 @@ export default function HeaderSessionBar() {
                         Vaciar
                       </button>
                       <button
-                        onClick={() => alert("¡Iniciando la compra en CompraVentaOnline La Pampa!")}
+                        onClick={() => { setShowCart(false); router.push("/carrito"); }}
                         className="py-2 text-[10px] font-extrabold rounded-lg bg-gradient-to-r from-accent-gold to-accent-gold-hover text-background shadow-md hover:opacity-95 transition-all cursor-pointer"
                       >
                         Comprar
@@ -597,7 +659,7 @@ export default function HeaderSessionBar() {
                 setShowUserMenu(false)
               }}
               className="relative p-2 text-text-muted hover:text-foreground transition-colors hover:scale-105 active:scale-95 cursor-pointer flex items-center justify-center rounded-xl bg-card-bg border border-card-border/80 hover:border-card-border h-9 w-9 shadow-sm"
-              title="Notificaciones de consultas"
+              title="Notificaciones"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
@@ -612,6 +674,37 @@ export default function HeaderSessionBar() {
 
             {showNotifications && (
               <div className="fixed md:absolute right-4 left-4 md:right-0 md:left-auto top-[125px] md:top-auto md:mt-3 w-auto md:w-96 rounded-2xl bg-card-bg-solid border border-card-border p-4 shadow-2xl z-50 flex flex-col gap-3 max-h-[70vh] overflow-y-auto animate-in fade-in slide-in-from-top-2 duration-200">
+                {salesNotifications.length > 0 && (
+                  <>
+                    <div className="flex justify-between items-center border-b border-card-border/30 pb-2">
+                      <span className="text-xs font-heading font-extrabold text-foreground uppercase tracking-wider">💰 Ventas Nuevas</span>
+                    </div>
+
+                    <div className="flex flex-col gap-3 pr-1">
+                      {salesNotifications.map((sale) => (
+                        <Link
+                          key={sale.id}
+                          href="/ventas"
+                          onClick={() => setShowNotifications(false)}
+                          className="p-3 rounded-xl border bg-accent-gold/5 border-accent-gold/20 flex flex-col gap-1 text-xs hover:border-accent-gold/40 transition-colors"
+                        >
+                          <div className="flex justify-between items-start gap-3">
+                            <span className="font-bold text-foreground line-clamp-1">
+                              {sale.listings?.products?.name ?? "Publicación"}
+                            </span>
+                            <span className="text-[9px] text-text-muted shrink-0">
+                              {new Date(sale.created_at).toLocaleDateString("es-AR")}
+                            </span>
+                          </div>
+                          <p className="text-text-muted">
+                            Comprador: <span className="font-bold text-foreground/80">{sale.buyer?.name ?? "—"}</span> · ${Number(sale.amount).toLocaleString("es-AR")}
+                          </p>
+                        </Link>
+                      ))}
+                    </div>
+                  </>
+                )}
+
                 {answeredNotifications.length > 0 && (
                   <>
                     <div className="flex justify-between items-center border-b border-card-border/30 pb-2">

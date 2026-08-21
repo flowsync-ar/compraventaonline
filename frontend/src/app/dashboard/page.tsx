@@ -132,6 +132,9 @@ function DashboardPageContent() {
   // migration. Keyed by listing id so the table below can just look up
   // viewCounts[listing.id] ?? 0 per row.
   const [viewCounts, setViewCounts] = useState<Record<string, number>>({});
+  // Buyer + purchase date for listings that sold out (status SOLD) — shown
+  // next to the "Vendido" badge in "Mis Publicaciones".
+  const [soldOrders, setSoldOrders] = useState<Record<string, { buyerName: string; paidAt: string }>>({});
   const [categories, setCategories] = useState<BackendCategory[]>([]);
   const [activeTab, setActiveTab] = useState<"summary" | "publish" | "inventory" | "questions" | "rewards" | "profile" | "social">("summary");
   const [rewards, setRewards] = useState<any[]>([]);
@@ -1303,6 +1306,35 @@ function DashboardPageContent() {
     fetchViewCounts();
   }, [activeTab, myListings]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Buyer + purchase date for sold-out listings (status SOLD), shown next
+  // to the "Vendido" badge — same table/relation "Mis Ventas" already uses.
+  useEffect(() => {
+    if (activeTab !== "inventory") return;
+    const soldIds = myListings.filter((l) => l.status === "SOLD").map((l) => l.id);
+    if (soldIds.length === 0) return;
+
+    const fetchSoldOrders = async () => {
+      try {
+        const supabase = getSupabase();
+        const { data } = await supabase
+          .from("orders")
+          .select("listing_id, paid_at, buyer:sellers!orders_buyer_id_fkey(name)")
+          .in("listing_id", soldIds)
+          .eq("status", "PAID");
+
+        const map: Record<string, { buyerName: string; paidAt: string }> = {};
+        (data ?? []).forEach((o: any) => {
+          if (o.paid_at) map[o.listing_id] = { buyerName: o.buyer?.name ?? "—", paidAt: o.paid_at };
+        });
+        setSoldOrders(map);
+      } catch (err) {
+        console.error("Error al cargar los datos de venta:", err);
+      }
+    };
+
+    fetchSoldOrders();
+  }, [activeTab, myListings]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Loaded once (not per-tab): both the "Redes Sociales" tab AND the
   // "Compartir en redes sociales" checkboxes on the publish form need to
   // know which platforms are already connected.
@@ -1681,8 +1713,8 @@ function DashboardPageContent() {
   const handleLogout = async () => {
     const supabase = getSupabase();
     await supabase.auth.signOut();
-    router.push("/");
-    router.refresh();
+    // Hard redirect on purpose — see the same handler in HeaderSessionBar.tsx.
+    window.location.href = "/";
   };
 
   if (!mounted || pageLoading) {
@@ -3199,33 +3231,46 @@ function DashboardPageContent() {
                             </span>
                           </td>
                           <td className="py-4 px-4 text-center relative">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setActiveStatusDropdownListingId(
-                                  activeStatusDropdownListingId === listing.id ? null : listing.id
-                                );
-                              }}
-                              disabled={loading}
-                              className="focus:outline-none cursor-pointer hover:scale-105 active:scale-95 transition-all inline-block"
-                            >
-                              {listing.status === "APPROVED" && (
-                                <span className="px-2.5 py-1 rounded-xl text-[9px] font-extrabold bg-accent-green/10 text-accent-green border border-accent-green/20 uppercase tracking-wider">
-                                  🟢 PUBLICADO
+                            {listing.status === "SOLD" ? (
+                              <div className="flex flex-col items-center gap-1">
+                                <span className="px-2.5 py-1 rounded-xl text-[9px] font-extrabold bg-text-muted/10 text-text-muted border border-card-border/60 uppercase tracking-wider">
+                                  ⚫ VENDIDO
                                 </span>
-                              )}
-                              {listing.status === "REVIEW_REQUIRED" && (
-                                <span className="px-2.5 py-1 rounded-xl text-[9px] font-extrabold bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border border-yellow-500/20 uppercase tracking-wider">
-                                  🟡 PAUSADO
-                                </span>
-                              )}
-                              {listing.status === "BLOCKED" && (
-                                <span className="px-2.5 py-1 rounded-xl text-[9px] font-extrabold bg-red-500/10 text-red-500 border border-red-500/20 uppercase tracking-wider">
-                                  🔴 SIN PUBLICAR
-                                </span>
-                              )}
-                            </button>
+                                {soldOrders[listing.id] && (
+                                  <span className="text-[9px] text-text-muted">
+                                    a {soldOrders[listing.id].buyerName} · {new Date(soldOrders[listing.id].paidAt).toLocaleDateString("es-AR")}
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveStatusDropdownListingId(
+                                    activeStatusDropdownListingId === listing.id ? null : listing.id
+                                  );
+                                }}
+                                disabled={loading}
+                                className="focus:outline-none cursor-pointer hover:scale-105 active:scale-95 transition-all inline-block"
+                              >
+                                {listing.status === "APPROVED" && (
+                                  <span className="px-2.5 py-1 rounded-xl text-[9px] font-extrabold bg-accent-green/10 text-accent-green border border-accent-green/20 uppercase tracking-wider">
+                                    🟢 PUBLICADO
+                                  </span>
+                                )}
+                                {listing.status === "REVIEW_REQUIRED" && (
+                                  <span className="px-2.5 py-1 rounded-xl text-[9px] font-extrabold bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border border-yellow-500/20 uppercase tracking-wider">
+                                    🟡 PAUSADO
+                                  </span>
+                                )}
+                                {listing.status === "BLOCKED" && (
+                                  <span className="px-2.5 py-1 rounded-xl text-[9px] font-extrabold bg-red-500/10 text-red-500 border border-red-500/20 uppercase tracking-wider">
+                                    🔴 SIN PUBLICAR
+                                  </span>
+                                )}
+                              </button>
+                            )}
 
                             {/* Dropdown Menu */}
                             {activeStatusDropdownListingId === listing.id && (

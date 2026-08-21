@@ -9,6 +9,7 @@ type HighlightRow = {
     price: number;
     condition: string;
     featured_plan: string;
+    status: string;
     products: {
       name: string;
       brand: string;
@@ -26,6 +27,17 @@ type HighlightRow = {
   } | null;
 };
 
+function tierEmoji(tier: string): string {
+  switch (tier.toUpperCase()) {
+    case "PREMIUM": return "💎";
+    case "GOLD":
+    case "ORO": return "🥇";
+    case "PLATA":
+    case "SILVER": return "🥈";
+    default: return "🥉";
+  }
+}
+
 async function getHighlightedListings(): Promise<HighlightRow[]> {
   try {
     const supabase = await createClient();
@@ -40,6 +52,7 @@ async function getHighlightedListings(): Promise<HighlightRow[]> {
           price,
           condition,
           featured_plan,
+          status,
           products (
             name,
             brand,
@@ -64,10 +77,17 @@ async function getHighlightedListings(): Promise<HighlightRow[]> {
     }
     if (!data) return [];
 
+    // highlighted_products has no idea if the underlying listing sold out
+    // or got paused/removed since it was featured — filter those out here,
+    // same purchasable set as PURCHASABLE_STATUSES in api/orders/route.ts.
+    const purchasable = (data as unknown as HighlightRow[]).filter(
+      (h) => h.listings?.status === "APPROVED" || h.listings?.status === "ACTIVE"
+    );
+
     // Sort: PREMIUM first, then FEATURED. The plan lives on
     // listings.featured_plan, not on highlighted_products (that table only
     // tracks the highlight's validity window).
-    const sorted = (data as unknown as HighlightRow[]).sort((a, b) => {
+    const sorted = purchasable.sort((a, b) => {
       const aPremium = a.listings?.featured_plan === "PREMIUM";
       const bPremium = b.listings?.featured_plan === "PREMIUM";
       if (aPremium && !bPremium) return -1;
@@ -222,7 +242,7 @@ export default async function DestacadosPage() {
                       <span className="text-text-muted">Reputación</span>
                       {seller?.id && sellersWithSales.has(seller.id) ? (
                         <span className="font-extrabold text-accent-green">
-                          {seller.score}/100
+                          {tierEmoji(seller.tier)} {seller.score} pts
                         </span>
                       ) : (
                         <span className="font-bold text-text-muted italic">🌱 Nuevo, sin ventas</span>

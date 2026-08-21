@@ -18,6 +18,9 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
     href?: string
     active?: boolean
     sortOrder?: number
+    darkOverlay?: boolean
+    imageFit?: "cover" | "contain"
+    showCta?: boolean
   }
   try {
     body = await request.json()
@@ -30,11 +33,14 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
   const updates: TablesUpdate<"hero_slides"> = {}
   if (body.imageUrl?.trim()) updates.image_url = body.imageUrl.trim()
   if (body.eyebrow !== undefined) updates.eyebrow = body.eyebrow.trim()
-  if (body.title?.trim()) updates.title = body.title.trim()
+  if (body.title !== undefined) updates.title = body.title.trim() || null
   if (body.ctaLabel !== undefined) updates.cta_label = body.ctaLabel.trim() || "Ver más"
   if (body.href !== undefined) updates.href = body.href.trim() || "/search"
   if (body.active !== undefined) updates.active = body.active
   if (body.sortOrder !== undefined) updates.sort_order = body.sortOrder
+  if (body.darkOverlay !== undefined) updates.dark_overlay = body.darkOverlay
+  if (body.imageFit !== undefined) updates.image_fit = body.imageFit === "contain" ? "contain" : "cover"
+  if (body.showCta !== undefined) updates.show_cta = body.showCta
 
   const { data, error } = await admin
     .from("hero_slides")

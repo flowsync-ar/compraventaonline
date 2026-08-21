@@ -7,11 +7,14 @@ interface Slide {
   id: string
   image_url: string
   eyebrow: string
-  title: string
+  title: string | null
   cta_label: string
   href: string
   sort_order: number
   active: boolean
+  dark_overlay: boolean
+  image_fit: "cover" | "contain"
+  show_cta: boolean
 }
 
 export default function AdminSlidesPage() {
@@ -23,13 +26,19 @@ export default function AdminSlidesPage() {
   const [imageUrl, setImageUrl] = useState("")
   const [eyebrow, setEyebrow] = useState("")
   const [title, setTitle] = useState("")
+  const [showTitle, setShowTitle] = useState(true)
   const [ctaLabel, setCtaLabel] = useState("Ver más")
   const [href, setHref] = useState("/search")
   const [active, setActive] = useState(true)
+  const [darkOverlay, setDarkOverlay] = useState(true)
+  const [imageFit, setImageFit] = useState<"cover" | "contain">("cover")
+  const [showCta, setShowCta] = useState(true)
 
   const [uploading, setUploading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [reorderingId, setReorderingId] = useState<string | null>(null)
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Slide | null>(null)
   const [deleting, setDeleting] = useState(false)
 
@@ -49,19 +58,27 @@ export default function AdminSlidesPage() {
     setImageUrl("")
     setEyebrow("")
     setTitle("")
+    setShowTitle(true)
     setCtaLabel("Ver más")
     setHref("/search")
     setActive(true)
+    setDarkOverlay(true)
+    setImageFit("cover")
+    setShowCta(true)
   }
 
   const handleEdit = (slide: Slide) => {
     setEditingId(slide.id)
     setImageUrl(slide.image_url)
     setEyebrow(slide.eyebrow)
-    setTitle(slide.title)
+    setTitle(slide.title ?? "")
+    setShowTitle(!!slide.title)
     setCtaLabel(slide.cta_label)
     setHref(slide.href)
     setActive(slide.active)
+    setDarkOverlay(slide.dark_overlay)
+    setImageFit(slide.image_fit)
+    setShowCta(slide.show_cta)
   }
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -103,7 +120,7 @@ export default function AdminSlidesPage() {
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageUrl, eyebrow, title, ctaLabel, href, active }),
+        body: JSON.stringify({ imageUrl, eyebrow, title: showTitle ? title : "", ctaLabel, href, active, darkOverlay, imageFit, showCta }),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -145,6 +162,37 @@ export default function AdminSlidesPage() {
           body: JSON.stringify({ sortOrder: current.sort_order }),
         }),
       ])
+      await loadSlides()
+    } finally {
+      setReorderingId(null)
+    }
+  }
+
+  const handleDrop = async (targetIndex: number) => {
+    const sourceIndex = draggedIndex
+    setDraggedIndex(null)
+    setDragOverIndex(null)
+    if (sourceIndex === null || sourceIndex === targetIndex || reorderingId !== null) return
+
+    const reordered = [...slides]
+    const [moved] = reordered.splice(sourceIndex, 1)
+    reordered.splice(targetIndex, 0, moved)
+
+    setSlides(reordered)
+    setReorderingId(moved.id)
+    try {
+      // Persist every row whose position actually changed, sort_order = new index.
+      await Promise.all(
+        reordered.map((slide, index) =>
+          slide.sort_order === index
+            ? null
+            : fetch(`/api/admin/slides/${slide.id}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ sortOrder: index }),
+              })
+        )
+      )
       await loadSlides()
     } finally {
       setReorderingId(null)
@@ -216,43 +264,87 @@ export default function AdminSlidesPage() {
                 />
               </div>
               <div className="flex-1">
-                <label className="text-sm font-bold text-foreground block mb-1.5">Título</label>
+                <label className="flex items-center gap-2 text-sm font-bold text-foreground cursor-pointer mb-1.5 w-fit">
+                  <input
+                    type="checkbox"
+                    checked={showTitle}
+                    onChange={(e) => setShowTitle(e.target.checked)}
+                    className="h-4 w-4 accent-accent-gold cursor-pointer"
+                  />
+                  Mostrar título
+                </label>
                 <input
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  required
-                  className="w-full bg-background border border-card-border rounded-xl px-4 py-2.5 text-sm text-foreground focus:outline-none focus:border-accent-gold"
+                  placeholder="Título del slide"
+                  disabled={!showTitle}
+                  className="w-full bg-background border border-card-border rounded-xl px-4 py-2.5 text-sm text-foreground focus:outline-none focus:border-accent-gold disabled:opacity-40 disabled:cursor-not-allowed"
                 />
               </div>
             </div>
-            <div className="flex flex-col md:flex-row gap-3">
-              <div className="flex-1">
-                <label className="text-sm font-bold text-foreground block mb-1.5">Texto del botón</label>
+            <div className="flex flex-col gap-1.5">
+              <label className="flex items-center gap-2 text-sm font-bold text-foreground cursor-pointer w-fit">
                 <input
-                  value={ctaLabel}
-                  onChange={(e) => setCtaLabel(e.target.value)}
-                  className="w-full bg-background border border-card-border rounded-xl px-4 py-2.5 text-sm text-foreground focus:outline-none focus:border-accent-gold"
+                  type="checkbox"
+                  checked={showCta}
+                  onChange={(e) => setShowCta(e.target.checked)}
+                  className="h-4 w-4 accent-accent-gold cursor-pointer"
                 />
-              </div>
-              <div className="flex-1">
-                <label className="text-sm font-bold text-foreground block mb-1.5">Link destino</label>
-                <input
-                  value={href}
-                  onChange={(e) => setHref(e.target.value)}
-                  placeholder="/search?category=tecnologia"
-                  className="w-full bg-background border border-card-border rounded-xl px-4 py-2.5 text-sm text-foreground focus:outline-none focus:border-accent-gold"
-                />
+                Mostrar botón
+              </label>
+              <div className="flex flex-col md:flex-row gap-3">
+                <div className="flex-1">
+                  <label className="text-sm font-bold text-foreground block mb-1.5">Texto del botón</label>
+                  <input
+                    value={ctaLabel}
+                    onChange={(e) => setCtaLabel(e.target.value)}
+                    disabled={!showCta}
+                    className="w-full bg-background border border-card-border rounded-xl px-4 py-2.5 text-sm text-foreground focus:outline-none focus:border-accent-gold disabled:opacity-40 disabled:cursor-not-allowed"
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="text-sm font-bold text-foreground block mb-1.5">Link destino</label>
+                  <input
+                    value={href}
+                    onChange={(e) => setHref(e.target.value)}
+                    placeholder="/search?category=tecnologia"
+                    disabled={!showCta}
+                    className="w-full bg-background border border-card-border rounded-xl px-4 py-2.5 text-sm text-foreground focus:outline-none focus:border-accent-gold disabled:opacity-40 disabled:cursor-not-allowed"
+                  />
+                </div>
               </div>
             </div>
-            <label className="flex items-center gap-2 text-sm font-bold text-foreground cursor-pointer w-fit">
-              <input
-                type="checkbox"
-                checked={active}
-                onChange={(e) => setActive(e.target.checked)}
-                className="h-4 w-4 accent-accent-gold cursor-pointer"
-              />
-              Activo
-            </label>
+            <div className="flex flex-wrap gap-5">
+              <label className="flex items-center gap-2 text-sm font-bold text-foreground cursor-pointer w-fit">
+                <input
+                  type="checkbox"
+                  checked={active}
+                  onChange={(e) => setActive(e.target.checked)}
+                  className="h-4 w-4 accent-accent-gold cursor-pointer"
+                />
+                Activo
+              </label>
+              <label className="flex items-center gap-2 text-sm font-bold text-foreground cursor-pointer w-fit" title="Oscurece la imagen para que el título/botón se lean encima. Desactivalo si tu imagen ya trae texto propio.">
+                <input
+                  type="checkbox"
+                  checked={darkOverlay}
+                  onChange={(e) => setDarkOverlay(e.target.checked)}
+                  className="h-4 w-4 accent-accent-gold cursor-pointer"
+                />
+                Aplicar oscurecido a la imagen
+              </label>
+              <label className="flex items-center gap-2 text-sm font-bold text-foreground cursor-pointer w-fit" title="Cubrir: la imagen llena todo el ancho, puede recortar los bordes (ideal para fotos). Ajustar: nunca recorta, pero puede dejar franjas vacías a los costados (ideal para banners con texto propio).">
+                <span>Imagen:</span>
+                <select
+                  value={imageFit}
+                  onChange={(e) => setImageFit(e.target.value as "cover" | "contain")}
+                  className="bg-background border border-card-border rounded-lg px-2 py-1 text-xs font-bold text-foreground focus:outline-none focus:border-accent-gold cursor-pointer"
+                >
+                  <option value="cover">Cubrir todo el ancho (recorta)</option>
+                  <option value="contain">Ajustar sin recortar</option>
+                </select>
+              </label>
+            </div>
           </div>
         </div>
 
@@ -290,15 +382,38 @@ export default function AdminSlidesPage() {
                 <th className="py-2">Orden</th>
                 <th className="py-2">Imagen</th>
                 <th className="py-2">Título</th>
+                <th className="py-2">Botón</th>
+                <th className="py-2">Link</th>
                 <th className="py-2">Estado</th>
                 <th className="py-2 text-right">Acciones</th>
               </tr>
             </thead>
             <tbody>
               {slides.map((slide, index) => (
-                <tr key={slide.id} className="border-b border-card-border/30 hover:bg-card-bg/30 transition-colors">
+                <tr
+                  key={slide.id}
+                  draggable
+                  onDragStart={() => setDraggedIndex(index)}
+                  onDragOver={(e) => {
+                    e.preventDefault()
+                    if (dragOverIndex !== index) setDragOverIndex(index)
+                  }}
+                  onDragLeave={() => setDragOverIndex((prev) => (prev === index ? null : prev))}
+                  onDrop={(e) => {
+                    e.preventDefault()
+                    handleDrop(index)
+                  }}
+                  onDragEnd={() => {
+                    setDraggedIndex(null)
+                    setDragOverIndex(null)
+                  }}
+                  className={`border-b border-card-border/30 hover:bg-card-bg/30 transition-colors cursor-grab active:cursor-grabbing ${
+                    draggedIndex === index ? "opacity-40" : ""
+                  } ${dragOverIndex === index && draggedIndex !== index ? "border-t-2 border-t-accent-gold" : ""}`}
+                >
                   <td className="py-2.5">
                     <div className="flex flex-col gap-0.5">
+                      <span className="text-text-muted/60 select-none mb-0.5 block" title="Arrastrá para reordenar">⠿</span>
                       <button
                         type="button"
                         onClick={() => handleMove(index, -1)}
@@ -327,7 +442,17 @@ export default function AdminSlidesPage() {
                   </td>
                   <td className="py-2.5 font-bold text-foreground">
                     <span className="block text-[10px] font-bold uppercase text-accent-gold">{slide.eyebrow}</span>
-                    {slide.title}
+                    {slide.title || <span className="text-text-muted italic font-normal">(sin título)</span>}
+                  </td>
+                  <td className="py-2.5">
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                      slide.show_cta ? "bg-accent-green/10 text-accent-green" : "bg-text-muted/10 text-text-muted"
+                    }`}>
+                      {slide.show_cta ? "Visible" : "Oculto"}
+                    </span>
+                  </td>
+                  <td className="py-2.5 text-text-muted">
+                    {slide.show_cta ? slide.href : "-"}
                   </td>
                   <td className="py-2.5">
                     <button
@@ -372,7 +497,7 @@ export default function AdminSlidesPage() {
       <ConfirmModal
         isOpen={deleteTarget !== null}
         title="Borrar slide"
-        description={`¿Borrar "${deleteTarget?.title}"? Esta acción no se puede deshacer.`}
+        description={`¿Borrar "${deleteTarget?.title || deleteTarget?.eyebrow || "este slide"}"? Esta acción no se puede deshacer.`}
         confirmText="Borrar"
         type="danger"
         isLoading={deleting}

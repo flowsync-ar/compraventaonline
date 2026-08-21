@@ -12,6 +12,9 @@ const SLIDES = [
     title: "Lo último en celulares, notebooks y gadgets",
     cta: "Ver tecnología",
     href: "/search?category=tecnologia",
+    darkOverlay: true,
+    imageFit: "cover" as const,
+    showCta: true,
   },
   {
     id: "agro",
@@ -21,6 +24,9 @@ const SLIDES = [
     title: "Productos del caldenal directo a tu mesa",
     cta: "Ver agro",
     href: "/search?category=campo-agro",
+    darkOverlay: true,
+    imageFit: "cover" as const,
+    showCta: true,
   },
   {
     id: "tech",
@@ -30,6 +36,9 @@ const SLIDES = [
     title: "Equipá tu proyecto con las mejores ofertas",
     cta: "Explorar",
     href: "/search?category=construccion",
+    darkOverlay: true,
+    imageFit: "cover" as const,
+    showCta: true,
   },
   {
     id: "vehicles",
@@ -39,6 +48,9 @@ const SLIDES = [
     title: "Autos y camionetas de toda La Pampa",
     cta: "Ver vehículos",
     href: "/search?category=vehiculos",
+    darkOverlay: true,
+    imageFit: "cover" as const,
+    showCta: true,
   },
 ] as const;
 
@@ -48,9 +60,17 @@ export interface HeroSlide {
   id: string;
   image: string;
   eyebrow: string;
-  title: string;
+  title: string | null;
   cta: string;
   href: string;
+  /** Defaults to true when omitted (placeholder slides). */
+  darkOverlay?: boolean;
+  /** "cover" fills the width and crops overflow (default, right for
+   * photos); "contain" shrinks to fit and never crops (right for banners
+   * with text baked in near the edges). */
+  imageFit?: "cover" | "contain";
+  /** Defaults to true when omitted (placeholder slides). */
+  showCta?: boolean;
 }
 
 interface HeroCarouselProps {
@@ -97,25 +117,37 @@ export default function HeroCarousel({ slides }: HeroCarouselProps) {
             <img
               src={slide.image}
               alt=""
-              className="h-full w-full object-cover object-center scale-105"
+              className={`h-full w-full object-center ${
+                slide.imageFit === "contain" ? "object-contain" : "object-cover scale-105"
+              }`}
             />
-            <div className="absolute inset-0 bg-gradient-to-r from-background/90 via-background/35 to-transparent" />
-            <div className="absolute inset-0 bg-gradient-to-t from-background via-background/20 to-transparent" />
+            {slide.darkOverlay !== false && (
+              <>
+                <div className="absolute inset-0 bg-gradient-to-r from-background/90 via-background/35 to-transparent" />
+                <div className="absolute inset-0 bg-gradient-to-t from-background via-background/20 to-transparent" />
+              </>
+            )}
 
-            <div className="absolute inset-0 mx-auto flex max-w-7xl items-center px-4 sm:px-6 lg:px-8">
-              <div className="max-w-md">
-                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-accent-gold">
-                  {slide.eyebrow}
-                </p>
-                <h2 className="mt-2 font-heading text-xl sm:text-2xl md:text-3xl font-extrabold leading-tight text-foreground">
-                  {slide.title}
-                </h2>
-                <Link
-                  href={slide.href}
-                  className="mt-4 inline-flex rounded-lg bg-background/80 px-4 py-2 text-[11px] font-extrabold text-accent-gold border border-accent-gold/30 hover:border-accent-gold/60 backdrop-blur-sm transition-all"
-                >
-                  {slide.cta} →
-                </Link>
+            <div className="absolute inset-0 mx-auto flex max-w-7xl items-start justify-start p-3 sm:p-4 lg:p-5">
+              <div className="max-w-md text-left">
+                {slide.eyebrow && (
+                  <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-accent-gold">
+                    {slide.eyebrow}
+                  </p>
+                )}
+                {slide.title && (
+                  <h2 className="mt-2 font-heading text-xl sm:text-2xl md:text-3xl font-extrabold leading-tight text-foreground">
+                    {slide.title}
+                  </h2>
+                )}
+                {slide.showCta !== false && (
+                  <Link
+                    href={slide.href}
+                    className="mt-4 inline-flex rounded-lg bg-background px-4 py-2 text-[11px] font-extrabold text-accent-gold border border-accent-gold/30 hover:border-accent-gold/60 shadow-lg transition-all"
+                  >
+                    {slide.cta} →
+                  </Link>
+                )}
               </div>
             </div>
           </div>

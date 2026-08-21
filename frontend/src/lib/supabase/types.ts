@@ -134,34 +134,43 @@ export type Database = {
           active: boolean
           created_at: string
           cta_label: string
+          dark_overlay: boolean
           eyebrow: string
           href: string
           id: string
+          image_fit: string
           image_url: string
+          show_cta: boolean
           sort_order: number
-          title: string
+          title: string | null
         }
         Insert: {
           active?: boolean
           created_at?: string
           cta_label?: string
+          dark_overlay?: boolean
           eyebrow?: string
           href?: string
           id?: string
+          image_fit?: string
           image_url: string
+          show_cta?: boolean
           sort_order?: number
-          title: string
+          title?: string | null
         }
         Update: {
           active?: boolean
           created_at?: string
           cta_label?: string
+          dark_overlay?: boolean
           eyebrow?: string
           href?: string
           id?: string
+          image_fit?: string
           image_url?: string
+          show_cta?: boolean
           sort_order?: number
-          title?: string
+          title?: string | null
         }
         Relationships: []
       }

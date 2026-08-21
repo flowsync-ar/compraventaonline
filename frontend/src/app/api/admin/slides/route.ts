@@ -32,6 +32,9 @@ export async function POST(request: NextRequest) {
     ctaLabel?: string
     href?: string
     active?: boolean
+    darkOverlay?: boolean
+    imageFit?: "cover" | "contain"
+    showCta?: boolean
   }
   try {
     body = await request.json()
@@ -40,10 +43,10 @@ export async function POST(request: NextRequest) {
   }
 
   const imageUrl = body.imageUrl?.trim()
-  const title = body.title?.trim()
+  const title = body.title?.trim() || null
 
-  if (!imageUrl || !title) {
-    return NextResponse.json({ error: "La imagen y el título son obligatorios" }, { status: 400 })
+  if (!imageUrl) {
+    return NextResponse.json({ error: "La imagen es obligatoria" }, { status: 400 })
   }
 
   const admin = createAdminClient()
@@ -65,6 +68,9 @@ export async function POST(request: NextRequest) {
     cta_label: body.ctaLabel?.trim() || "Ver más",
     href: body.href?.trim() || "/search",
     active: body.active ?? true,
+    dark_overlay: body.darkOverlay ?? true,
+    image_fit: body.imageFit === "contain" ? "contain" : "cover",
+    show_cta: body.showCta ?? true,
     sort_order: nextOrder,
   }
 

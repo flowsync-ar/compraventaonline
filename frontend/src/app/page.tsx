@@ -45,7 +45,7 @@ async function getHeroSlides(): Promise<HeroSlide[]> {
     const supabase = await createClient();
     const { data, error } = await supabase
       .from("hero_slides")
-      .select("id, image_url, eyebrow, title, cta_label, href")
+      .select("id, image_url, eyebrow, title, cta_label, href, dark_overlay, image_fit, show_cta")
       .eq("active", true)
       .order("sort_order", { ascending: true });
 
@@ -60,6 +60,9 @@ async function getHeroSlides(): Promise<HeroSlide[]> {
       title: slide.title,
       cta: slide.cta_label,
       href: slide.href,
+      darkOverlay: slide.dark_overlay,
+      imageFit: slide.image_fit as "cover" | "contain",
+      showCta: slide.show_cta,
     }));
   } catch (err) {
     console.error("[home] Unexpected error fetching hero_slides:", err);

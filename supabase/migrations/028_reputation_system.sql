@@ -7,7 +7,7 @@
 -- Mechanics (applies identically to sellers AND buyers — see
 -- buyer_score/buyer_tier below):
 --   POSITIVA rating -> +10 lifetime points
---   NEUTRAL  rating -> +2  lifetime points
+--   NEUTRAL  rating -> 0  lifetime points
 --   NEGATIVA rating -> -5  lifetime points (floored at 0, never negative)
 --
 -- Tiers are lifetime-points ranges, not a 0-100 percentage anymore (the
@@ -87,7 +87,7 @@ RETURNS integer AS $$
 BEGIN
   RETURN CASE p_rating
     WHEN 'POSITIVA' THEN 10
-    WHEN 'NEUTRAL'  THEN 2
+    WHEN 'NEUTRAL'  THEN 0
     WHEN 'NEGATIVA' THEN -5
   END;
 END;

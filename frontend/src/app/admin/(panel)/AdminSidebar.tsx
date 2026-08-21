@@ -11,7 +11,6 @@ const LINKS = [
   { href: "/admin/usuarios", label: "Usuarios", icon: "👥" },
   { href: "/admin/publicaciones", label: "Publicaciones", icon: "📦" },
   { href: "/admin/reclamos", label: "Reclamos", icon: "🚩" },
-  { href: "/admin/disputas", label: "Disputas de Pago", icon: "⚖️" },
 ]
 
 export default function AdminSidebar() {

@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { verifyMercadoPagoWebhookSignature } from "@/lib/mercadopago/webhook-verify"
-import { getPayment } from "@/lib/mercadopago/client"
-import { getPlatformMercadoPagoAccessToken } from "@/lib/mercadopago/tokens"
-import { computeReleaseDeadline } from "@/lib/escrow"
+import { getPayment, type MpPaymentInfo } from "@/lib/mercadopago/client"
+import { getSellerMercadoPagoAccessToken } from "@/lib/mercadopago/tokens"
 
 export const dynamic = "force-dynamic"
 
@@ -20,20 +19,39 @@ function extractPaymentId(request: NextRequest, body?: unknown): string | null {
   return paymentId?.trim() || null
 }
 
-async function processPaymentId(paymentId: string) {
-  // Every payment now settles into the platform's own MP account (escrow
-  // model — see 022_escrow_payments.sql), so there's no more "which
-  // connected seller does this belong to" lookup: one token reads it.
-  const accessToken = getPlatformMercadoPagoAccessToken()
-  if (!accessToken) return { ok: true, skipped: "platform_mp_not_configured" }
+// Finds which connected seller a payment belongs to by trying each seller's
+// stored access token against the payment resource — Mercado Pago's API
+// only lets an account read its own payments, so the first token that
+// succeeds is the owner. Fine at this marketplace's scale (few connected
+// sellers); mirrors the same pattern used in nodo-clinica.
+async function findPaymentOwner(paymentId: string): Promise<{ sellerId: string; payment: MpPaymentInfo } | null> {
+  const admin = createAdminClient()
+  const { data: accounts } = await admin
+    .from("seller_mercadopago_accounts")
+    .select("seller_id")
+    .not("access_token", "is", null)
 
-  let payment
-  try {
-    payment = await getPayment(accessToken, paymentId)
-  } catch {
-    return { ok: true, skipped: "payment_not_found" }
+  for (const account of accounts ?? []) {
+    // Goes through the refresh-aware helper (not the raw stored column) —
+    // an expired token here would otherwise silently 401, get treated as
+    // "not the owner", and leave a genuinely-approved payment stuck PENDING.
+    const accessToken = await getSellerMercadoPagoAccessToken(account.seller_id)
+    if (!accessToken) continue
+    try {
+      const payment = await getPayment(accessToken, paymentId)
+      return { sellerId: account.seller_id, payment }
+    } catch {
+      continue
+    }
   }
+  return null
+}
 
+async function processPaymentId(paymentId: string) {
+  const match = await findPaymentOwner(paymentId)
+  if (!match) return { ok: true, skipped: "payment_not_matched" }
+
+  const { sellerId, payment } = match
   if (payment.status !== "approved") {
     return { ok: true, skipped: `status:${payment.status}` }
   }
@@ -44,25 +62,20 @@ async function processPaymentId(paymentId: string) {
   const admin = createAdminClient()
   const { data: order } = await admin
     .from("orders")
-    .select("id, status")
+    .select("id, seller_id, status")
     .eq("id", orderId)
+    .eq("seller_id", sellerId)
     .maybeSingle()
 
   if (!order) return { ok: true, skipped: "order_not_found" }
-  if (order.status !== "PENDING") return { ok: true, skipped: `already:${order.status}` }
+  if (order.status === "PAID") return { ok: true, skipped: "already_paid" }
 
-  // Funds are captured (approved) but held — EN_CUSTODIA, not PAID/done.
-  // The seller only actually gets paid (by bank transfer) once the buyer
-  // confirms delivery or the release window lapses; see
-  // /api/orders/[id]/confirm-delivery and the admin disputes panel.
-  const now = new Date()
   await admin
     .from("orders")
     .update({
-      status: "EN_CUSTODIA",
+      status: "PAID",
       mp_payment_id: String(payment.id),
-      paid_at: now.toISOString(),
-      release_deadline: computeReleaseDeadline(now),
+      paid_at: new Date().toISOString(),
     })
     .eq("id", order.id)
 

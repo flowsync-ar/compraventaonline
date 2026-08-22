@@ -1078,7 +1078,7 @@ function DashboardPageContent() {
       }
     } catch (err: any) {
       console.error("Error al procesar la publicación:", err);
-      setErrorMsg("Ocurrió un error al procesar tu publicación.");
+      setErrorMsg(err.message || "Ocurrió un error al procesar tu publicación.");
     } finally {
       setLoading(false);
     }
@@ -1599,7 +1599,7 @@ function DashboardPageContent() {
       .eq("id", questionId);
 
     if (error) {
-      alert("Error al enviar la respuesta.");
+      alert(error.message || "Error al enviar la respuesta.");
       return;
     }
 

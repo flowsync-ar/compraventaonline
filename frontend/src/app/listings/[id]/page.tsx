@@ -568,7 +568,8 @@ export default function ListingDetailPage() {
         setContactMsg("Hola! Estoy interesado en tu publicación. ¿Sigue disponible?");
       }, 2500);
     } catch (err) {
-      alert("Hubo un error al enviar la consulta. Por favor intentalo nuevamente.");
+      const message = err instanceof Error ? err.message : "Hubo un error al enviar la consulta. Por favor intentalo nuevamente.";
+      alert(message);
     }
   };
 

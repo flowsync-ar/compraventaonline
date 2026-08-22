@@ -34,7 +34,8 @@ export async function POST(request: NextRequest) {
     })
   } catch (err) {
     console.error("[kyc/session] failed to create Didit session", err)
-    return NextResponse.json({ error: "No se pudo iniciar la verificación de identidad" }, { status: 502 })
+    const message = err instanceof Error ? err.message : "No se pudo iniciar la verificación de identidad"
+    return NextResponse.json({ error: message }, { status: 502 })
   }
 
   const admin = createAdminClient()

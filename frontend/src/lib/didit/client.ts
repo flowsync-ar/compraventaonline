@@ -38,8 +38,9 @@ export async function createVerificationSession(params: {
 
   if (!res.ok) {
     const data = await res.json().catch(() => ({}))
-    console.error("[didit] createVerificationSession failed", data)
-    throw new Error("No se pudo iniciar la verificación de identidad")
+    console.error("[didit] createVerificationSession failed", res.status, data)
+    const diditMessage = data?.detail || data?.message || data?.error || JSON.stringify(data)
+    throw new Error(`Didit rechazó la solicitud (HTTP ${res.status}): ${diditMessage}`)
   }
 
   return res.json()

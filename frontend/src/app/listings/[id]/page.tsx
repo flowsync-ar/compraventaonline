@@ -46,19 +46,6 @@ interface Listing {
   } | null;
 }
 
-interface Question {
-  id: string;
-  question: string;
-  answer: string | null;
-  updated_at: string;
-  created_at: string;
-  hidden_by_seller: boolean;
-  question_deleted: boolean;
-  answer_deleted: boolean;
-  buyer_id: string;
-  sellers: { name: string } | null;
-}
-
 export default function ListingDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -95,7 +82,6 @@ export default function ListingDetailPage() {
   const [contactSuccess, setContactSuccess] = useState(false);
 
   // Questions list state
-  const [questions, setQuestions] = useState<Question[]>([]);
 
   // Report Form States
   const [reportReason, setReportReason] = useState("FRAUD");
@@ -289,48 +275,6 @@ export default function ListingDetailPage() {
     const self = allCategories.find((c) => c.id === categoryId);
     return [...ancestors, ...(self ? [self] : [])];
   }, [listing, allCategories]);
-
-  // Public Q&A list — hidden_by_seller questions are excluded UNLESS the
-  // current user is the one who asked (they keep it in their own view even
-  // if the seller hid it from everyone else). Separate effect from
-  // fetchListing because sellerId resolves asynchronously in another effect
-  // (it starts null, then gets set once we know who's logged in).
-  useEffect(() => {
-    if (!id) return;
-
-    async function fetchQuestions() {
-      const supabase = getSupabase();
-      try {
-        let query = supabase
-          .from("questions")
-          .select(`
-            id,
-            question,
-            answer,
-            updated_at,
-            created_at,
-            hidden_by_seller,
-            question_deleted,
-            answer_deleted,
-            buyer_id,
-            sellers ( name )
-          `)
-          .eq("listing_id", id);
-
-        query = sellerId
-          ? query.or(`hidden_by_seller.eq.false,buyer_id.eq.${sellerId}`)
-          : query.eq("hidden_by_seller", false);
-
-        const { data } = await query.order("created_at", { ascending: true });
-
-        if (data) setQuestions(data as unknown as Question[]);
-      } catch (err) {
-        console.error("Error fetching questions:", err);
-      }
-    }
-
-    fetchQuestions();
-  }, [id, sellerId]);
 
   // Buyer clicked "Comprar Ahora" while logged out, got sent to
   // /login?redirect=/listings/[id]?buy=1, and is now back here logged in —
@@ -617,15 +561,6 @@ export default function ListingDetailPage() {
       if (error) throw error;
 
       setContactSuccess(true);
-
-      // Refresh questions
-      const { data } = await supabase
-        .from("questions")
-        .select(`id, question, answer, updated_at, created_at, sellers ( name )`)
-        .eq("listing_id", id)
-        .order("created_at", { ascending: true });
-
-      if (data) setQuestions(data as unknown as Question[]);
 
       setTimeout(() => {
         setContactSuccess(false);
@@ -918,55 +853,6 @@ export default function ListingDetailPage() {
                 </div>
               </div>
             )}
-          </div>
-
-          {/* Sección de Preguntas y Respuestas */}
-          <div className="rounded-3xl bg-card-bg border border-card-border p-6 shadow-xl flex flex-col gap-6 animate-in fade-in duration-200">
-            <h3 className="font-heading text-base font-extrabold text-foreground border-b border-card-border pb-3 flex items-center gap-2">
-              <span>💬</span> Preguntas y respuestas
-            </h3>
-
-            <div className="flex flex-col gap-4">
-              {questions.length === 0 ? (
-                <p className="text-xs text-text-muted">Aún no se hicieron preguntas en esta publicación. ¡Sé el primero en consultar!</p>
-              ) : (
-                <div className="flex flex-col gap-4 max-h-[400px] overflow-y-auto pr-2">
-                  {questions.map((q) => (
-                    <div key={q.id} className="flex flex-col gap-2 text-xs border-b border-card-border/50 pb-3 last:border-b-0 last:pb-0">
-                      <div className="flex items-start justify-between gap-4">
-                        <p className={q.question_deleted ? "text-text-muted italic leading-relaxed" : "text-foreground leading-relaxed"}>
-                          <span className="text-text-muted font-bold block mb-1 text-[10px]">{q.sellers?.name ?? "Comprador"}:</span>
-                          {q.question_deleted && "🚫 "}{q.question}
-                        </p>
-                        <span className="text-[9px] text-text-muted shrink-0">
-                          {new Date(q.created_at).toLocaleDateString("es-AR")}
-                        </span>
-                      </div>
-                      {q.hidden_by_seller && (
-                        <span className="text-[9px] font-semibold text-text-muted italic">
-                          👁️‍🗨️ Solo vos ves esta consulta — el vendedor la ocultó para el resto de los visitantes.
-                        </span>
-                      )}
-                      {q.answer ? (
-                        <div className="bg-card-bg-solid/40 border-l-2 border-accent-gold pl-3 py-2 rounded-r-xl flex flex-col gap-1 mt-1">
-                          <p className={q.answer_deleted ? "text-text-muted italic leading-relaxed" : "text-text-muted leading-relaxed"}>
-                            <span className="text-accent-gold font-bold block text-[9.5px] uppercase tracking-wider">Respuesta del vendedor:</span>
-                            {q.answer_deleted && "🚫 "}{q.answer}
-                          </p>
-                          {q.updated_at && (
-                            <span className="text-[8px] text-text-muted/80 self-end">
-                              {new Date(q.updated_at).toLocaleDateString("es-AR")}
-                            </span>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-xs font-semibold text-amber-600 dark:text-amber-400 italic">Aún sin responder</span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
           </div>
 
           {/* Local Advertising Banner */}

@@ -622,10 +622,12 @@ export type Database = {
           document_number: string | null
           email: string
           id: string
+          identity_verified: boolean
           location: string | null
           mercadopago_connected: boolean
           name: string
           phone: string | null
+          phone_verified: boolean
           rating: number | null
           score: number
           status: Database["public"]["Enums"]["seller_status"]
@@ -644,10 +646,12 @@ export type Database = {
           document_number?: string | null
           email: string
           id?: string
+          identity_verified?: boolean
           location?: string | null
           mercadopago_connected?: boolean
           name: string
           phone?: string | null
+          phone_verified?: boolean
           rating?: number | null
           score?: number
           status?: Database["public"]["Enums"]["seller_status"]
@@ -666,10 +670,12 @@ export type Database = {
           document_number?: string | null
           email?: string
           id?: string
+          identity_verified?: boolean
           location?: string | null
           mercadopago_connected?: boolean
           name?: string
           phone?: string | null
+          phone_verified?: boolean
           rating?: number | null
           score?: number
           status?: Database["public"]["Enums"]["seller_status"]
@@ -680,6 +686,47 @@ export type Database = {
           username?: string | null
         }
         Relationships: []
+      }
+      identity_verifications: {
+        Row: {
+          created_at: string
+          face_match_score: number | null
+          id: string
+          raw_payload: Json | null
+          seller_id: string
+          session_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          face_match_score?: number | null
+          id?: string
+          raw_payload?: Json | null
+          seller_id: string
+          session_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          face_match_score?: number | null
+          id?: string
+          raw_payload?: Json | null
+          seller_id?: string
+          session_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "identity_verifications_seller_id_fkey"
+            columns: ["seller_id"]
+            isOneToOne: false
+            referencedRelation: "sellers"
+            referencedColumns: ["id"]
+          }
+        ]
       }
       seller_mercadopago_accounts: {
         Row: {

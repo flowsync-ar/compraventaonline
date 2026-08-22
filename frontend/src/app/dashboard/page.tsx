@@ -66,6 +66,7 @@ interface SellerProfile {
   mercadopago_connected: boolean;
   bank_cbu: string | null;
   bank_alias: string | null;
+  identity_verified: boolean;
 }
 
 interface PendingTransferOrder {
@@ -205,6 +206,7 @@ function DashboardPageContent() {
   const [bankCbu, setBankCbu] = useState("");
   const [bankAlias, setBankAlias] = useState("");
   const [mpDisconnecting, setMpDisconnecting] = useState(false);
+  const [kycLoading, setKycLoading] = useState(false);
   const [pendingTransferOrders, setPendingTransferOrders] = useState<PendingTransferOrder[]>([]);
   const [confirmingOrderId, setConfirmingOrderId] = useState<string | null>(null);
 
@@ -361,7 +363,7 @@ function DashboardPageContent() {
         // 1. Fetch seller profile for this auth user
         const { data: profileData, error: profileError } = await supabase
           .from("sellers")
-          .select("id, name, type, score, tier, user_id, phone, location, document_number, bio, avatar_url, username, mercadopago_connected, bank_cbu, bank_alias")
+          .select("id, name, type, score, tier, user_id, phone, location, document_number, bio, avatar_url, username, mercadopago_connected, bank_cbu, bank_alias, identity_verified")
           .eq("user_id", userId!)
           .single();
 
@@ -1552,6 +1554,21 @@ function DashboardPageContent() {
       setProfileErrorMsg("No se pudo desvincular la cuenta.");
     } finally {
       setMpDisconnecting(false);
+    }
+  };
+
+  const handleStartKyc = async () => {
+    setKycLoading(true);
+    setProfileErrorMsg("");
+    try {
+      const res = await fetch("/api/kyc/session", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "No se pudo iniciar la verificación.");
+      window.location.href = data.url;
+    } catch (err: any) {
+      console.error("Error al iniciar la verificación de identidad:", err);
+      setProfileErrorMsg(err.message || "No se pudo iniciar la verificación de identidad.");
+      setKycLoading(false);
     }
   };
 
@@ -4170,6 +4187,28 @@ function DashboardPageContent() {
                 </div>
               </div>
             </form>
+
+            <div className="border-t border-card-border/50 mt-8 pt-6 flex flex-col gap-3">
+              <span className="text-xs font-bold text-foreground">Verificación de Identidad</span>
+              {sellerProfile.identity_verified ? (
+                <div className="flex items-center gap-3 rounded-xl bg-accent-green/10 border border-accent-green/30 px-4 py-3 w-fit">
+                  <span className="text-xs font-bold text-accent-green">✓ Identidad verificada</span>
+                </div>
+              ) : (
+                <>
+                  <button
+                    onClick={handleStartKyc}
+                    disabled={kycLoading}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-accent-blue to-blue-600 px-5 py-3 text-xs font-extrabold text-white shadow-md hover:scale-[1.01] transition-all w-fit disabled:opacity-50 cursor-pointer"
+                  >
+                    {kycLoading ? "Iniciando..." : "🪪 Verificar mi identidad"}
+                  </button>
+                  <p className="text-[10px] text-text-muted">
+                    Te vamos a pedir una foto de tu DNI y una selfie para confirmar que sos vos. Lo hace un proveedor externo (Didit), nosotros no guardamos tus fotos.
+                  </p>
+                </>
+              )}
+            </div>
 
             <div className="border-t border-card-border/50 mt-8 pt-6 flex flex-col gap-3">
               <span className="text-xs font-bold text-foreground">Mercado Pago</span>

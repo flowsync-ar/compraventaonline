@@ -6,6 +6,12 @@ import { ADMIN_COOKIE, verifyAdminToken } from "@/lib/admin/auth"
 // Routes that require an active session
 const PROTECTED_ROUTES = ["/dashboard", "/favoritos"]
 
+// Routes that ALSO require sellers.identity_verified = true — browsing
+// stays open to anyone logged in, but transacting/managing an account
+// doesn't, until Didit approves their DNI + selfie. /verificar-identidad
+// itself is deliberately excluded (that's where this redirects TO).
+const IDENTITY_GATED_ROUTES = ["/dashboard", "/favoritos", "/ventas", "/compras", "/carrito"]
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
@@ -29,7 +35,7 @@ export async function proxy(request: NextRequest) {
     },
   })
 
-  const { user } = await updateSession(request, response)
+  const { supabase, user } = await updateSession(request, response)
 
   const isProtected = PROTECTED_ROUTES.some((route) =>
     pathname.startsWith(route)
@@ -39,6 +45,24 @@ export async function proxy(request: NextRequest) {
     const loginUrl = new URL("/login", request.url)
     loginUrl.searchParams.set("next", pathname)
     return NextResponse.redirect(loginUrl)
+  }
+
+  const isIdentityGated = IDENTITY_GATED_ROUTES.some((route) =>
+    pathname.startsWith(route)
+  )
+
+  if (isIdentityGated && user) {
+    const { data: seller } = await supabase
+      .from("sellers")
+      .select("identity_verified")
+      .eq("user_id", user.id)
+      .single()
+
+    if (!seller?.identity_verified) {
+      const verifyUrl = new URL("/verificar-identidad", request.url)
+      verifyUrl.searchParams.set("next", pathname)
+      return NextResponse.redirect(verifyUrl)
+    }
   }
 
   // Redirect authenticated users away from /login

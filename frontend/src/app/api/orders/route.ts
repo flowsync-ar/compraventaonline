@@ -34,6 +34,22 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 })
   }
 
+  // Defense in depth: /verificar-identidad gates this at the page level
+  // (middleware redirects /carrito there), but this endpoint is also
+  // reachable directly from a listing's "Comprar Ahora", which isn't a
+  // gated route — so the check has to live here too, not just in proxy.ts.
+  const { data: buyerSeller } = await supabase
+    .from("sellers")
+    .select("identity_verified")
+    .eq("id", buyer.sellerId)
+    .single()
+  if (!buyerSeller?.identity_verified) {
+    return NextResponse.json(
+      { error: "Necesitás verificar tu identidad antes de comprar." },
+      { status: 403 },
+    )
+  }
+
   let body: { listingId?: string }
   try {
     body = await request.json()

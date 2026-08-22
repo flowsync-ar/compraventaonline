@@ -16,6 +16,7 @@ export default function SiteChrome({ children }: { children: ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
   const isAdmin = pathname?.startsWith("/admin")
+  const isMaintenance = pathname === "/mantenimiento"
 
   // Mobile nav dropdown (<md only — from md up the horizontal nav has
   // enough room to wrap onto 1-2 lines on its own, no need to hide it).
@@ -75,7 +76,7 @@ export default function SiteChrome({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe()
   }, [isAdmin, router])
 
-  if (isAdmin) {
+  if (isAdmin || isMaintenance) {
     return <>{children}</>
   }
 

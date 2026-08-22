@@ -37,6 +37,26 @@ export async function proxy(request: NextRequest) {
 
   const { supabase, user } = await updateSession(request, response)
 
+  // Site-wide maintenance mode (platform_settings, toggled from
+  // /admin/configuracion). API routes are left alone — a redirect to an
+  // HTML page would break any caller expecting JSON. /mantenimiento itself
+  // is checked both ways: it only renders while maintenance is actually on
+  // — otherwise it's not a real page, just bounce back home.
+  if (!pathname.startsWith("/api")) {
+    const { data: settings } = await supabase
+      .from("platform_settings")
+      .select("maintenance_mode")
+      .eq("id", true)
+      .single()
+
+    if (settings?.maintenance_mode && pathname !== "/mantenimiento") {
+      return NextResponse.redirect(new URL("/mantenimiento", request.url))
+    }
+    if (!settings?.maintenance_mode && pathname === "/mantenimiento") {
+      return NextResponse.redirect(new URL("/", request.url))
+    }
+  }
+
   const isProtected = PROTECTED_ROUTES.some((route) =>
     pathname.startsWith(route)
   )

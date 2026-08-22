@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
   const admin = createAdminClient()
   const { data, error } = await admin
     .from("platform_settings")
-    .select("highlight_price, highlight_duration_days")
+    .select("highlight_price, highlight_duration_days, maintenance_mode")
     .eq("id", true)
     .single()
 

@@ -10,6 +10,10 @@ export default function AdminConfiguracionPage() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
 
+  const [maintenanceMode, setMaintenanceMode] = useState(false)
+  const [maintenanceSaving, setMaintenanceSaving] = useState(false)
+  const [maintenanceError, setMaintenanceError] = useState<string | null>(null)
+
   useEffect(() => {
     const loadSettings = async () => {
       const res = await fetch("/api/admin/settings")
@@ -17,6 +21,7 @@ export default function AdminConfiguracionPage() {
       if (res.ok) {
         setHighlightPrice(String(data.settings.highlight_price))
         setHighlightDurationDays(String(data.settings.highlight_duration_days))
+        setMaintenanceMode(Boolean(data.settings.maintenance_mode))
       } else {
         setError(data.error ?? "No se pudo cargar la configuración")
       }
@@ -24,6 +29,26 @@ export default function AdminConfiguracionPage() {
     }
     loadSettings() // eslint-disable-line react-hooks/set-state-in-effect
   }, [])
+
+  const handleToggleMaintenance = async () => {
+    const next = !maintenanceMode
+    setMaintenanceSaving(true)
+    setMaintenanceError(null)
+    try {
+      const res = await fetch("/api/admin/settings/maintenance", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ maintenanceMode: next }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? "No se pudo actualizar")
+      setMaintenanceMode(next)
+    } catch (err) {
+      setMaintenanceError(err instanceof Error ? err.message : "No se pudo actualizar")
+    } finally {
+      setMaintenanceSaving(false)
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -105,6 +130,39 @@ export default function AdminConfiguracionPage() {
           {saving ? "Guardando..." : "Guardar"}
         </button>
       </form>
+
+      <div className="rounded-2xl glass-panel p-6 flex flex-col gap-4 max-w-lg">
+        <div>
+          <h2 className="text-sm font-extrabold text-foreground mb-1">Sitio en mantenimiento</h2>
+          <p className="text-xs text-text-muted">
+            Con esto activado, cualquier visitante (comprador o vendedor) que entre al sitio ve una página de "en mantenimiento" en vez del contenido normal. Vos seguís pudiendo entrar acá al panel de admin para desactivarlo.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            role="switch"
+            aria-checked={maintenanceMode}
+            onClick={handleToggleMaintenance}
+            disabled={maintenanceSaving}
+            className={`relative h-7 w-12 shrink-0 rounded-full transition-colors cursor-pointer disabled:opacity-50 ${
+              maintenanceMode ? "bg-red-500" : "bg-card-border"
+            }`}
+          >
+            <span
+              className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow-md transition-transform ${
+                maintenanceMode ? "translate-x-5" : "translate-x-0"
+              }`}
+            />
+          </button>
+          <span className={`text-sm font-bold ${maintenanceMode ? "text-red-500" : "text-text-muted"}`}>
+            {maintenanceMode ? "Activado — el sitio está caído para el público" : "Desactivado — el sitio funciona normalmente"}
+          </span>
+        </div>
+
+        {maintenanceError && <p className="text-xs text-red-500 font-bold">{maintenanceError}</p>}
+      </div>
     </div>
   )
 }

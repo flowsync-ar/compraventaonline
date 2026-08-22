@@ -990,18 +990,21 @@ export type Database = {
           highlight_duration_days: number
           highlight_price: number
           id: boolean
+          maintenance_mode: boolean
           updated_at: string
         }
         Insert: {
           highlight_duration_days?: number
           highlight_price?: number
           id?: boolean
+          maintenance_mode?: boolean
           updated_at?: string
         }
         Update: {
           highlight_duration_days?: number
           highlight_price?: number
           id?: boolean
+          maintenance_mode?: boolean
           updated_at?: string
         }
         Relationships: []

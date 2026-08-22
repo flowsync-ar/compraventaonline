@@ -31,6 +31,7 @@ export default function AdminPublicacionesPage() {
   const [deleteTarget, setDeleteTarget] = useState<AdminListing | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [detailListingId, setDetailListingId] = useState<string | null>(null)
+  const [pauseTarget, setPauseTarget] = useState<AdminListing | null>(null)
 
   const loadListings = async () => {
     const res = await fetch("/api/admin/listings")
@@ -43,16 +44,14 @@ export default function AdminPublicacionesPage() {
     loadListings() // eslint-disable-line react-hooks/set-state-in-effect
   }, [])
 
-  const handleTogglePause = async (listing: AdminListing) => {
-    const isActive = listing.status === "ACTIVE" || listing.status === "APPROVED"
+  const handleTogglePause = async () => {
+    if (!pauseTarget) return
+    const isActive = pauseTarget.status === "ACTIVE" || pauseTarget.status === "APPROVED"
     const action = isActive ? "pause" : "reactivate"
-    const verb = isActive ? "pausar" : "reactivar"
-    const name = listing.products?.name ?? "esta publicación"
-    if (!confirm(`¿Seguro que querés ${verb} "${name}"?`)) return
 
-    setPendingId(listing.id)
+    setPendingId(pauseTarget.id)
     try {
-      const res = await fetch(`/api/admin/listings/${listing.id}/status`, {
+      const res = await fetch(`/api/admin/listings/${pauseTarget.id}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action }),
@@ -62,6 +61,7 @@ export default function AdminPublicacionesPage() {
         alert(data.error ?? "No se pudo actualizar la publicación.")
         return
       }
+      setPauseTarget(null)
       loadListings()
     } finally {
       setPendingId(null)
@@ -185,7 +185,7 @@ export default function AdminPublicacionesPage() {
 
                         <div className="relative group">
                           <button
-                            onClick={() => handleTogglePause(listing)}
+                            onClick={() => setPauseTarget(listing)}
                             disabled={pendingId === listing.id}
                             className={`bg-card-bg border border-card-border h-8 w-8 rounded-lg flex items-center justify-center transition-all cursor-pointer disabled:opacity-50 ${
                               isActive
@@ -241,6 +241,17 @@ export default function AdminPublicacionesPage() {
         isLoading={deleting}
         onConfirm={handleDelete}
         onCancel={() => setDeleteTarget(null)}
+      />
+
+      <ConfirmModal
+        isOpen={pauseTarget !== null}
+        title={pauseTarget?.status === "ACTIVE" || pauseTarget?.status === "APPROVED" ? "Pausar publicación" : "Reactivar publicación"}
+        description={`¿Seguro que querés ${pauseTarget?.status === "ACTIVE" || pauseTarget?.status === "APPROVED" ? "pausar" : "reactivar"} "${pauseTarget?.products?.name ?? "esta publicación"}"?`}
+        confirmText={pauseTarget?.status === "ACTIVE" || pauseTarget?.status === "APPROVED" ? "Pausar" : "Reactivar"}
+        type="warning"
+        isLoading={pendingId === pauseTarget?.id}
+        onConfirm={handleTogglePause}
+        onCancel={() => setPauseTarget(null)}
       />
 
       {detailListingId && (

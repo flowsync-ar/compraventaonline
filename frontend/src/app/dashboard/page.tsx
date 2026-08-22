@@ -133,6 +133,14 @@ function DashboardPageContent() {
   // migration. Keyed by listing id so the table below can just look up
   // viewCounts[listing.id] ?? 0 per row.
   const [viewCounts, setViewCounts] = useState<Record<string, number>>({});
+  // { [listingId]: end_date ISO string } — active paid/reward highlights,
+  // used to hide the "Destacar" button and show "Destacado hasta DD/MM"
+  // instead. See highlighted_products (034_paid_highlights.sql).
+  const [highlightedUntil, setHighlightedUntil] = useState<Record<string, string>>({});
+  const [highlightingListingId, setHighlightingListingId] = useState<string | null>(null);
+  // Live price/duration for the "Destacar" button label — editable from
+  // /admin/configuracion (platform_settings), not hardcoded here.
+  const [highlightSettings, setHighlightSettings] = useState({ price: 10000, durationDays: 30 });
   // Buyer + purchase date for listings that sold out (status SOLD) — shown
   // next to the "Vendido" badge in "Mis Publicaciones".
   const [soldOrders, setSoldOrders] = useState<Record<string, { buyerName: string; paidAt: string }>>({});
@@ -347,7 +355,20 @@ function DashboardPageContent() {
     } else if (mp === "error") {
       setProfileErrorMsg("No se pudo vincular Mercado Pago. Probá de nuevo.");
     }
-    if (tab || mp) {
+
+    // Back from the "Destacar publicación" Checkout Pro flow — the webhook
+    // applies the highlight asynchronously, so "success" here just means the
+    // payment went through, not that it's visible in the table yet.
+    const highlight = searchParams.get("highlight");
+    if (highlight === "success") {
+      setSuccessMsg("¡Pago recibido! Tu publicación va a aparecer como destacada en unos minutos.");
+    } else if (highlight === "failure") {
+      setErrorMsg("El pago no se pudo completar. Podés intentar destacarla de nuevo.");
+    } else if (highlight === "pending") {
+      setSuccessMsg("Tu pago está pendiente de acreditación. Te avisamos cuando se confirme.");
+    }
+
+    if (tab || mp || highlight) {
       router.replace("/dashboard", { scroll: false });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1307,6 +1328,70 @@ function DashboardPageContent() {
 
     fetchViewCounts();
   }, [activeTab, myListings]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Which listings currently have an active highlight (paid or
+  // reward-earned) and until when — drives the "Destacar" button vs.
+  // "Destacado hasta DD/MM" badge in "Mis Publicaciones".
+  useEffect(() => {
+    if (activeTab !== "inventory" || myListings.length === 0) return;
+
+    const fetchHighlights = async () => {
+      try {
+        const supabase = getSupabase();
+        const { data } = await supabase
+          .from("highlighted_products")
+          .select("listing_id, end_date")
+          .in("listing_id", myListings.map((l) => l.id))
+          .gt("end_date", new Date().toISOString());
+
+        const map: Record<string, string> = {};
+        (data ?? []).forEach((h) => { map[h.listing_id] = h.end_date; });
+        setHighlightedUntil(map);
+      } catch (err) {
+        console.error("Error al cargar destacados activos:", err);
+      }
+    };
+
+    fetchHighlights();
+  }, [activeTab, myListings]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (activeTab !== "inventory") return;
+
+    const fetchHighlightSettings = async () => {
+      const supabase = getSupabase();
+      const { data } = await supabase
+        .from("platform_settings")
+        .select("highlight_price, highlight_duration_days")
+        .eq("id", true)
+        .single();
+      if (data) {
+        setHighlightSettings({ price: data.highlight_price, durationDays: data.highlight_duration_days });
+      }
+    };
+
+    fetchHighlightSettings();
+  }, [activeTab]);
+
+  const handleHighlightListing = async (listingId: string) => {
+    setHighlightingListingId(listingId);
+    setErrorMsg("");
+    try {
+      const res = await fetch("/api/highlights/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ listingId }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.url) {
+        throw new Error(data.error || "No se pudo iniciar el pago");
+      }
+      window.location.href = data.url;
+    } catch (err: any) {
+      setErrorMsg(err.message || "No se pudo iniciar el pago del destacado.");
+      setHighlightingListingId(null);
+    }
+  };
 
   // Buyer + purchase date for sold-out listings (status SOLD), shown next
   // to the "Vendido" badge — same table/relation "Mis Ventas" already uses.
@@ -3345,6 +3430,35 @@ function DashboardPageContent() {
                                 </span>
                               </div>
 
+                              {/* Botón Destacar — solo para publicaciones activas sin destacado vigente */}
+                              {(listing.status === "APPROVED" || listing.status === "ACTIVE") && (
+                                <div className="relative group">
+                                  {highlightedUntil[listing.id] ? (
+                                    <span
+                                      className="h-8 px-2 rounded-lg flex items-center justify-center text-[9px] font-extrabold bg-accent-gold/10 text-accent-gold border border-accent-gold/30 whitespace-nowrap"
+                                      title={`Destacado hasta ${new Date(highlightedUntil[listing.id]).toLocaleDateString("es-AR")}`}
+                                    >
+                                      ⭐ hasta {new Date(highlightedUntil[listing.id]).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })}
+                                    </span>
+                                  ) : (
+                                    <button
+                                      onClick={() => handleHighlightListing(listing.id)}
+                                      disabled={loading || highlightingListingId === listing.id}
+                                      className="bg-card-bg border border-card-border text-foreground hover:text-accent-gold hover:border-accent-gold/40 h-8 w-8 rounded-lg flex items-center justify-center transition-all cursor-pointer disabled:opacity-50"
+                                    >
+                                      {highlightingListingId === listing.id ? (
+                                        <span className="w-3.5 h-3.5 border-2 border-accent-gold border-t-transparent rounded-full animate-spin" />
+                                      ) : (
+                                        <span className="text-sm">⭐</span>
+                                      )}
+                                    </button>
+                                  )}
+                                  <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max rounded bg-card-bg-solid border border-card-border px-2 py-1 text-[10px] font-bold text-foreground opacity-0 transition-opacity group-hover:opacity-100 shadow-xl z-30">
+                                    {highlightedUntil[listing.id] ? "Ya está destacada" : `Destacar por $${highlightSettings.price.toLocaleString("es-AR")} (${highlightSettings.durationDays} días)`}
+                                  </span>
+                                </div>
+                              )}
+
                               {/* Botón Eliminar */}
                               <div className="relative group">
                                 <button 
@@ -3518,6 +3632,29 @@ function DashboardPageContent() {
                                 <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
                               </svg>
                             </button>
+                            {(listing.status === "APPROVED" || listing.status === "ACTIVE") && (
+                              highlightedUntil[listing.id] ? (
+                                <span
+                                  className="h-8 px-1.5 rounded-lg flex items-center justify-center text-[8px] font-extrabold bg-accent-gold/10 text-accent-gold border border-accent-gold/30 whitespace-nowrap"
+                                  title="Ya está destacada"
+                                >
+                                  ⭐ {new Date(highlightedUntil[listing.id]).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })}
+                                </span>
+                              ) : (
+                                <button
+                                  onClick={() => handleHighlightListing(listing.id)}
+                                  disabled={loading || highlightingListingId === listing.id}
+                                  className="bg-card-bg border border-card-border text-foreground hover:text-accent-gold hover:border-accent-gold/40 h-8 w-8 rounded-lg flex items-center justify-center transition-all cursor-pointer disabled:opacity-50"
+                                  aria-label={`Destacar por $${highlightSettings.price.toLocaleString("es-AR")} (${highlightSettings.durationDays} días)`}
+                                >
+                                  {highlightingListingId === listing.id ? (
+                                    <span className="w-3.5 h-3.5 border-2 border-accent-gold border-t-transparent rounded-full animate-spin" />
+                                  ) : (
+                                    <span className="text-sm">⭐</span>
+                                  )}
+                                </button>
+                              )
+                            )}
                             <button
                               onClick={() => setListingIdToDelete(listing.id)}
                               disabled={loading}
@@ -4013,7 +4150,12 @@ function DashboardPageContent() {
         )}
 
         {activeTab === "profile" && (
-          <div className="max-w-4xl mx-auto w-full rounded-2xl glass-panel p-8">
+          <div className="relative w-full rounded-2xl glass-panel p-8">
+            {sellerProfile.identity_verified && (
+              <div className="absolute top-4 right-4 sm:top-6 sm:right-6 flex items-center gap-1.5 rounded-full bg-accent-green/10 border border-accent-green/30 px-3 py-1.5">
+                <span className="text-[11px] font-bold text-accent-green whitespace-nowrap">✓ Identidad verificada</span>
+              </div>
+            )}
             <h2 className="font-heading text-lg font-bold text-foreground mb-1">Mis Datos</h2>
             <p className="text-xs text-text-muted mb-6">Actualizá los datos de tu perfil de vendedor.</p>
 
@@ -4188,27 +4330,21 @@ function DashboardPageContent() {
               </div>
             </form>
 
-            <div className="border-t border-card-border/50 mt-8 pt-6 flex flex-col gap-3">
-              <span className="text-xs font-bold text-foreground">Verificación de Identidad</span>
-              {sellerProfile.identity_verified ? (
-                <div className="flex items-center gap-3 rounded-xl bg-accent-green/10 border border-accent-green/30 px-4 py-3 w-fit">
-                  <span className="text-xs font-bold text-accent-green">✓ Identidad verificada</span>
-                </div>
-              ) : (
-                <>
-                  <button
-                    onClick={handleStartKyc}
-                    disabled={kycLoading}
-                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-accent-blue to-blue-600 px-5 py-3 text-xs font-extrabold text-white shadow-md hover:scale-[1.01] transition-all w-fit disabled:opacity-50 cursor-pointer"
-                  >
-                    {kycLoading ? "Iniciando..." : "🪪 Verificar mi identidad"}
-                  </button>
-                  <p className="text-[10px] text-text-muted">
-                    Te vamos a pedir una foto de tu DNI y una selfie para confirmar que sos vos. Lo hace un proveedor externo (Didit), nosotros no guardamos tus fotos.
-                  </p>
-                </>
-              )}
-            </div>
+            {!sellerProfile.identity_verified && (
+              <div className="border-t border-card-border/50 mt-8 pt-6 flex flex-col gap-3">
+                <span className="text-xs font-bold text-foreground">Verificación de Identidad</span>
+                <button
+                  onClick={handleStartKyc}
+                  disabled={kycLoading}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-accent-blue to-blue-600 px-5 py-3 text-xs font-extrabold text-white shadow-md hover:scale-[1.01] transition-all w-fit disabled:opacity-50 cursor-pointer"
+                >
+                  {kycLoading ? "Iniciando..." : "🪪 Verificar mi identidad"}
+                </button>
+                <p className="text-[10px] text-text-muted">
+                  Te vamos a pedir una foto de tu DNI y una selfie para confirmar que sos vos. Lo hace un proveedor externo (Didit), nosotros no guardamos tus fotos.
+                </p>
+              </div>
+            )}
 
             <div className="border-t border-card-border/50 mt-8 pt-6 flex flex-col gap-3">
               <span className="text-xs font-bold text-foreground">Mercado Pago</span>

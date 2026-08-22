@@ -217,6 +217,7 @@ export type Database = {
           end_date: string
           id: string
           listing_id: string
+          plan: string
           seller_id: string
           start_date: string
           updated_at: string
@@ -227,6 +228,7 @@ export type Database = {
           end_date: string
           id?: string
           listing_id: string
+          plan?: string
           seller_id: string
           start_date?: string
           updated_at?: string
@@ -237,6 +239,7 @@ export type Database = {
           end_date?: string
           id?: string
           listing_id?: string
+          plan?: string
           seller_id?: string
           start_date?: string
           updated_at?: string
@@ -251,6 +254,60 @@ export type Database = {
           },
           {
             foreignKeyName: "highlighted_products_seller_id_fkey"
+            columns: ["seller_id"]
+            isOneToOne: false
+            referencedRelation: "sellers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      highlight_orders: {
+        Row: {
+          amount: number
+          created_at: string
+          duration_days: number
+          id: string
+          listing_id: string
+          mp_payment_id: string | null
+          mp_preference_id: string | null
+          paid_at: string | null
+          seller_id: string
+          status: string
+        }
+        Insert: {
+          amount?: number
+          created_at?: string
+          duration_days?: number
+          id?: string
+          listing_id: string
+          mp_payment_id?: string | null
+          mp_preference_id?: string | null
+          paid_at?: string | null
+          seller_id: string
+          status?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          duration_days?: number
+          id?: string
+          listing_id?: string
+          mp_payment_id?: string | null
+          mp_preference_id?: string | null
+          paid_at?: string | null
+          seller_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "highlight_orders_listing_id_fkey"
+            columns: ["listing_id"]
+            isOneToOne: false
+            referencedRelation: "listings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "highlight_orders_seller_id_fkey"
             columns: ["seller_id"]
             isOneToOne: false
             referencedRelation: "sellers"
@@ -879,6 +936,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      platform_settings: {
+        Row: {
+          highlight_duration_days: number
+          highlight_price: number
+          id: boolean
+          updated_at: string
+        }
+        Insert: {
+          highlight_duration_days?: number
+          highlight_price?: number
+          id?: boolean
+          updated_at?: string
+        }
+        Update: {
+          highlight_duration_days?: number
+          highlight_price?: number
+          id?: boolean
+          updated_at?: string
+        }
+        Relationships: []
       }
     }
     Views: {

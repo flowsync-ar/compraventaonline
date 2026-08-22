@@ -937,6 +937,54 @@ export type Database = {
           },
         ]
       }
+      price_adjustments: {
+        Row: {
+          created_at: string
+          id: string
+          listing_id: string
+          mode: string
+          new_price: number
+          old_price: number
+          seller_id: string
+          value: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          listing_id: string
+          mode: string
+          new_price: number
+          old_price: number
+          seller_id: string
+          value: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          listing_id?: string
+          mode?: string
+          new_price?: number
+          old_price?: number
+          seller_id?: string
+          value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "price_adjustments_listing_id_fkey"
+            columns: ["listing_id"]
+            isOneToOne: false
+            referencedRelation: "listings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "price_adjustments_seller_id_fkey"
+            columns: ["seller_id"]
+            isOneToOne: false
+            referencedRelation: "sellers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       platform_settings: {
         Row: {
           highlight_duration_days: number

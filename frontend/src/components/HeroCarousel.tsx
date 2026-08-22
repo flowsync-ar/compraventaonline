@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 
 const SLIDES = [
@@ -82,28 +82,47 @@ export default function HeroCarousel({ slides }: HeroCarouselProps) {
   // configured any active slide in hero_slides yet.
   const activeSlides = slides && slides.length > 0 ? slides : SLIDES;
   const [active, setActive] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const dragStartX = useRef(0);
 
   const goTo = useCallback((index: number) => {
     setActive((index + activeSlides.length) % activeSlides.length);
   }, [activeSlides.length]);
 
   useEffect(() => {
+    if (dragging) return;
     const timer = window.setInterval(() => {
       setActive((prev) => (prev + 1) % activeSlides.length);
     }, INTERVAL_MS);
     return () => window.clearInterval(timer);
-  }, [activeSlides.length]);
+  }, [activeSlides.length, dragging]);
+
+  // Mouse/touch drag to navigate — Pointer Events cover both with one set
+  // of handlers. Only the horizontal distance at release matters, dragged
+  // right (positive delta) goes to the previous slide, left goes next —
+  // same convention as swiping a photo carousel.
+  const DRAG_THRESHOLD_PX = 50;
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    dragStartX.current = e.clientX;
+    setDragging(true);
+  };
+
+  const handlePointerUp = (e: React.PointerEvent) => {
+    if (!dragging) return;
+    setDragging(false);
+    const deltaX = e.clientX - dragStartX.current;
+    if (Math.abs(deltaX) < DRAG_THRESHOLD_PX) return;
+    goTo(active + (deltaX > 0 ? -1 : 1));
+  };
 
   return (
     <div className="relative w-full">
       <div
-        className="relative h-[260px] sm:h-[340px] md:h-[400px] w-full overflow-hidden"
-        style={{
-          WebkitMaskImage:
-            "linear-gradient(to bottom, #000 0%, #000 80%, transparent 100%)",
-          maskImage:
-            "linear-gradient(to bottom, #000 0%, #000 80%, transparent 100%)",
-        }}
+        className="relative h-[260px] sm:h-[340px] md:h-[400px] w-full overflow-hidden cursor-grab active:cursor-grabbing touch-pan-y"
+        onPointerDown={handlePointerDown}
+        onPointerUp={handlePointerUp}
+        onPointerLeave={() => setDragging(false)}
       >
         {activeSlides.map((slide, index) => (
           <div
@@ -117,6 +136,7 @@ export default function HeroCarousel({ slides }: HeroCarouselProps) {
             <img
               src={slide.image}
               alt=""
+              draggable={false}
               className={`h-full w-full object-center ${
                 slide.imageFit === "contain" ? "object-contain" : "object-cover scale-105"
               }`}
@@ -147,13 +167,7 @@ export default function HeroCarousel({ slides }: HeroCarouselProps) {
         ))}
       </div>
 
-      {/* Extra dissolve into page background (Mercado Libre style) */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 bottom-0 h-24 sm:h-28 bg-gradient-to-b from-transparent to-background"
-      />
-
-      <div className="absolute bottom-6 left-1/2 z-20 flex -translate-x-1/2 gap-2">
+      <div className="mt-3 mb-4 flex items-center justify-center gap-2">
         {activeSlides.map((slide, index) => (
           <button
             key={slide.id}

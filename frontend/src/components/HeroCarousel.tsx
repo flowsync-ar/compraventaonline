@@ -121,13 +121,6 @@ export default function HeroCarousel({ slides }: HeroCarouselProps) {
                 slide.imageFit === "contain" ? "object-contain" : "object-cover scale-105"
               }`}
             />
-            {slide.darkOverlay !== false && (
-              <>
-                <div className="absolute inset-0 bg-gradient-to-r from-background/90 via-background/35 to-transparent" />
-                <div className="absolute inset-0 bg-gradient-to-t from-background via-background/20 to-transparent" />
-              </>
-            )}
-
             <div className="absolute inset-0 mx-auto flex max-w-7xl items-start justify-start p-3 sm:p-4 lg:p-5">
               <div className="max-w-md text-left">
                 {slide.eyebrow && (

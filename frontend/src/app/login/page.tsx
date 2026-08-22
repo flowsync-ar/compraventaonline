@@ -511,7 +511,13 @@ function LoginPageContent() {
                   value={username}
                   onChange={(e) => handleUsernameChange(e.target.value)}
                   placeholder="Ej. juan.perez"
-                  className="flex-1 min-w-0 bg-background border border-card-border rounded-xl px-4 py-3 text-xs text-foreground focus:outline-none focus:border-accent-gold"
+                  className={`flex-1 min-w-0 bg-background border rounded-xl px-4 py-3 text-xs text-foreground focus:outline-none transition-colors ${
+                    usernameStatus === "available"
+                      ? "border-accent-green focus:border-accent-green"
+                      : usernameStatus === "taken" || usernameStatus === "invalid"
+                        ? "border-red-500 focus:border-red-500"
+                        : "border-card-border focus:border-accent-gold"
+                  }`}
                 />
                 <button
                   type="button"
@@ -526,7 +532,7 @@ function LoginPageContent() {
               <div className="flex items-center justify-between gap-2">
                 {usernameMsg && (
                   <p
-                    className={`text-[11px] font-semibold ${
+                    className={`text-xs font-extrabold ${
                       usernameStatus === "available"
                         ? "text-accent-green"
                         : usernameStatus === "taken" || usernameStatus === "invalid"

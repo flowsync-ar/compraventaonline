@@ -137,8 +137,10 @@ export default function HeroCarousel({ slides }: HeroCarouselProps) {
               src={slide.image}
               alt=""
               draggable={false}
-              className={`h-full w-full object-center ${
-                slide.imageFit === "contain" ? "object-contain" : "object-cover scale-105"
+              className={`h-full w-full ${
+                slide.imageFit === "contain"
+                  ? "object-contain object-top"
+                  : "object-cover object-center scale-105"
               }`}
             />
             <div className="absolute inset-0 mx-auto flex max-w-7xl items-start justify-start p-3 sm:p-4 lg:p-5">
@@ -165,22 +167,22 @@ export default function HeroCarousel({ slides }: HeroCarouselProps) {
             </div>
           </div>
         ))}
-      </div>
 
-      <div className="mt-3 mb-4 flex items-center justify-center gap-2">
-        {activeSlides.map((slide, index) => (
-          <button
-            key={slide.id}
-            type="button"
-            aria-label={`Ir al slide ${index + 1}`}
-            onClick={() => goTo(index)}
-            className={`h-2 rounded-full transition-all cursor-pointer ${
-              index === active
-                ? "w-6 bg-accent-gold"
-                : "w-2 bg-foreground/30 hover:bg-foreground/50"
-            }`}
-          />
-        ))}
+        <div className="absolute bottom-3 left-1/2 z-20 flex -translate-x-1/2 items-center gap-2">
+          {activeSlides.map((slide, index) => (
+            <button
+              key={slide.id}
+              type="button"
+              aria-label={`Ir al slide ${index + 1}`}
+              onClick={() => goTo(index)}
+              className={`h-2 rounded-full transition-all cursor-pointer ${
+                index === active
+                  ? "w-6 bg-accent-gold"
+                  : "w-2 bg-foreground/30 hover:bg-foreground/50"
+              }`}
+            />
+          ))}
+        </div>
       </div>
     </div>
   );

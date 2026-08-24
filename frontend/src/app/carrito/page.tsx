@@ -46,6 +46,7 @@ export default function CartCheckoutPage() {
   const [listings, setListings] = useState<Record<string, CartListing>>({});
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
+  const [identityVerified, setIdentityVerified] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [results, setResults] = useState<OrderResult[] | null>(null);
@@ -61,6 +62,13 @@ export default function CartCheckoutPage() {
         router.push("/login?redirect=" + encodeURIComponent("/carrito"));
         return;
       }
+
+      const { data: seller } = await supabase
+        .from("sellers")
+        .select("identity_verified")
+        .eq("user_id", uid)
+        .maybeSingle();
+      setIdentityVerified(!!seller?.identity_verified);
 
       const saved = localStorage.getItem("cart");
       const items: CartItem[] = saved ? JSON.parse(saved) : [];
@@ -117,6 +125,10 @@ export default function CartCheckoutPage() {
 
   const handleConfirm = async () => {
     if (!acceptedTerms || purchasableItems.length === 0) return;
+    if (!identityVerified) {
+      router.push("/verificar-identidad?next=" + encodeURIComponent("/carrito"));
+      return;
+    }
     setSubmitting(true);
     const outcomes: OrderResult[] = [];
 

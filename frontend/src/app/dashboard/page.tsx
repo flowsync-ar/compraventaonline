@@ -374,6 +374,20 @@ function DashboardPageContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
+  // Identity verification is required to PUBLISH, not just to browse the
+  // dashboard — gated here (not in proxy.ts) so sellers can still view
+  // their existing listings/sales/profile without it. Catches every way
+  // into the publish tab (this button, the header's "Vender" CTA landing
+  // on ?tab=publish, browser back/forward) since they all funnel through
+  // activeTab === "publish" regardless of how they got there. Skipped
+  // while editing an existing listing — that seller already cleared this
+  // the first time they published.
+  useEffect(() => {
+    if (activeTab === "publish" && !selectedListingToEdit && sellerProfile && !sellerProfile.identity_verified) {
+      router.push("/verificar-identidad?next=" + encodeURIComponent("/dashboard?tab=publish"));
+    }
+  }, [activeTab, selectedListingToEdit, sellerProfile, router]);
+
   // Load profile and dashboard data once userId is available
   useEffect(() => {
     if (!userId) return;
@@ -1855,19 +1869,6 @@ function DashboardPageContent() {
         {profileSuccessMsg && <Toast type="success" message={profileSuccessMsg} onClose={() => setProfileSuccessMsg("")} />}
       </div>
 
-      {/* Badge flotante llamativo — desaparece solo una vez que vinculó
-          al menos una red, para no seguir insistiendo después de eso. */}
-      {socialAccountsLoaded && socialAccounts.length === 0 && activeTab !== "social" && (
-        <button
-          type="button"
-          onClick={() => { setActiveTab("social"); setSuccessMsg(""); setErrorMsg(""); }}
-          className="fixed bottom-6 right-6 z-[90] flex items-center gap-2 rounded-full bg-gradient-to-r from-accent-gold to-accent-gold-hover text-background pl-4 pr-5 py-3 text-xs font-extrabold shadow-2xl hover:scale-105 active:scale-95 transition-transform cursor-pointer animate-bounce"
-        >
-          <span className="text-base">📱</span>
-          Publicá también en tus redes sociales
-        </button>
-      )}
-
       {/* Modal "compartir" post-publicación: imagen con sello + texto
           listo para pegar en cada red, hasta que exista el auto-posteo
           real (ver 020_social_accounts.sql). */}
@@ -1986,7 +1987,7 @@ function DashboardPageContent() {
             >
               Resumen
             </button>
-            <button 
+            <button
               onClick={() => {
                 if (selectedListingToEdit) {
                   setSelectedListingToEdit(null);
@@ -2012,7 +2013,7 @@ function DashboardPageContent() {
             >
               Publicar Artículo
             </button>
-            <button 
+            <button
               onClick={() => {
                 if (selectedListingToEdit) {
                   setSelectedListingToEdit(null);

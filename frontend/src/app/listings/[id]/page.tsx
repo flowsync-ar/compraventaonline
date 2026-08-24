@@ -109,6 +109,7 @@ export default function ListingDetailPage() {
   // questions and product_reports all key off sellers.id (buyer_id /
   // seller_id / reporter_id), never off the raw auth user id.
   const [sellerId, setSellerId] = useState<string | null>(null);
+  const [identityVerified, setIdentityVerified] = useState(false);
 
   // Seller phone — only fetched (and only fetchable, per RLS) for logged-in users
   const [sellerPhone, setSellerPhone] = useState<string | null>(null);
@@ -138,13 +139,15 @@ export default function ListingDetailPage() {
 
     async function resolveSellerId(uid: string, email: string | null) {
       try {
-        const { data } = await supabase.from("sellers").select("id, name, phone").eq("user_id", uid).single();
+        const { data } = await supabase.from("sellers").select("id, name, phone, identity_verified").eq("user_id", uid).single();
         setSellerId(data?.id ?? null);
         setBuyerContact(data ? { name: data.name, phone: data.phone, email } : null);
+        setIdentityVerified(!!data?.identity_verified);
       } catch (err) {
         console.error("Error resolving seller id:", err);
         setSellerId(null);
         setBuyerContact(null);
+        setIdentityVerified(false);
       }
     }
 
@@ -163,6 +166,7 @@ export default function ListingDetailPage() {
       } else {
         setSellerId(null);
         setBuyerContact(null);
+        setIdentityVerified(false);
       }
     });
 
@@ -990,6 +994,8 @@ export default function ListingDetailPage() {
                     onClick={() => {
                       if (!userId) {
                         router.push("/login?redirect=" + encodeURIComponent(`/listings/${id}?buy=1`));
+                      } else if (!identityVerified) {
+                        router.push("/verificar-identidad?next=" + encodeURIComponent(`/listings/${id}?buy=1`));
                       } else {
                         setShowCheckoutModal(true);
                       }

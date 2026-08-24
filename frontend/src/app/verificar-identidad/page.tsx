@@ -114,7 +114,7 @@ function VerifyIdentityContent() {
       <span className="text-4xl">🪪</span>
       <h1 className="font-heading text-2xl font-extrabold text-foreground">Verificá tu identidad</h1>
       <p className="text-text-muted text-sm leading-relaxed">
-        Antes de comprar, vender o navegar tu cuenta, necesitamos confirmar que sos vos. Te vamos a pedir una foto
+        Antes de comprar o vender, necesitamos confirmar que sos vos. Te vamos a pedir una foto
         de tu DNI y una selfie con prueba de vida — lo procesa un proveedor externo especializado (Didit), nosotros
         no guardamos tus fotos.
       </p>

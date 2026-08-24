@@ -170,7 +170,7 @@ export default function SiteChrome({ children }: { children: ReactNode }) {
                   className="h-16 sm:h-24 w-auto max-w-none object-contain transition-transform group-hover:scale-105"
                 />
                 <span className="-mt-1.5 sm:-mt-2.5 font-script text-sm sm:text-lg font-bold whitespace-nowrap transition-transform group-hover:scale-110">
-                <span className="text-accent-gold">100%</span> <span className="text-accent-blue">Pampeano</span>
+                <span className="text-accent-gold">100%</span> <span className="text-[#2A6BC5]">Pampeano</span>
                 </span>
               </Link>
             </div>
@@ -252,7 +252,7 @@ export default function SiteChrome({ children }: { children: ReactNode }) {
                 className="h-6 w-auto object-contain opacity-90"
               />
               <span className="text-xs text-text-muted mt-1 sm:mt-0.5">
-                © 2026 - <Brand text="CompraVentaOnline.com.ar" /> - 100% Pampeano
+                © 2026 - <Brand text="CompraVentaOnline" />
               </span>
             </div>
 

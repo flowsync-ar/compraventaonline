@@ -2611,53 +2611,28 @@ function DashboardPageContent() {
                 </div>
 
                 {/* Compartir en redes sociales — solo al crear (no al
-                    editar) y solo si hay al menos una cuenta vinculada. */}
+                    editar). Comparte en la cuenta OFICIAL de
+                    CompraVentaOnline, no en una cuenta propia del
+                    vendedor — por eso no depende de socialAccounts. */}
                 {!selectedListingToEdit && (
                   <div className="rounded-xl border border-card-border bg-card-bg/40 p-4 flex flex-col gap-3 mt-2">
-                    <span className="text-xs font-bold text-foreground">📱 Compartir en redes sociales</span>
-                    {socialAccounts.length === 0 ? (
-                      <p className="text-[11px] text-text-muted">
-                        Todavía no vinculaste ninguna red.{" "}
-                        <button
-                          type="button"
-                          onClick={() => setActiveTab("social")}
-                          className="text-accent-gold font-bold hover:underline cursor-pointer"
-                        >
-                          Vincular ahora
-                        </button>
-                      </p>
-                    ) : (
-                      <>
-                        <div className="flex flex-wrap gap-3">
-                          {socialAccounts.map((account) => {
-                            const platformInfo = SOCIAL_PLATFORMS.find((p) => p.key === account.platform);
-                            return (
-                              <label key={account.platform} className="flex items-center gap-2 text-xs font-semibold text-foreground cursor-pointer select-none">
-                                <input
-                                  type="checkbox"
-                                  checked={shareToSocial.includes(account.platform)}
-                                  onChange={() => toggleShareToSocial(account.platform)}
-                                  className="h-4 w-4 rounded border-card-border text-accent-gold focus:ring-accent-gold cursor-pointer"
-                                />
-                                {platformInfo?.icon} {platformInfo?.label} (@{account.handle})
-                              </label>
-                            );
-                          })}
-                        </div>
-                        {shareToSocial.length > 0 && (
-                          <label className="flex items-start gap-2 text-[11px] text-text-muted cursor-pointer select-none">
-                            <input
-                              type="checkbox"
-                              checked={shareConsent}
-                              onChange={(e) => setShareConsent(e.target.checked)}
-                              className="h-4 w-4 mt-0.5 rounded border-card-border text-accent-gold focus:ring-accent-gold cursor-pointer shrink-0"
-                            />
-                            Autorizo publicar la descripción de este artículo y el link a esta
-                            publicación en las redes sociales que tildé arriba.
-                          </label>
-                        )}
-                      </>
-                    )}
+                    
+                    <label className="flex items-center gap-2 text-xs font-semibold text-foreground cursor-pointer select-none">
+                      
+                      📷 Instagram de CompraVentaOnline (@compraventaonline.lp)
+                    </label>
+                    
+                      <label className="flex items-start gap-2 text-[11px] text-text-muted cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={shareConsent}
+                          onChange={(e) => setShareConsent(e.target.checked)}
+                          className="h-4 w-4 mt-0.5 rounded border-card-border text-accent-gold focus:ring-accent-gold cursor-pointer shrink-0"
+                        />
+                        Autorizo publicar la descripción de este artículo y el link a esta
+                        publicación en el Instagram oficial de CompraVentaOnline
+                        (@compraventaonline.lp).
+                      </label>
                   </div>
                 )}
 

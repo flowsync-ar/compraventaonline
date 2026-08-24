@@ -12,8 +12,8 @@ export default function MantenimientoPage() {
     <div className="min-h-screen flex items-center justify-center bg-background px-4">
       <div className="max-w-md w-full text-center flex flex-col items-center gap-5 rounded-3xl glass-panel p-10">
         <ThemedImage
-          lightSrc="/logo-cvo.png"
-          darkSrc="/logo-cvo.png"
+          lightSrc="/logo-cvo-new.png"
+          darkSrc="/logo-cvo-new.png"
           alt="CompraVentaOnline"
           className="h-16 w-auto object-contain"
         />

@@ -29,8 +29,8 @@ export default function AdminSidebar() {
     <aside className="w-60 shrink-0 border-r border-card-border bg-card-bg-solid flex flex-col h-screen sticky top-0">
       <div className="px-5 py-6 border-b border-card-border flex flex-col items-center gap-2">
         <ThemedImage
-          lightSrc="/logo-cvo.png"
-          darkSrc="/logo-cvo.png"
+          lightSrc="/logo-cvo-new.png"
+          darkSrc="/logo-cvo-new.png"
           alt="CompraVentaOnline"
           className="h-16 w-auto object-contain"
         />

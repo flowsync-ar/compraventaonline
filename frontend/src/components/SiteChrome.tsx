@@ -107,7 +107,7 @@ export default function SiteChrome({ children }: { children: ReactNode }) {
 
           {/* Grupo Logo + Sesión/Tema (se disuelve desde xl) */}
           <div className="flex xl:contents items-center justify-between gap-2">
-            <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+            <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 xl:self-start">
               {/* Botón hamburguesa: solo <md. Ahí el nav ni siquiera con
                   wrap tiene aire para 6 links, así que se oculta detrás de
                   este botón en vez de amontonarse en 3 líneas apretadas. */}
@@ -162,15 +162,15 @@ export default function SiteChrome({ children }: { children: ReactNode }) {
                 )}
               </div>
 
-              <Link href="/" className="relative flex flex-col items-center shrink-0 xl:col-start-1 xl:row-start-1 xl:self-start group min-w-0">
+              <Link href="/" className="relative flex flex-col items-center shrink-0 group min-w-0">
                 <ThemedImage
-                  lightSrc="/logo-cvo.png"
-                  darkSrc="/logo-cvo.png"
+                  lightSrc="/logo-cvo-new.png"
+                  darkSrc="/logo-cvo-new.png"
                   alt="CompraVentaOnline La Pampa"
                   className="h-16 sm:h-24 w-auto max-w-none object-contain transition-transform group-hover:scale-105"
                 />
                 <span className="-mt-1.5 sm:-mt-2.5 font-script text-sm sm:text-lg font-bold whitespace-nowrap transition-transform group-hover:scale-110">
-                  <span className="text-accent-gold">100%</span> <span className="text-accent-blue">Pampeano</span>
+                <span className="text-accent-gold">100%</span> <span className="text-accent-blue">Pampeano</span>
                 </span>
               </Link>
             </div>
@@ -246,10 +246,10 @@ export default function SiteChrome({ children }: { children: ReactNode }) {
             {/* Marca y Copyright */}
             <div className="flex flex-col items-center sm:items-start gap-1">
               <ThemedImage
-                lightSrc="/logo-cvo.png"
-                darkSrc="/logo-cvo.png"
+                lightSrc="/logo-cvo-new.png"
+                darkSrc="/logo-cvo-new.png"
                 alt="CompraVentaOnline.com.ar"
-                className="h-8 w-auto object-contain opacity-90"
+                className="h-6 w-auto object-contain opacity-90"
               />
               <span className="text-xs text-text-muted mt-1 sm:mt-0.5">
                 © 2026 - <Brand text="CompraVentaOnline.com.ar" /> - 100% Pampeano

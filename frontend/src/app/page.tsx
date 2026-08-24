@@ -45,7 +45,7 @@ async function getHeroSlides(): Promise<HeroSlide[]> {
     const supabase = await createClient();
     const { data, error } = await supabase
       .from("hero_slides")
-      .select("id, image_url, eyebrow, title, cta_label, href, dark_overlay, image_fit, show_cta")
+      .select("id, image_url, image_url_mobile, eyebrow, title, cta_label, href, dark_overlay, image_fit, show_cta")
       .eq("active", true)
       .order("sort_order", { ascending: true });
 
@@ -56,6 +56,7 @@ async function getHeroSlides(): Promise<HeroSlide[]> {
     return (data ?? []).map((slide) => ({
       id: slide.id,
       image: slide.image_url,
+      imageMobile: slide.image_url_mobile,
       eyebrow: slide.eyebrow,
       title: slide.title,
       cta: slide.cta_label,
@@ -180,12 +181,12 @@ export default async function HomePage() {
 
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 text-center relative z-10 -mt-2 pt-2 pb-2 sm:pb-3">
 
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-accent-gold/10 px-3 py-1 text-xs font-semibold text-accent-gold border border-accent-gold/20 mb-2 glow-gold">
-            🌾 El Primer Marketplace 100% Pampeano
+          <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-accent-gold/10 px-3 py-1 text-xs font-semibold text-accent-gold border border-accent-gold/20 mb-2 glow-gold">
+            El Primer Marketplace 100% Pampeano
           </span>
 
           <h1 className="font-heading text-3xl font-extrabold tracking-tight sm:text-5xl text-foreground max-w-3xl mx-auto leading-[1.1]">
-            Encontrá lo que buscas en <span className="bg-gradient-to-r from-accent-gold to-accent-green bg-clip-text text-transparent">La Pampa</span>
+            Encontrá lo que buscas en <span className="bg-gradient-to-r from-accent-gold to-accent-blue bg-clip-text text-transparent">La Pampa</span>
           </h1>
 
           <p className="mt-4 text-sm sm:text-base text-text-muted max-w-xl mx-auto">
@@ -202,14 +203,16 @@ export default async function HomePage() {
             <h2 className="font-heading text-2xl font-bold tracking-tight text-foreground">Publicaciones Destacadas</h2>
             <p className="text-sm text-text-muted mt-1">Ofertas destacadas con excelente reputación de vendedor.</p>
           </div>
-          <Link href="/destacados" className="text-xs font-bold text-accent-gold hover:text-accent-gold-hover hover:underline transition-all">
-            Ver todas las publicaciones →
-          </Link>
+          {highlights.length > 0 && (
+            <Link href="/destacados" className="text-xs font-bold text-accent-gold hover:text-accent-gold-hover hover:underline transition-all">
+              Ver todas las publicaciones →
+            </Link>
+          )}
         </div>
 
         {highlights.length === 0 ? (
           <div className="text-center py-16 rounded-2xl glass-panel">
-            <span className="text-4xl">🌾</span>
+            <span className="text-4xl">⭐</span>
             <h3 className="font-heading text-lg font-bold text-foreground mt-4">Todavía no hay publicaciones destacadas</h3>
             <p className="text-text-muted text-xs mt-1">Sé el primero en publicar un artículo en La Pampa.</p>
           </div>

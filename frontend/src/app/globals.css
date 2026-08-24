@@ -6,12 +6,12 @@
   --foreground: #f8fafc;
   --card-bg: rgba(22, 28, 45, 0.7);
   --card-bg-solid: #161c2d;
-  --card-border: rgba(255, 255, 255, 0.08);
+  --card-border: rgba(255, 255, 255, 0.16);
   --panel-bg: rgba(15, 23, 42, 0.65);
-  --accent-gold: #f59e0b; /* Amber/Gold representing Pampean fields */
-  --accent-gold-hover: #d97706;
+  --accent-gold: #f57c2d; /* Orange from the CVO logo mark */
+  --accent-gold-hover: #d9631a;
   --accent-green: #10b981; /* Emerald/Green representing La Pampa nature */
-  --accent-blue: #3b82f6;
+  --accent-blue: #4c7ea8; /* Logo navy, lightened for legibility on dark backgrounds */
   --text-muted: #94a3b8;
 }
 
@@ -21,12 +21,12 @@ html[data-theme='dark'] {
   --foreground: #f8fafc;
   --card-bg: rgba(22, 28, 45, 0.7);
   --card-bg-solid: #161c2d;
-  --card-border: rgba(255, 255, 255, 0.08);
+  --card-border: rgba(255, 255, 255, 0.16);
   --panel-bg: rgba(15, 23, 42, 0.65);
-  --accent-gold: #f59e0b;
-  --accent-gold-hover: #d97706;
+  --accent-gold: #f57c2d;
+  --accent-gold-hover: #d9631a;
   --accent-green: #10b981;
-  --accent-blue: #3b82f6;
+  --accent-blue: #4c7ea8;
   --text-muted: #94a3b8;
 }
 
@@ -37,10 +37,10 @@ html[data-theme='light'] {
   --card-bg-solid: #ffffff;
   --card-border: rgba(0, 0, 0, 0.06);
   --panel-bg: rgba(255, 255, 255, 0.85);
-  --accent-gold: #d97706;
-  --accent-gold-hover: #b45309;
+  --accent-gold: #e0651a;
+  --accent-gold-hover: #b8530f;
   --accent-green: #059669;
-  --accent-blue: #2563eb;
+  --accent-blue: #193b5e; /* True logo navy — reads well on light backgrounds */
   --text-muted: #64748b;
 }
 
@@ -53,22 +53,22 @@ html[data-theme='light'] {
     --card-bg-solid: #ffffff;
     --card-border: rgba(0, 0, 0, 0.06);
     --panel-bg: rgba(255, 255, 255, 0.85);
-    --accent-gold: #d97706;
-    --accent-gold-hover: #b45309;
+    --accent-gold: #e0651a;
+    --accent-gold-hover: #b8530f;
     --accent-green: #059669;
-    --accent-blue: #2563eb;
+    --accent-blue: #193b5e;
     --text-muted: #64748b;
   }
   html:not([data-theme='dark']) body {
     background-image: 
-      radial-gradient(at 0% 0%, rgba(245, 158, 11, 0.08) 0px, transparent 50%),
+      radial-gradient(at 0% 0%, rgba(245, 124, 45, 0.08) 0px, transparent 50%),
       radial-gradient(at 100% 100%, rgba(16, 185, 129, 0.08) 0px, transparent 50%) !important;
   }
 }
 
 html[data-theme='light'] body {
   background-image: 
-    radial-gradient(at 0% 0%, rgba(245, 158, 11, 0.08) 0px, transparent 50%),
+    radial-gradient(at 0% 0%, rgba(245, 124, 45, 0.08) 0px, transparent 50%),
     radial-gradient(at 100% 100%, rgba(16, 185, 129, 0.08) 0px, transparent 50%) !important;
 }
 
@@ -92,7 +92,7 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans);
   background-image: 
-    radial-gradient(at 0% 0%, rgba(245, 158, 11, 0.05) 0px, transparent 50%),
+    radial-gradient(at 0% 0%, rgba(245, 124, 45, 0.05) 0px, transparent 50%),
     radial-gradient(at 100% 100%, rgba(16, 185, 129, 0.05) 0px, transparent 50%);
   background-attachment: fixed;
   min-height: 100vh;
@@ -117,14 +117,14 @@ body {
 
 .glass-card:hover {
   background: var(--card-bg);
-  border-color: rgba(245, 158, 11, 0.3);
+  border-color: rgba(245, 124, 45, 0.3);
   transform: translateY(-4px);
   box-shadow: 0 12px 24px -10px rgba(0, 0, 0, 0.5);
 }
 
 /* Glow effects */
 .glow-gold {
-  box-shadow: 0 0 20px rgba(245, 158, 11, 0.15);
+  box-shadow: 0 0 20px rgba(245, 124, 45, 0.15);
 }
 
 .glow-green {
@@ -150,21 +150,21 @@ body {
 @keyframes sell-pulse {
   0%,
   100% {
-    box-shadow: 0 0 14px rgba(16, 185, 129, 0.28);
+    box-shadow: 0 0 14px rgba(245, 124, 45, 0.28);
   }
   14% {
     box-shadow:
-      0 0 28px rgba(16, 185, 129, 0.55),
-      0 0 0 3px rgba(16, 185, 129, 0.18);
+      0 0 28px rgba(245, 124, 45, 0.55),
+      0 0 0 3px rgba(245, 124, 45, 0.18);
   }
   28% {
-    box-shadow: 0 0 14px rgba(16, 185, 129, 0.28);
+    box-shadow: 0 0 14px rgba(245, 124, 45, 0.28);
   }
   42% {
-    box-shadow: 0 0 22px rgba(16, 185, 129, 0.42);
+    box-shadow: 0 0 22px rgba(245, 124, 45, 0.42);
   }
   56% {
-    box-shadow: 0 0 14px rgba(16, 185, 129, 0.28);
+    box-shadow: 0 0 14px rgba(245, 124, 45, 0.28);
   }
 }
 

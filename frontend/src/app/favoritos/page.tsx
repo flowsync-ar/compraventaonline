@@ -210,7 +210,6 @@ export default function FavoritesPage() {
       {/* Favorites List */}
       {favorites.length === 0 ? (
         <div className="rounded-2xl glass-panel p-16 text-center flex flex-col items-center justify-center gap-4">
-          <span className="text-5xl animate-pulse">🌾</span>
           <h2 className="font-heading text-xl font-bold text-foreground">Tu lista de favoritos está vacía</h2>
           <p className="text-xs text-text-muted max-w-sm leading-relaxed">
             Explorá el catálogo pampeano y marcá con un corazón los productos que más te gusten para tenerlos a mano.

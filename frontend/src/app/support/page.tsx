@@ -80,7 +80,7 @@ export default function SupportPage() {
       
       {/* Page Header */}
       <div className="text-center max-w-3xl mx-auto flex flex-col gap-3">
-        <span className="text-5xl">🌾</span>
+        <span className="text-5xl">💬</span>
         <h1 className="font-heading text-4xl font-extrabold text-foreground mt-2">Centro de Soporte y Ayuda</h1>
         <p className="text-text-muted text-base leading-relaxed">
           Encontrá respuestas a las consultas más frecuentes sobre cómo comprar, vender y gestionar tus publicaciones en el marketplace de La Pampa.
@@ -203,7 +203,6 @@ export default function SupportPage() {
           )}
 
           <div className="border-t border-card-border/50 pt-4 flex flex-col gap-1.5 text-xs text-text-muted leading-relaxed">
-            <p>📍 Santa Rosa, La Pampa, Argentina</p>
             <p>✉️ soporte@compraventaonline.com.ar</p>
           </div>
         </div>

@@ -11,14 +11,12 @@ export default function MantenimientoPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background px-4">
       <div className="max-w-md w-full text-center flex flex-col items-center gap-5 rounded-3xl glass-panel p-10">
-        <div className="relative h-14 w-14">
-          <ThemedImage
-            lightSrc="/logo-icon.png"
-            darkSrc="/logo-trans-dark.png"
-            alt="CompraVentaOnline"
-            className="h-full w-full object-contain"
-          />
-        </div>
+        <ThemedImage
+          lightSrc="/logo-cvo.png"
+          darkSrc="/logo-cvo-dark.png"
+          alt="CompraVentaOnline"
+          className="h-16 w-auto object-contain"
+        />
 
         <span className="text-4xl">🛠️</span>
 

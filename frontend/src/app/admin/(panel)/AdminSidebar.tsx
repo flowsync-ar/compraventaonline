@@ -27,21 +27,16 @@ export default function AdminSidebar() {
 
   return (
     <aside className="w-60 shrink-0 border-r border-card-border bg-card-bg-solid flex flex-col h-screen sticky top-0">
-      <div className="px-5 py-6 border-b border-card-border flex items-center gap-3">
-        <div className="relative h-10 w-10 shrink-0">
-          <ThemedImage
-            lightSrc="/logo-icon.png"
-            darkSrc="/logo-trans-dark.png"
-            alt="CompraVentaOnline"
-            className="h-full w-full object-contain"
-          />
-        </div>
-        <div>
-          <span className="font-heading text-sm font-extrabold text-foreground uppercase tracking-wider block">
-            Admin
-          </span>
-          <p className="text-[10px] text-text-muted -mt-0.5">CompraVentaOnline</p>
-        </div>
+      <div className="px-5 py-6 border-b border-card-border flex flex-col gap-2">
+        <ThemedImage
+          lightSrc="/logo-cvo.png"
+          darkSrc="/logo-cvo-dark.png"
+          alt="CompraVentaOnline"
+          className="h-16 w-auto object-contain"
+        />
+        <span className="font-heading text-xs font-extrabold text-foreground uppercase tracking-wider">
+          Admin
+        </span>
       </div>
 
       <div className="p-3 border-b border-card-border">

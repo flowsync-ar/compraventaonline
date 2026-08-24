@@ -302,8 +302,7 @@ export async function POST(request: NextRequest) {
     to: email,
     fullName,
     confirmUrl,
-    logoIconUrl: `${origin}/logo-trans-dark.png`,
-    logoWordmarkUrl: `${origin}/solotexto-dark.png`,
+    logoUrl: `${origin}/logo-cvo-dark.png`,
   })
 
   return NextResponse.json({

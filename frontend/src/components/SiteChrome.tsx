@@ -98,7 +98,7 @@ export default function SiteChrome({ children }: { children: ReactNode }) {
             la fila 2, debajo del nav — por eso comparten ancho exacto sin
             cálculos manuales, es la misma celda de grid. */}
       <header className="sticky top-0 z-50 w-full border-b border-card-border bg-background/85 backdrop-blur-md">
-        <div className="grid grid-cols-1 lg:grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 sm:gap-y-3 lg:gap-y-4 w-full px-4 sm:px-6 lg:px-8 py-4 lg:py-5">
+        <div className="grid grid-cols-1 lg:grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-4 gap-y-5 sm:gap-y-6 lg:gap-y-4 w-full px-4 sm:px-6 lg:px-8 py-4 lg:py-5">
 
           {/* Grupo Logo + Sesión/Tema (se disuelve desde lg) */}
           <div className="flex lg:contents items-center justify-between gap-2">
@@ -157,20 +157,16 @@ export default function SiteChrome({ children }: { children: ReactNode }) {
                 )}
               </div>
 
-              <Link href="/" className="flex shrink-0 items-center gap-1.5 sm:gap-3 lg:col-start-1 lg:row-start-1 group min-w-0">
-                <div className="relative h-9 w-9 sm:h-14 sm:w-14 shrink-0 transition-transform group-hover:scale-105">
-                  <ThemedImage
-                    lightSrc="/logo-icon.png"
-                    darkSrc="/logo-trans-dark.png"
-                    alt="CompraVentaOnline La Pampa"
-                    className="h-full w-full object-contain"
-                  />
-                </div>
+              <Link href="/" className="relative flex shrink-0 items-center lg:col-start-1 lg:row-start-1 group min-w-0 h-9 w-11 sm:h-14 sm:w-16">
+                {/* Taller than the header bar on purpose — absolute +
+                    centered so it overflows above/below without growing
+                    the row's height (the row is sized by its other flex
+                    items: nav, search, session controls). */}
                 <ThemedImage
-                  lightSrc="/solotexto.png"
-                  darkSrc="/solotexto-dark.png"
-                  alt="CompraVentaOnline"
-                  className="h-5 sm:h-9 w-auto object-contain min-w-0"
+                  lightSrc="/logo-cvo.png"
+                  darkSrc="/logo-cvo-dark.png"
+                  alt="CompraVentaOnline La Pampa"
+                  className="absolute left-0 top-1/2 -translate-y-1/2 h-16 sm:h-24 w-auto max-w-none object-contain transition-transform group-hover:scale-105"
                 />
               </Link>
             </div>
@@ -241,19 +237,12 @@ export default function SiteChrome({ children }: { children: ReactNode }) {
 
             {/* Marca y Copyright */}
             <div className="flex flex-col items-center sm:items-start gap-1">
-              <div className="flex items-center gap-2.5">
-                <div className="h-6 w-6 shrink-0">
-                  <ThemedImage
-                    lightSrc="/logo-icon.png"
-                    darkSrc="/logo-trans-dark.png"
-                    alt=""
-                    className="h-full w-full object-contain opacity-80"
-                  />
-                </div>
-                <span className="font-heading text-sm font-bold tracking-tight bg-gradient-to-r from-[#005c30] via-[#5f741b] to-[#b87c04] bg-clip-text text-transparent">
-                  CompraVentaOnline.com.ar
-                </span>
-              </div>
+              <ThemedImage
+                lightSrc="/logo-cvo.png"
+                darkSrc="/logo-cvo-dark.png"
+                alt="CompraVentaOnline.com.ar"
+                className="h-8 w-auto object-contain opacity-90"
+              />
               <span className="text-xs text-text-muted mt-1 sm:mt-0.5">
                 © 2026 - Conectando La Pampa.
               </span>

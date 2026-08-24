@@ -25,7 +25,7 @@ async function watermarkCoverImage(imageUrl: string): Promise<Buffer> {
   const badgeSize = Math.round(Math.min(width, height) * 0.18)
   const margin = Math.round(badgeSize * 0.35)
 
-  const logoPath = path.join(process.cwd(), "public", "logo-icon.png")
+  const logoPath = path.join(process.cwd(), "public", "logo-cvo.png")
   const logoBuffer = await readFile(logoPath)
   const logo = await sharp(logoBuffer)
     .resize(badgeSize, badgeSize, { fit: "contain" })

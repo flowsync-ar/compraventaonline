@@ -1,0 +1,134 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
+import { LA_PAMPA_CITIES } from "@/lib/constants/laPampaCities";
+import CustomDropdown from "./CustomDropdown";
+
+const DROPDOWN_TRIGGER_CLASSNAME =
+  "w-full bg-transparent text-sm font-semibold text-foreground text-left outline-none cursor-pointer select-none flex items-center justify-between gap-1";
+
+interface Category {
+  name: string;
+  slug: string;
+}
+
+// Lives in the header (SiteChrome, a client component rendered on every
+// page) rather than being passed categories as a prop from each page's own
+// server-side fetch — self-fetching here is what lets one instance work
+// everywhere without every page needing to know about it.
+export default function HomeSearchBar() {
+  const router = useRouter();
+  const [query, setQuery] = useState("");
+  const [category, setCategory] = useState("");
+  const [location, setLocation] = useState("");
+  const [categories, setCategories] = useState<Category[]>([]);
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase
+      .from("categories")
+      .select("name, slug")
+      .is("parent_id", null)
+      .order("name", { ascending: true })
+      .then(({ data, error }) => {
+        if (error) {
+          console.error("[HomeSearchBar] Error fetching categories:", error.message);
+          return;
+        }
+        setCategories(data ?? []);
+      });
+  }, []);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const params = new URLSearchParams();
+    if (query.trim()) params.set("q", query.trim());
+    if (category) params.set("category", category);
+    if (location) params.set("location", location);
+    router.push(`/search${params.toString() ? `?${params.toString()}` : ""}`);
+  };
+
+  return (
+    <div className="w-full">
+      <form
+        onSubmit={handleSubmit}
+        className="flex flex-col sm:flex-row items-stretch rounded-2xl sm:rounded-full bg-card-bg-solid border border-card-border shadow-md"
+      >
+        {/* Texto libre */}
+        <div className="flex items-center gap-2 flex-1 sm:min-w-36 sm:basis-64 px-4 py-2">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-text-muted">
+            <circle cx="11" cy="11" r="8" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="¿Qué estás buscando?"
+            className="w-full bg-transparent text-sm text-foreground placeholder:text-text-muted outline-none"
+          />
+        </div>
+
+        <div className="hidden sm:block w-px bg-card-border my-2.5" />
+        <div className="sm:hidden h-px bg-card-border mx-4" />
+
+        {/* Categoría */}
+        <div className="flex items-center gap-2 sm:w-60 min-w-28 px-4 py-2">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-accent-blue">
+            <path d="M4 6h16M4 12h16M4 18h7" />
+          </svg>
+          <CustomDropdown
+            name="category"
+            defaultValue={category}
+            onChange={setCategory}
+            showSearch
+            placeholder="Buscar categoría..."
+            triggerClassName={DROPDOWN_TRIGGER_CLASSNAME}
+            panelWidthClassName="w-max min-w-full max-w-xs"
+            options={[
+              { name: "Todas las categorías", value: "" },
+              ...categories.map((c) => ({ name: c.name, value: c.slug })),
+            ]}
+          />
+        </div>
+
+        <div className="hidden sm:block w-px bg-card-border my-2.5" />
+        <div className="sm:hidden h-px bg-card-border mx-4" />
+
+        {/* Ubicación */}
+        <div className="flex items-center gap-2 sm:w-60 min-w-28 px-4 py-2">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-text-muted">
+            <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
+            <circle cx="12" cy="10" r="3" />
+          </svg>
+          <CustomDropdown
+            name="location"
+            defaultValue={location}
+            onChange={setLocation}
+            showSearch
+            placeholder="Buscar ciudad..."
+            triggerClassName={DROPDOWN_TRIGGER_CLASSNAME}
+            panelWidthClassName="w-max min-w-full max-w-xs"
+            options={[
+              { name: "Toda La Pampa", value: "" },
+              ...LA_PAMPA_CITIES.map((city) => ({ name: city, value: city })),
+            ]}
+          />
+        </div>
+
+        <button
+          type="submit"
+          className="flex items-center justify-center gap-2 rounded-bl-2xl rounded-br-2xl sm:rounded-bl-none sm:rounded-tr-full sm:rounded-br-full bg-gradient-to-r from-accent-gold to-accent-gold-hover px-5 py-2 text-sm font-extrabold text-white hover:opacity-95 transition-all cursor-pointer"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="11" cy="11" r="8" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+          Buscar
+        </button>
+      </form>
+    </div>
+  );
+}

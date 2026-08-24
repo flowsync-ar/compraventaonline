@@ -18,7 +18,18 @@ interface Props {
   placeholder?: string;
   showSearch?: boolean;
   onChange?: (value: string) => void;
+  // Overrides the trigger button's classes entirely — for contexts like a
+  // seamless pill segment where the boxed default (bg/border/rounded) would
+  // look like a nested control instead of blending in.
+  triggerClassName?: string;
+  // Overrides the panel's width — defaults to matching the trigger (w-full).
+  // Useful when the trigger sits in a narrow segment but the option list
+  // (e.g. long category names) needs more room to stay readable.
+  panelWidthClassName?: string;
 }
+
+const DEFAULT_TRIGGER_CLASSNAME =
+  "w-full bg-background border border-card-border rounded-xl px-3 py-2.5 text-xs text-foreground text-left focus:outline-none focus:border-accent-gold flex items-center justify-between cursor-pointer select-none";
 
 export default function CustomDropdown({
   options,
@@ -27,6 +38,8 @@ export default function CustomDropdown({
   placeholder = "Buscar...",
   showSearch = false,
   onChange,
+  triggerClassName,
+  panelWidthClassName = "w-full",
 }: Props) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -59,7 +72,7 @@ export default function CustomDropdown({
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full bg-background border border-card-border rounded-xl px-3 py-2.5 text-xs text-foreground text-left focus:outline-none focus:border-accent-gold flex items-center justify-between cursor-pointer select-none"
+        className={triggerClassName ?? DEFAULT_TRIGGER_CLASSNAME}
       >
         <span className="truncate">{selected.name}</span>
         <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-text-muted shrink-0 ml-1">
@@ -73,7 +86,7 @@ export default function CustomDropdown({
           {/* Backdrop to close click outside */}
           <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
           
-          <div className="absolute left-0 mt-2 w-full rounded-2xl bg-card-bg-solid border border-card-border p-3 shadow-2xl z-50 flex flex-col gap-2 animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className={`absolute left-0 mt-2 ${panelWidthClassName} rounded-2xl bg-card-bg-solid border border-card-border p-3 shadow-2xl z-50 flex flex-col gap-2 animate-in fade-in slide-in-from-top-2 duration-200`}>
             {/* Search Input inside Dropdown */}
             {showSearch && (
               <div className="relative">

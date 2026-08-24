@@ -3,6 +3,32 @@ import type { NextRequest } from "next/server"
 import { updateSession } from "@/lib/supabase/middleware"
 import { ADMIN_COOKIE, verifyAdminToken } from "@/lib/admin/auth"
 
+// maintenance_mode barely ever changes (it's a manual admin toggle), but
+// without caching it was queried on every single navigation site-wide —
+// a full extra Supabase round trip stacked on top of the mandatory
+// getUser() call in updateSession(), adding ~1s to every page load.
+// A short TTL keeps the toggle responsive (goes live within 15s) while
+// cutting that round trip out of the vast majority of requests.
+let maintenanceCache: { value: boolean; expiresAt: number } | null = null
+const MAINTENANCE_CACHE_TTL_MS = 15_000
+
+async function getMaintenanceMode(
+  supabase: Awaited<ReturnType<typeof updateSession>>["supabase"]
+): Promise<boolean> {
+  const now = Date.now()
+  if (maintenanceCache && maintenanceCache.expiresAt > now) {
+    return maintenanceCache.value
+  }
+  const { data } = await supabase
+    .from("platform_settings")
+    .select("maintenance_mode")
+    .eq("id", true)
+    .single()
+  const value = !!data?.maintenance_mode
+  maintenanceCache = { value, expiresAt: now + MAINTENANCE_CACHE_TTL_MS }
+  return value
+}
+
 // Routes that require an active session
 const PROTECTED_ROUTES = ["/dashboard", "/favoritos"]
 
@@ -47,16 +73,12 @@ export async function proxy(request: NextRequest) {
   // is checked both ways: it only renders while maintenance is actually on
   // — otherwise it's not a real page, just bounce back home.
   if (!pathname.startsWith("/api")) {
-    const { data: settings } = await supabase
-      .from("platform_settings")
-      .select("maintenance_mode")
-      .eq("id", true)
-      .single()
+    const maintenanceMode = await getMaintenanceMode(supabase)
 
-    if (settings?.maintenance_mode && pathname !== "/mantenimiento") {
+    if (maintenanceMode && pathname !== "/mantenimiento") {
       return NextResponse.redirect(new URL("/mantenimiento", request.url))
     }
-    if (!settings?.maintenance_mode && pathname === "/mantenimiento") {
+    if (!maintenanceMode && pathname === "/mantenimiento") {
       return NextResponse.redirect(new URL("/", request.url))
     }
   }

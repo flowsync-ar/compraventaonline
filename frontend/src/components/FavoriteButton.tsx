@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { getFavoriteIds, toggleFavorite, resetFavoritesStore, subscribeFavorites } from "@/lib/favoritesStore";
 
 interface FavoriteButtonProps {
   listingId: string;
@@ -15,7 +16,6 @@ export default function FavoriteButton({ listingId }: FavoriteButtonProps) {
   const [loading, setLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
-  const [sellerId, setSellerId] = useState<string | null>(null);
 
   const supabaseRef = useRef<SupabaseClient | null>(null);
   const getSupabase = () => {
@@ -25,34 +25,14 @@ export default function FavoriteButton({ listingId }: FavoriteButtonProps) {
     return supabaseRef.current;
   };
 
-  async function checkFavoriteStatus(sId: string, supabase: SupabaseClient) {
+  // Reads from the shared favoritesStore (one request per page for the
+  // whole favorited-ids set, not one per card — see lib/favoritesStore.ts).
+  async function syncFromStore(uid: string, supabase: SupabaseClient) {
     try {
-      const { data } = await supabase
-        .from("favorites")
-        .select("id")
-        .eq("listing_id", listingId)
-        .eq("seller_id", sId)
-        .maybeSingle();
-
-      setIsFavorite(!!data);
+      const ids = await getFavoriteIds(supabase, uid);
+      setIsFavorite(ids.has(listingId));
     } catch (err) {
       console.error("Error checking favorite status:", err);
-    }
-  }
-
-  async function resolveSellerAndCheck(uid: string, supabase: SupabaseClient) {
-    try {
-      const { data: seller } = await supabase
-        .from("sellers")
-        .select("id")
-        .eq("user_id", uid)
-        .single();
-
-      if (!seller) return;
-      setSellerId(seller.id);
-      checkFavoriteStatus(seller.id, supabase);
-    } catch (err) {
-      console.error("Error resolving seller for favorites:", err);
     }
   }
 
@@ -63,21 +43,31 @@ export default function FavoriteButton({ listingId }: FavoriteButtonProps) {
     supabase.auth.getSession().then(({ data: { session } }) => {
       const uid = session?.user?.id ?? null;
       setUserId(uid);
-      if (uid) resolveSellerAndCheck(uid, supabase);
+      if (uid) syncFromStore(uid, supabase);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       const uid = session?.user?.id ?? null;
       setUserId(uid);
+      if (event === "SIGNED_OUT") resetFavoritesStore();
       if (uid) {
-        resolveSellerAndCheck(uid, supabase);
+        syncFromStore(uid, supabase);
       } else {
-        setSellerId(null);
         setIsFavorite(false);
       }
     });
 
-    return () => subscription.unsubscribe();
+    // Other buttons toggling favorites (or this same listing_id appearing
+    // in more than one section of the page) update the shared Set — this
+    // keeps every mounted button's icon in sync with it.
+    const unsubscribe = subscribeFavorites(() => {
+      if (userId) syncFromStore(userId, supabase);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+      unsubscribe();
+    };
   }, [listingId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleToggleFavorite = async (e: React.MouseEvent) => {
@@ -90,32 +80,14 @@ export default function FavoriteButton({ listingId }: FavoriteButtonProps) {
       return;
     }
 
-    if (loading || !sellerId) return;
+    if (loading) return;
 
     const supabase = getSupabase();
     try {
       setLoading(true);
-      if (isFavorite) {
-        const { error } = await supabase
-          .from("favorites")
-          .delete()
-          .eq("listing_id", listingId)
-          .eq("seller_id", sellerId);
-
-        if (!error) {
-          setIsFavorite(false);
-          window.dispatchEvent(new Event("favorites-updated"));
-        }
-      } else {
-        const { error } = await supabase
-          .from("favorites")
-          .insert({ listing_id: listingId, seller_id: sellerId });
-
-        if (!error) {
-          setIsFavorite(true);
-          window.dispatchEvent(new Event("favorites-updated"));
-        }
-      }
+      const nowFavorite = await toggleFavorite(supabase, userId, listingId);
+      setIsFavorite(nowFavorite);
+      window.dispatchEvent(new Event("favorites-updated"));
     } catch (err) {
       console.error("Error toggling favorite:", err);
     } finally {

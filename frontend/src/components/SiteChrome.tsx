@@ -8,7 +8,7 @@ import HeaderSessionBar from "./HeaderSessionBar"
 import HomeSearchBar from "./HomeSearchBar"
 import ThemedImage from "./ThemedImage"
 import { createClient } from "@/lib/supabase/client"
-import { getOrCreateVisitorId } from "@/lib/visitorId"
+import Brand from "./Brand"
 
 // The /admin panel is a separate dashboard experience — it never shows the
 // public marketplace header/footer (nav, search, cart, etc).
@@ -44,15 +44,16 @@ export default function SiteChrome({ children }: { children: ReactNode }) {
   // Lightweight visit counter for the admin stats dashboard — public site
   // only (never /admin, guarded inside the effect body since hooks can't
   // be called conditionally). Fire-and-forget: a visitor's page must never
-  // wait on or break over this. visitorId (same anon cookie used for
-  // listing views) lets the backend dedupe by unique visitor/day instead
-  // of counting every single page load — see 026_unique_page_views.sql.
+  // wait on or break over this. The backend dedupes by (hashed IP, day) —
+  // see 026_unique_page_views.sql and track-visit/route.ts — so the same
+  // visitor reloading, browsing multiple pages, or opening a fresh
+  // incognito window only ever counts once per day, not once per load.
   useEffect(() => {
     if (isAdmin || !pathname) return
     fetch("/api/track-visit", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ path: pathname, visitorId: getOrCreateVisitorId() }),
+      body: JSON.stringify({ path: pathname }),
       keepalive: true,
     }).catch(() => {
       // best-effort — a dropped beacon shouldn't surface anywhere
@@ -102,10 +103,10 @@ export default function SiteChrome({ children }: { children: ReactNode }) {
             la fila 2, debajo del nav — por eso comparten ancho exacto sin
             cálculos manuales, es la misma celda de grid. */}
       <header className="sticky top-0 z-50 w-full border-b border-card-border bg-background/85 backdrop-blur-md">
-        <div className="grid grid-cols-1 lg:grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-4 gap-y-5 sm:gap-y-6 lg:gap-y-4 w-full px-4 sm:px-6 lg:px-8 pt-4 lg:pt-5 pb-4 lg:pb-2">
+        <div className="grid grid-cols-1 xl:grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-4 gap-y-5 sm:gap-y-6 xl:gap-y-4 w-full px-4 sm:px-6 lg:px-8 pt-4 xl:pt-5 pb-4 xl:pb-2">
 
-          {/* Grupo Logo + Sesión/Tema (se disuelve desde lg) */}
-          <div className="flex lg:contents items-center justify-between gap-2">
+          {/* Grupo Logo + Sesión/Tema (se disuelve desde xl) */}
+          <div className="flex xl:contents items-center justify-between gap-2">
             <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
               {/* Botón hamburguesa: solo <md. Ahí el nav ni siquiera con
                   wrap tiene aire para 6 links, así que se oculta detrás de
@@ -161,20 +162,20 @@ export default function SiteChrome({ children }: { children: ReactNode }) {
                 )}
               </div>
 
-              <Link href="/" className="relative flex flex-col items-center shrink-0 lg:col-start-1 lg:row-start-1 lg:self-start group min-w-0">
+              <Link href="/" className="relative flex flex-col items-center shrink-0 xl:col-start-1 xl:row-start-1 xl:self-start group min-w-0">
                 <ThemedImage
                   lightSrc="/logo-cvo.png"
                   darkSrc="/logo-cvo.png"
                   alt="CompraVentaOnline La Pampa"
                   className="h-16 sm:h-24 w-auto max-w-none object-contain transition-transform group-hover:scale-105"
                 />
-                <span className="-mt-1.5 sm:-mt-2.5 font-script text-sm sm:text-lg font-bold text-accent-gold whitespace-nowrap">
-                  100% Pampeano
+                <span className="-mt-1.5 sm:-mt-2.5 font-script text-sm sm:text-lg font-bold whitespace-nowrap transition-transform group-hover:scale-110">
+                  <span className="text-accent-gold">100%</span> <span className="text-accent-blue">Pampeano</span>
                 </span>
               </Link>
             </div>
 
-            <div className="flex shrink-0 items-center gap-1 sm:gap-2.5 lg:col-start-3 lg:row-start-1 lg:self-start">
+            <div className="flex shrink-0 items-center gap-1 sm:gap-2.5 xl:col-start-3 xl:row-start-1 xl:self-start">
               <HeaderSessionBar />
               <div className="pl-1 sm:pl-2.5 border-l border-card-border/40">
                 <ThemeToggle />
@@ -183,19 +184,23 @@ export default function SiteChrome({ children }: { children: ReactNode }) {
           </div>
 
           {/* Grupo Nav + Buscador: columna central del grid exterior (ambas
-              filas). <lg: flex-col apilado normal, cada uno w-full. lg+: se
-              vuelve un grid INTERNO de 1 columna `minmax(0,max-content)` —
-              el ancho de esa columna lo determina el nav (su max-content,
-              el ancho real que ocupan los links de "Inicio" a "Ayuda" en
-              una sola línea), y el buscador (w-full) se estira a ESE mismo
-              ancho exacto — por eso sus bordes coinciden con los del nav,
-              no con el de toda la celda exterior. `justify-self-center`
-              centra el bloque dentro de la celda exterior más ancha.
-              `minmax(0, ...)` (no solo max-content) es lo que evita overflow
-              si en algún ancho no entra: ahí la columna se comprime, el nav
-              pasa a 2 líneas dentro de ese espacio menor, y el buscador se
-              comprime junto con él — siguen coincidiendo en ancho. */}
-          <div className="flex flex-col lg:grid lg:grid-cols-[minmax(0,max-content)] gap-2 lg:gap-6 lg:col-start-2 lg:row-start-1 lg:self-start lg:justify-self-center min-w-0">
+              filas). <xl: flex-col apilado normal, cada uno w-full — el
+              corte se subió de lg (1024px) a xl (1280px) porque en el
+              rango intermedio no entraba todo en una fila (buscador +
+              nav + sesión con nombre de comercio largo se superponían).
+              xl+: se vuelve un grid INTERNO de 1 columna
+              `minmax(0,max-content)` — el ancho de esa columna lo
+              determina el nav (su max-content, el ancho real que ocupan
+              los links de "Inicio" a "Ayuda" en una sola línea), y el
+              buscador (w-full) se estira a ESE mismo ancho exacto — por
+              eso sus bordes coinciden con los del nav, no con el de toda
+              la celda exterior. `justify-self-center` centra el bloque
+              dentro de la celda exterior más ancha. `minmax(0, ...)` (no
+              solo max-content) es lo que evita overflow si en algún ancho
+              no entra: ahí la columna se comprime, el nav pasa a 2 líneas
+              dentro de ese espacio menor, y el buscador se comprime junto
+              con él — siguen coincidiendo en ancho. */}
+          <div className="flex flex-col xl:grid xl:grid-cols-[minmax(0,max-content)] gap-2 xl:gap-6 xl:col-start-2 xl:row-start-1 xl:self-start xl:justify-self-center min-w-0">
             <div className="w-full">
               <HomeSearchBar />
             </div>
@@ -247,7 +252,7 @@ export default function SiteChrome({ children }: { children: ReactNode }) {
                 className="h-8 w-auto object-contain opacity-90"
               />
               <span className="text-xs text-text-muted mt-1 sm:mt-0.5">
-                © 2026 - Conectando La Pampa.
+                © 2026 - <Brand text="CompraVentaOnline.com.ar" /> - 100% Pampeano
               </span>
             </div>
 

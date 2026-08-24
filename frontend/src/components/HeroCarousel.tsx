@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 
-const SLIDES = [
+const SLIDES: readonly HeroSlide[] = [
   {
     id: "electronics",
     image:
@@ -52,13 +52,17 @@ const SLIDES = [
     imageFit: "cover" as const,
     showCta: true,
   },
-] as const;
+];
 
 const INTERVAL_MS = 5500;
 
 export interface HeroSlide {
   id: string;
   image: string;
+  /** Optional admin-uploaded crop for narrow screens — the desktop banner
+   * is usually too wide to read once shrunk to a phone's width. Falls back
+   * to `image` (forced to "cover" via CSS) when not set. */
+  imageMobile?: string | null;
   eyebrow: string;
   title: string | null;
   cta: string;
@@ -132,17 +136,36 @@ export default function HeroCarousel({ slides }: HeroCarouselProps) {
             }`}
             aria-hidden={index !== active}
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={slide.image}
-              alt=""
-              draggable={false}
-              className={`h-full w-full ${
-                slide.imageFit === "contain"
-                  ? "object-contain object-top"
-                  : "object-cover object-center scale-105"
-              }`}
-            />
+            {slide.imageMobile ? (
+              <>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={slide.imageMobile}
+                  alt=""
+                  draggable={false}
+                  className="h-full w-full object-cover object-center sm:hidden"
+                />
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={slide.image}
+                  alt=""
+                  draggable={false}
+                  className={`hidden h-full w-full sm:block ${
+                    slide.imageFit === "contain" ? "sm:object-contain sm:object-top" : "sm:object-cover sm:object-center sm:scale-105"
+                  }`}
+                />
+              </>
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={slide.image}
+                alt=""
+                draggable={false}
+                className={`h-full w-full object-cover object-center scale-105 ${
+                  slide.imageFit === "contain" ? "sm:object-contain sm:object-top sm:scale-100" : ""
+                }`}
+              />
+            )}
             <div className="absolute inset-0 mx-auto flex max-w-7xl items-start justify-start p-3 sm:p-4 lg:p-5">
               <div className="max-w-md text-left">
                 {slide.eyebrow && (
@@ -158,7 +181,9 @@ export default function HeroCarousel({ slides }: HeroCarouselProps) {
                 {slide.showCta !== false && (
                   <Link
                     href={slide.href}
-                    className="mt-4 inline-flex rounded-lg bg-background px-4 py-2 text-[11px] font-extrabold text-accent-gold border border-accent-gold/30 hover:border-accent-gold/60 shadow-lg transition-all"
+                    className={`inline-flex rounded-lg bg-gradient-to-r from-accent-gold to-accent-gold-hover px-5 py-2.5 text-[11px] font-extrabold text-background shadow-lg hover:scale-[1.03] active:scale-[0.98] transition-all ${
+                      slide.eyebrow || slide.title ? "mt-4" : ""
+                    }`}
                   >
                     {slide.cta} →
                   </Link>

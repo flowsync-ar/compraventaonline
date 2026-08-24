@@ -27,7 +27,7 @@ export default function AdminSidebar() {
 
   return (
     <aside className="w-60 shrink-0 border-r border-card-border bg-card-bg-solid flex flex-col h-screen sticky top-0">
-      <div className="px-5 py-6 border-b border-card-border flex flex-col gap-2">
+      <div className="px-5 py-6 border-b border-card-border flex flex-col items-center gap-2">
         <ThemedImage
           lightSrc="/logo-cvo.png"
           darkSrc="/logo-cvo-dark.png"
@@ -35,7 +35,7 @@ export default function AdminSidebar() {
           className="h-16 w-auto object-contain"
         />
         <span className="font-heading text-xs font-extrabold text-foreground uppercase tracking-wider">
-          Admin
+          Administrador
         </span>
       </div>
 

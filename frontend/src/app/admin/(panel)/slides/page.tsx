@@ -6,6 +6,7 @@ import ConfirmModal from "@/components/ConfirmModal"
 interface Slide {
   id: string
   image_url: string
+  image_url_mobile: string | null
   eyebrow: string
   title: string | null
   cta_label: string
@@ -24,6 +25,7 @@ export default function AdminSlidesPage() {
 
   const [editingId, setEditingId] = useState<string | null>(null)
   const [imageUrl, setImageUrl] = useState("")
+  const [imageUrlMobile, setImageUrlMobile] = useState("")
   const [eyebrow, setEyebrow] = useState("")
   const [title, setTitle] = useState("")
   const [showTitle, setShowTitle] = useState(true)
@@ -35,6 +37,7 @@ export default function AdminSlidesPage() {
   const [showCta, setShowCta] = useState(true)
 
   const [uploading, setUploading] = useState(false)
+  const [uploadingMobile, setUploadingMobile] = useState(false)
   const [saving, setSaving] = useState(false)
   const [reorderingId, setReorderingId] = useState<string | null>(null)
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
@@ -56,6 +59,7 @@ export default function AdminSlidesPage() {
   const resetForm = () => {
     setEditingId(null)
     setImageUrl("")
+    setImageUrlMobile("")
     setEyebrow("")
     setTitle("")
     setShowTitle(true)
@@ -70,6 +74,7 @@ export default function AdminSlidesPage() {
   const handleEdit = (slide: Slide) => {
     setEditingId(slide.id)
     setImageUrl(slide.image_url)
+    setImageUrlMobile(slide.image_url_mobile ?? "")
     setEyebrow(slide.eyebrow)
     setTitle(slide.title ?? "")
     setShowTitle(!!slide.title)
@@ -81,12 +86,13 @@ export default function AdminSlidesPage() {
     setShowCta(slide.show_cta)
   }
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>, target: "desktop" | "mobile") => {
     const file = e.target.files?.[0]
     if (!file) return
 
     setError(null)
-    setUploading(true)
+    const setUploadingState = target === "mobile" ? setUploadingMobile : setUploading
+    setUploadingState(true)
     try {
       const formData = new FormData()
       formData.append("file", file)
@@ -96,9 +102,10 @@ export default function AdminSlidesPage() {
         setError(data.error ?? "No se pudo subir la imagen.")
         return
       }
-      setImageUrl(data.imageUrl)
+      if (target === "mobile") setImageUrlMobile(data.imageUrl)
+      else setImageUrl(data.imageUrl)
     } finally {
-      setUploading(false)
+      setUploadingState(false)
       e.target.value = ""
     }
   }
@@ -120,7 +127,7 @@ export default function AdminSlidesPage() {
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageUrl, eyebrow, title: showTitle ? title : "", ctaLabel, href, active, darkOverlay, imageFit, showCta }),
+        body: JSON.stringify({ imageUrl, imageUrlMobile, eyebrow, title: showTitle ? title : "", ctaLabel, href, active, darkOverlay, imageFit, showCta }),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -245,11 +252,47 @@ export default function AdminSlidesPage() {
               <input
                 type="file"
                 accept="image/*"
-                onChange={handleFileChange}
+                onChange={(e) => handleFileChange(e, "desktop")}
                 disabled={uploading}
                 className="hidden"
               />
             </label>
+          </div>
+
+          <div className="w-full md:w-48 shrink-0">
+            <label className="text-sm font-bold text-foreground block mb-1.5" title="Opcional. El banner de escritorio suele ser muy ancho para un celular — si no cargás una versión mobile, se recorta automáticamente para llenar la pantalla.">
+              Imagen mobile (opcional)
+            </label>
+            <div className="relative h-28 w-full rounded-xl border border-card-border bg-background overflow-hidden flex items-center justify-center">
+              {imageUrlMobile ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={imageUrlMobile} alt="" className="h-full w-full object-cover" />
+              ) : (
+                <span className="text-xs text-text-muted text-center px-2">Se recorta la de escritorio</span>
+              )}
+            </div>
+            <div className="mt-2 flex gap-1.5">
+              <label className="flex-1 block text-center rounded-xl border border-card-border px-3 py-2 text-xs font-bold text-text-muted hover:bg-card-bg/30 transition-all cursor-pointer">
+                {uploadingMobile ? "Subiendo..." : "Elegir archivo"}
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => handleFileChange(e, "mobile")}
+                  disabled={uploadingMobile}
+                  className="hidden"
+                />
+              </label>
+              {imageUrlMobile && (
+                <button
+                  type="button"
+                  onClick={() => setImageUrlMobile("")}
+                  className="rounded-xl border border-card-border px-2.5 text-xs font-bold text-text-muted hover:text-red-500 hover:border-red-500/40 transition-all cursor-pointer"
+                  aria-label="Quitar imagen mobile"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="flex-1 flex flex-col gap-3">

@@ -140,6 +140,7 @@ export type Database = {
           id: string
           image_fit: string
           image_url: string
+          image_url_mobile: string | null
           show_cta: boolean
           sort_order: number
           title: string | null
@@ -154,6 +155,7 @@ export type Database = {
           id?: string
           image_fit?: string
           image_url: string
+          image_url_mobile?: string | null
           show_cta?: boolean
           sort_order?: number
           title?: string | null
@@ -168,6 +170,7 @@ export type Database = {
           id?: string
           image_fit?: string
           image_url?: string
+          image_url_mobile?: string | null
           show_cta?: boolean
           sort_order?: number
           title?: string | null

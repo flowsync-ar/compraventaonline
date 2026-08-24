@@ -27,6 +27,7 @@ export async function POST(request: NextRequest) {
 
   let body: {
     imageUrl?: string
+    imageUrlMobile?: string
     eyebrow?: string
     title?: string
     ctaLabel?: string
@@ -63,6 +64,7 @@ export async function POST(request: NextRequest) {
 
   const insert: TablesInsert<"hero_slides"> = {
     image_url: imageUrl,
+    image_url_mobile: body.imageUrlMobile?.trim() || null,
     eyebrow: body.eyebrow?.trim() || "",
     title,
     cta_label: body.ctaLabel?.trim() || "Ver más",

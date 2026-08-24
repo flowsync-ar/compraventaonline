@@ -12,6 +12,7 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
 
   let body: {
     imageUrl?: string
+    imageUrlMobile?: string | null
     eyebrow?: string
     title?: string
     ctaLabel?: string
@@ -32,6 +33,7 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
 
   const updates: TablesUpdate<"hero_slides"> = {}
   if (body.imageUrl?.trim()) updates.image_url = body.imageUrl.trim()
+  if (body.imageUrlMobile !== undefined) updates.image_url_mobile = body.imageUrlMobile?.trim() || null
   if (body.eyebrow !== undefined) updates.eyebrow = body.eyebrow.trim()
   if (body.title !== undefined) updates.title = body.title.trim() || null
   if (body.ctaLabel !== undefined) updates.cta_label = body.ctaLabel.trim() || "Ver más"

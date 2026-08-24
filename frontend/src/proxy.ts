@@ -6,11 +6,15 @@ import { ADMIN_COOKIE, verifyAdminToken } from "@/lib/admin/auth"
 // Routes that require an active session
 const PROTECTED_ROUTES = ["/dashboard", "/favoritos"]
 
-// Routes that ALSO require sellers.identity_verified = true — browsing
-// stays open to anyone logged in, but transacting/managing an account
-// doesn't, until Didit approves their DNI + selfie. /verificar-identidad
-// itself is deliberately excluded (that's where this redirects TO).
-const IDENTITY_GATED_ROUTES = ["/dashboard", "/favoritos", "/ventas", "/compras", "/carrito"]
+// Routes that require sellers.username/phone to be set (Google OAuth users
+// only get a bare-bones row — see the check below) — kept broad since these
+// are basic account fields several features depend on, not tied to any one
+// action. Identity verification (DNI + selfie via Didit) is intentionally
+// NOT gated here anymore — it's enforced at the moment of buying (Comprar
+// Ahora / carrito checkout) and publishing (dashboard's Publicar tab)
+// instead, so browsing the dashboard/favorites/order history doesn't force
+// KYC on someone who isn't transacting yet.
+const PROFILE_COMPLETE_GATED_ROUTES = ["/dashboard", "/favoritos", "/ventas", "/compras", "/carrito"]
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
@@ -67,21 +71,31 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(loginUrl)
   }
 
-  const isIdentityGated = IDENTITY_GATED_ROUTES.some((route) =>
+  const isProfileGated = PROFILE_COMPLETE_GATED_ROUTES.some((route) =>
     pathname.startsWith(route)
   )
 
-  if (isIdentityGated && user) {
+  if (isProfileGated && user) {
     const { data: seller } = await supabase
       .from("sellers")
-      .select("identity_verified")
+      .select("username, phone")
       .eq("user_id", user.id)
       .single()
 
-    if (!seller?.identity_verified) {
-      const verifyUrl = new URL("/verificar-identidad", request.url)
-      verifyUrl.searchParams.set("next", pathname)
-      return NextResponse.redirect(verifyUrl)
+    // Google OAuth users get a bare-bones `sellers` row (name + type only —
+    // see handle_new_user() in 001_initial.sql) with no username, phone, or
+    // terms acceptance on record. /completar-perfil collects those before
+    // anything else.
+    //
+    // Gated on BOTH username and phone missing, not just username: some
+    // pre-014_username_and_avatar accounts never got backfilled a username
+    // (017_backfill_usernames.sql) and can't self-edit it from "Mis Datos"
+    // (read-only there) — those real, already-onboarded accounts still have
+    // their phone on file, so this doesn't catch them.
+    if (!seller?.username && !seller?.phone) {
+      const completeUrl = new URL("/completar-perfil", request.url)
+      completeUrl.searchParams.set("next", pathname)
+      return NextResponse.redirect(completeUrl)
     }
   }
 

@@ -1,6 +1,5 @@
-import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
-import { fetchAllCategories, buildChildrenMap } from "@/lib/categories";
+import { getCachedCategories, buildChildrenMap } from "@/lib/categories";
 
 type SubcategoryView = {
   id: string;
@@ -17,8 +16,7 @@ type CategoryTreeItem = {
 };
 
 async function getCategoryTree(): Promise<CategoryTreeItem[]> {
-  const supabase = await createClient();
-  const categories = await fetchAllCategories(supabase);
+  const categories = await getCachedCategories();
   if (categories.length === 0) return [];
 
   const roots = categories.filter((cat) => cat.parent_id === null);

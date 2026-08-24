@@ -1,7 +1,6 @@
-import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { fetchAllCategories, buildChildrenMap, getAncestors } from "@/lib/categories";
+import { getCachedCategories, buildChildrenMap, getAncestors } from "@/lib/categories";
 
 // Generic "drill into a category" page — handles ANY depth (subcategory,
 // sub-subcategory, and beyond), matching MercadoLibre's real behavior:
@@ -16,8 +15,7 @@ export default async function CategoriaDetailPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const supabase = await createClient();
-  const categories = await fetchAllCategories(supabase);
+  const categories = await getCachedCategories();
 
   const current = categories.find((c) => c.slug === slug);
   if (!current) notFound();

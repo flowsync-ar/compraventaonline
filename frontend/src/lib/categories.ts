@@ -1,4 +1,6 @@
 import type { createClient } from "@/lib/supabase/server";
+import { unstable_cache } from "next/cache";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 // Shared helpers for arbitrary-depth category trees (category -> subcategory
 // -> sub-subcategory -> ...). `categories.parent_id` already supports any
@@ -26,6 +28,32 @@ export async function fetchAllCategories(
   }
   return data as CategoryNode[];
 }
+
+// Categories barely ever change (an occasional admin edit) but every public
+// page that needs the tree — /search, /categorias, /categorias/[slug] — was
+// re-fetching the whole table on every single request, a full extra
+// Supabase round trip each time. RLS on this table is `USING (true)` (no
+// per-user variation), so the result is safe to share across requests.
+// unstable_cache (not a hand-rolled in-memory Map) is what actually
+// survives across serverless invocations in production, not just a
+// long-lived local dev process.
+export const getCachedCategories = unstable_cache(
+  async (): Promise<CategoryNode[]> => {
+    const admin = createAdminClient();
+    const { data, error } = await admin
+      .from("categories")
+      .select("id, name, slug, parent_id")
+      .order("name", { ascending: true });
+
+    if (error || !data) {
+      console.error("[categories] Error fetching categories:", error?.message);
+      return [];
+    }
+    return data as CategoryNode[];
+  },
+  ["all-categories"],
+  { revalidate: 60 }
+);
 
 export function buildChildrenMap(
   categories: CategoryNode[]

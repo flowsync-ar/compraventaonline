@@ -4,7 +4,7 @@ import CategorySubcategoryFilter from "../../components/CategorySubcategoryFilte
 import CustomDropdown from "../../components/CustomDropdown";
 import FavoriteButton from "../../components/FavoriteButton";
 import { LA_PAMPA_CITIES } from "@/lib/constants/laPampaCities";
-import { fetchAllCategories, buildChildrenMap } from "@/lib/categories";
+import { getCachedCategories, buildChildrenMap } from "@/lib/categories";
 
 // Case- and accent-insensitive comparison ("guitarra" matches "Guitarra Acústica").
 function normalize(text: string): string {
@@ -42,11 +42,8 @@ type ListingRow = {
 // (a few hundred rows at most for a regional marketplace), so fetching it
 // whole and walking it in memory is simpler and cheaper than a recursive
 // SQL CTE, and this project has no Postgres function/RPC layer set up yet.
-async function getCategoryAndDescendantSlugs(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  rootSlug: string
-): Promise<Set<string>> {
-  const categories = await fetchAllCategories(supabase);
+async function getCategoryAndDescendantSlugs(rootSlug: string): Promise<Set<string>> {
+  const categories = await getCachedCategories();
   const root = categories.find((c) => c.slug === rootSlug);
   if (!root) return new Set([rootSlug]);
 
@@ -153,7 +150,7 @@ async function searchListings(params: {
     // products tagged at a deeper leaf.
     const targetSlug = params.subcategory || params.category;
     if (targetSlug) {
-      const validSlugs = await getCategoryAndDescendantSlugs(supabase, targetSlug);
+      const validSlugs = await getCategoryAndDescendantSlugs(targetSlug);
       results = results.filter(
         (l) => l.products?.categories?.slug && validSlugs.has(l.products.categories.slug)
       );
@@ -179,13 +176,8 @@ interface SearchCategory {
 
 async function fetchCategories(): Promise<SearchCategory[]> {
   try {
-    const supabase = await createClient();
-    const { data, error } = await supabase
-      .from("categories")
-      .select("id, name, slug, parent_id")
-      .order("name", { ascending: true });
-
-    if (error || !data) throw new Error();
+    const data = await getCachedCategories();
+    if (data.length === 0) throw new Error();
 
     const slugById = new Map(data.map((cat) => [cat.id, cat.slug]));
 

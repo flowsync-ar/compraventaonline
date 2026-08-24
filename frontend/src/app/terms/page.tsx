@@ -159,7 +159,7 @@ export default function TermsPage() {
               Ofrecemos planes de visibilidad destacados (Planes FEATURED y PREMIUM) y promociones por reputación de vendedor para promover el comercio honesto y democratizar los servicios tecnológicos en la región pampeana.
             </p>
             <p>
-              Para poder operar en la plataforma todas las Personas (Usuarios de la plataforma)s deberán aceptar los Términos y Condiciones, los anexos y la Declaración de Privacidad.
+              Para poder operar en la plataforma todas las Personas (Usuarios de la plataforma) deberán aceptar los Términos y Condiciones, los anexos y la Declaración de Privacidad.
             </p>
             <p>
               Podrán operar dentro de <Brand text="CompraVentaOnline" /> quienes tengan capacidad legal y menores de edad debidamente autorizados por sus representantes legales.
@@ -191,16 +191,16 @@ export default function TermsPage() {
               2- Términos y Condiciones
             </h2>
             <p>
-              Estos términos y condiciones y los anexos que explican los servicios del Ecosistema <Brand text="CompraVentaOnline" /> (de ahora en más: “Términos y Condiciones”) regulan la relación entre <Brand text="CompraVentaOnline" /> y las personas que usan sus servicios (“Personas (Usuarios de la plataforma)s”).
+              Estos términos y condiciones y los anexos que explican los servicios del Ecosistema <Brand text="CompraVentaOnline" /> (de ahora en más: “Términos y Condiciones”) regulan la relación entre <Brand text="CompraVentaOnline" /> y las personas que usan sus servicios (“Personas (Usuarios de la plataforma)”).
             </p>
             <p>
-              Las Personas (Usuarios de la plataforma)s aceptan estos Términos y Condiciones al registrarse en el Sitio y podrán aceptar actualizaciones posteriores mediante actos concluyentes de su parte al continuar utilizando el Ecosistema <Brand text="CompraVentaOnline" />.
+              Las Personas (Usuarios de la plataforma) aceptan estos Términos y Condiciones al registrarse en el Sitio y podrán aceptar actualizaciones posteriores mediante actos concluyentes de su parte al continuar utilizando el Ecosistema <Brand text="CompraVentaOnline" />.
             </p>
             <p>
-              Los posibles cambios en nuestros servicios aplicarán a todas las Personas (Usuarios de la plataforma)s y serán informados con 10 días corridos de anticipación para que las Personas (Usuarios de la plataforma)s puedan revisarlas y seguir usando el Ecosistema <Brand text="CompraVentaOnline" />. Los cambios que reflejen actualizaciones en las tarifas de planes opcionales de visibilidad estarán sujetas a los plazos y condiciones establecidas en sus Términos y Condiciones específicos.
+              Los posibles cambios en nuestros servicios aplicarán a todas las Personas (Usuarios de la plataforma) y serán informados con 10 días corridos de anticipación para que las Personas (Usuarios de la plataforma) puedan revisarlas y seguir usando el Ecosistema <Brand text="CompraVentaOnline" />. Los cambios que reflejen actualizaciones en las tarifas de planes opcionales de visibilidad estarán sujetas a los plazos y condiciones establecidas en sus Términos y Condiciones específicos.
             </p>
             <p>
-              Las Personas (Usuarios de la plataforma)s podrán finalizar la relación con <Brand text="CompraVentaOnline" /> cancelando su cuenta en cualquier momento. Esto no implicará la extinción de las obligaciones pendientes que la Persona (Usuarios de la plataforma) tenga con <Brand text="CompraVentaOnline" /> u otras Personas (Usuarios de la plataforma)s.
+              Las Personas (Usuarios de la plataforma) podrán finalizar la relación con <Brand text="CompraVentaOnline" /> cancelando su cuenta en cualquier momento. Esto no implicará la extinción de las obligaciones pendientes que la Persona (Usuarios de la plataforma) tenga con <Brand text="CompraVentaOnline" /> u otras Personas (Usuarios de la plataforma).
             </p>
           </section>
 
@@ -229,10 +229,10 @@ export default function TermsPage() {
               La cuenta es personal, única e intransferible, es decir que bajo ningún concepto se podrá vender o ceder a otra persona. Se accede a ella con la clave personal de seguridad que haya elegido y que deberá mantener bajo estricta confidencialidad. En cualquier caso, la Persona (Usuarios de la plataforma) será la única responsable por las operaciones que se realicen en su cuenta. En caso de detectar un uso no autorizado de su cuenta, deberá notificar de forma inmediata y fehaciente a <Brand text="CompraVentaOnline" />.
             </p>
             <p>
-              <Brand text="CompraVentaOnline" /> podrá denegar una solicitud de registro o dar de baja un registro ya aceptado cuando existan razones objetivas fundadas en incumplimientos de estos Términos y Condiciones, requerimientos de autoridad competente, normativa aplicable, o motivos de prevención de riesgos para la integridad de la plataforma, otras Personas (Usuarios de la plataforma)s o terceros. Estas medidas no generarán derecho a resarcimiento.
+              <Brand text="CompraVentaOnline" /> podrá denegar una solicitud de registro o dar de baja un registro ya aceptado cuando existan razones objetivas fundadas en incumplimientos de estos Términos y Condiciones, requerimientos de autoridad competente, normativa aplicable, o motivos de prevención de riesgos para la integridad de la plataforma, otras Personas (Usuarios de la plataforma) o terceros. Estas medidas no generarán derecho a resarcimiento.
             </p>
             <p>
-              No podrán registrarse nuevamente en el Sitio las Personas (Usuarios de la plataforma)s que hayan sido inhabilitadas previamente. Tampoco podrán registrarse quienes estén incluidos o relacionados a personas incluidas en listas nacionales o internacionales de sanciones aplicables en la jurisdicción.
+              No podrán registrarse nuevamente en el Sitio las Personas (Usuarios de la plataforma) que hayan sido inhabilitadas previamente. Tampoco podrán registrarse quienes estén incluidos o relacionados a personas incluidas en listas nacionales o internacionales de sanciones aplicables en la jurisdicción.
             </p>
             <p>
               Además, en caso de detectar el uso de más de una cuenta, podremos aplicar restricciones, suspensiones de publicación y/o cualquier otra medida si consideramos que ese accionar puede perjudicar al resto de las personas que usan el Sitio o a <Brand text="CompraVentaOnline" />.
@@ -245,7 +245,7 @@ export default function TermsPage() {
               5- Privacidad de datos
             </h2>
             <p>
-              En <Brand text="CompraVentaOnline" /> hacemos un uso responsable de la información personal, protegiendo la privacidad de las Personas (Usuarios de la plataforma)s que nos confían sus datos, aplicando estándares de seguridad para garantizar un resguardo y tratamiento correcto en todo nuestro Ecosistema digital. Por este motivo, tanto el registro y tratamiento de los datos personales, como la gestión de los derechos vinculados a la protección de datos se realizan a través de nuestros canales digitales. Para más información, consultá la Declaración de Privacidad.
+              En <Brand text="CompraVentaOnline" /> hacemos un uso responsable de la información personal, protegiendo la privacidad de las Personas (Usuarios de la plataforma) que nos confían sus datos, aplicando estándares de seguridad para garantizar un resguardo y tratamiento correcto en todo nuestro Ecosistema digital. Por este motivo, tanto el registro y tratamiento de los datos personales, como la gestión de los derechos vinculados a la protección de datos se realizan a través de nuestros canales digitales. Para más información, consultá la Declaración de Privacidad.
             </p>
           </section>
 
@@ -255,10 +255,10 @@ export default function TermsPage() {
               6- Información Comercial
             </h2>
             <p>
-              “Información Comercial” es toda información provista y/o generada por las Personas (Usuarios de la plataforma)s al utilizar los servicios de <Brand text="CompraVentaOnline" />, incluyendo sin limitación datos de productos vendidos, precios, vistas de artículos, volumen y fecha de transacciones estimadas.
+              “Información Comercial” es toda información provista y/o generada por las Personas (Usuarios de la plataforma) al utilizar los servicios de <Brand text="CompraVentaOnline" />, incluyendo sin limitación datos de productos vendidos, precios, vistas de artículos, volumen y fecha de transacciones estimadas.
             </p>
             <p>
-              Al momento de proveer y/o generarse esta Información Comercial en el Sitio Web de <Brand text="CompraVentaOnline" />, las Personas (Usuarios de la plataforma)s reconocen que la plataforma podrá usar esa información no identitaria con fines analíticos, estadísticos e informativos para la optimización del ecosistema.
+              Al momento de proveer y/o generarse esta Información Comercial en el Sitio Web de <Brand text="CompraVentaOnline" />, las Personas (Usuarios de la plataforma) reconocen que la plataforma podrá usar esa información no identitaria con fines analíticos, estadísticos e informativos para la optimización del ecosistema.
             </p>
           </section>
 
@@ -323,7 +323,7 @@ export default function TermsPage() {
               11- Indemnidad
             </h2>
             <p>
-              La Persona (Usuarios de la plataforma) mantendrá indemne a <Brand text="CompraVentaOnline" />, sus administradores, representantes y trabajadores, por cualquier reclamo administrativo o judicial iniciado por otras Personas (Usuarios de la plataforma)s o terceros relacionado con sus actividades comerciales o publicaciones en el Ecosistema <Brand text="CompraVentaOnline" />.
+              La Persona (Usuarios de la plataforma) mantendrá indemne a <Brand text="CompraVentaOnline" />, sus administradores, representantes y trabajadores, por cualquier reclamo administrativo o judicial iniciado por otras Personas (Usuarios de la plataforma) o terceros relacionado con sus actividades comerciales o publicaciones en el Ecosistema <Brand text="CompraVentaOnline" />.
             </p>
           </section>
 

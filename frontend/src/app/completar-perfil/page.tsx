@@ -219,7 +219,7 @@ function CompletarPerfilForm() {
                 type="button"
                 onClick={() => setSellerType("PERSONAL_SELLER")}
                 className={`py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                  sellerType === "PERSONAL_SELLER" ? "bg-accent-blue text-background shadow-md" : "text-text-muted hover:text-foreground"
+                  sellerType === "PERSONAL_SELLER" ? "bg-accent-blue text-white shadow-md" : "text-text-muted hover:text-foreground"
                 }`}
               >
                 Particular
@@ -228,7 +228,7 @@ function CompletarPerfilForm() {
                 type="button"
                 onClick={() => setSellerType("BUSINESS_SELLER")}
                 className={`py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                  sellerType === "BUSINESS_SELLER" ? "bg-accent-blue text-background shadow-md" : "text-text-muted hover:text-foreground"
+                  sellerType === "BUSINESS_SELLER" ? "bg-accent-blue text-white shadow-md" : "text-text-muted hover:text-foreground"
                 }`}
               >
                 Comercio
@@ -304,7 +304,7 @@ function CompletarPerfilForm() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover py-4 text-xs font-extrabold text-background shadow-md hover:opacity-95 transition-all mt-2 disabled:opacity-50 cursor-pointer"
+            className="w-full rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover py-4 text-xs font-extrabold text-white shadow-md hover:opacity-95 transition-all mt-2 disabled:opacity-50 cursor-pointer"
           >
             {loading ? "Guardando..." : "Terminar y Continuar"}
           </button>

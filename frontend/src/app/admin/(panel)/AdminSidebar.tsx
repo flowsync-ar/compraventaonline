@@ -30,7 +30,7 @@ export default function AdminSidebar() {
       <div className="px-5 py-6 border-b border-card-border flex flex-col items-center gap-2">
         <ThemedImage
           lightSrc="/logo-cvo.png"
-          darkSrc="/logo-cvo-dark.png"
+          darkSrc="/logo-cvo.png"
           alt="CompraVentaOnline"
           className="h-16 w-auto object-contain"
         />
@@ -60,8 +60,8 @@ export default function AdminSidebar() {
               href={link.href}
               className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-bold transition-all ${
                 isActive
-                  ? "bg-accent-gold text-background shadow-sm"
-                  : "text-text-muted hover:text-foreground hover:bg-card-bg"
+                  ? "bg-accent-gold text-white shadow-sm"
+                  : "text-text-muted hover:text-accent-blue hover:bg-card-bg"
               }`}
             >
               <span>{link.icon}</span>

@@ -90,7 +90,7 @@ export default function AdminLoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="mt-2 rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover px-5 py-3 text-sm font-extrabold text-background shadow-md hover:opacity-90 transition-all disabled:opacity-50 cursor-pointer"
+            className="mt-2 rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover px-5 py-3 text-sm font-extrabold text-white shadow-md hover:opacity-90 transition-all disabled:opacity-50 cursor-pointer"
           >
             {loading ? "Ingresando..." : "Ingresar"}
           </button>

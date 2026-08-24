@@ -291,7 +291,7 @@ export default function SalesPage() {
                       <button
                         onClick={() => handleConfirmReceived(order.id)}
                         disabled={confirmingId === order.id}
-                        className="w-full rounded-xl bg-gradient-to-r from-accent-green to-accent-green px-4 py-2.5 text-xs font-extrabold text-background shadow-sm hover:opacity-95 transition-all cursor-pointer text-center disabled:opacity-50"
+                        className="w-full rounded-xl bg-gradient-to-r from-accent-green to-accent-green px-4 py-2.5 text-xs font-extrabold text-white shadow-sm hover:opacity-95 transition-all cursor-pointer text-center disabled:opacity-50"
                       >
                         {confirmingId === order.id ? "Confirmando..." : "✓ Confirmar recibido"}
                       </button>
@@ -369,7 +369,7 @@ export default function SalesPage() {
                   )}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="rounded-xl bg-accent-green py-3 text-xs font-extrabold text-background shadow-md hover:opacity-95 transition-all text-center flex items-center justify-center gap-1.5"
+                  className="rounded-xl bg-accent-green py-3 text-xs font-extrabold text-white shadow-md hover:opacity-95 transition-all text-center flex items-center justify-center gap-1.5"
                 >
                   <span>💬</span> WhatsApp
                 </a>
@@ -437,7 +437,7 @@ export default function SalesPage() {
               <button
                 onClick={handleSubmitRating}
                 disabled={!ratingValue || ratingSubmitting}
-                className="rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover py-3 text-xs font-extrabold text-background shadow-md hover:opacity-95 transition-all disabled:opacity-50 cursor-pointer"
+                className="rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover py-3 text-xs font-extrabold text-white shadow-md hover:opacity-95 transition-all disabled:opacity-50 cursor-pointer"
               >
                 {ratingSubmitting ? "Enviando..." : "Enviar calificación"}
               </button>

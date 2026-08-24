@@ -107,7 +107,7 @@ export default function SupportPage() {
                 }}
                 className={`px-4 py-2 rounded-xl text-sm font-bold transition-all cursor-pointer ${
                   activeTab === tab.id 
-                    ? "bg-accent-blue text-background shadow-md" 
+                    ? "bg-accent-blue text-white shadow-md" 
                     : "text-foreground/80 hover:bg-card-border/30"
                 }`}
               >
@@ -195,7 +195,7 @@ export default function SupportPage() {
 
               <button 
                 type="submit"
-                className="w-full rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover py-3 text-sm font-extrabold text-background shadow-md hover:opacity-95 transition-all mt-2 cursor-pointer"
+                className="w-full rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover py-3 text-sm font-extrabold text-white shadow-md hover:opacity-95 transition-all mt-2 cursor-pointer"
               >
                 Enviar Consulta
               </button>

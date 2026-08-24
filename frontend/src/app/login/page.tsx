@@ -411,7 +411,7 @@ function LoginPageContent() {
           </p>
           <button
             onClick={() => { setShowConfirmModal(false); setIsLogin(true); router.push("/login") }}
-            className="w-full rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover py-3 text-xs font-extrabold text-background shadow-md hover:opacity-95 transition-all cursor-pointer"
+            className="w-full rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover py-3 text-xs font-extrabold text-white shadow-md hover:opacity-95 transition-all cursor-pointer"
           >
             Entendido, volver al inicio de sesión
           </button>
@@ -438,7 +438,7 @@ function LoginPageContent() {
               </p>
               <button
                 onClick={closeForgotModal}
-                className="w-full rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover py-3 text-xs font-extrabold text-background shadow-md hover:opacity-95 transition-all cursor-pointer mt-2"
+                className="w-full rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover py-3 text-xs font-extrabold text-white shadow-md hover:opacity-95 transition-all cursor-pointer mt-2"
               >
                 Entendido
               </button>
@@ -465,7 +465,7 @@ function LoginPageContent() {
                 <button
                   type="submit"
                   disabled={forgotLoading}
-                  className="w-full rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover py-3 text-xs font-extrabold text-background shadow-md hover:opacity-95 transition-all cursor-pointer disabled:opacity-50"
+                  className="w-full rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover py-3 text-xs font-extrabold text-white shadow-md hover:opacity-95 transition-all cursor-pointer disabled:opacity-50"
                 >
                   {forgotLoading ? "Enviando..." : "Enviar enlace"}
                 </button>
@@ -670,7 +670,7 @@ function LoginPageContent() {
                     type="button"
                     onClick={() => setSellerType("PERSONAL_SELLER")}
                     className={`py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                      sellerType === "PERSONAL_SELLER" ? "bg-accent-blue text-background shadow-md" : "text-text-muted hover:text-foreground"
+                      sellerType === "PERSONAL_SELLER" ? "bg-accent-blue text-white shadow-md" : "text-text-muted hover:text-foreground"
                     }`}
                   >
                     Particular
@@ -679,7 +679,7 @@ function LoginPageContent() {
                     type="button"
                     onClick={() => setSellerType("BUSINESS_SELLER")}
                     className={`py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                      sellerType === "BUSINESS_SELLER" ? "bg-accent-blue text-background shadow-md" : "text-text-muted hover:text-foreground"
+                      sellerType === "BUSINESS_SELLER" ? "bg-accent-blue text-white shadow-md" : "text-text-muted hover:text-foreground"
                     }`}
                   >
                     Comercio
@@ -757,7 +757,7 @@ function LoginPageContent() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover py-4 text-xs font-extrabold text-background shadow-md hover:opacity-95 transition-all mt-4 disabled:opacity-50 cursor-pointer"
+            className="w-full rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover py-4 text-xs font-extrabold text-white shadow-md hover:opacity-95 transition-all mt-4 disabled:opacity-50 cursor-pointer"
           >
             {loading
               ? (isLogin ? "Iniciando sesión..." : "Registrando perfil...")

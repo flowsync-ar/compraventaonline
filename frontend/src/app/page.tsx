@@ -181,7 +181,7 @@ export default async function HomePage() {
 
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 text-center relative z-10 -mt-2 pt-2 pb-2 sm:pb-3">
 
-          <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-accent-gold/10 px-3 py-1 text-xs font-semibold text-accent-gold border border-accent-gold/20 mb-2 glow-gold">
+          <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-accent-gold/10 px-3 py-1 text-xs font-semibold text-accent-gold border border-accent-gold/20 mb-2 glow-gold mt-3">
             El Primer Marketplace 100% Pampeano
           </span>
 
@@ -233,7 +233,7 @@ export default async function HomePage() {
                 <FavoriteButton listingId={listing.id} />
                 {/* Badge Plan */}
                 {listing.featured_plan !== "FREE" && (
-                  <span className={`absolute top-3 left-3 z-10 rounded-lg px-2 py-0.5 text-[10px] font-extrabold tracking-wider text-background shadow-md uppercase ${
+                  <span className={`absolute top-3 left-3 z-10 rounded-lg px-2 py-0.5 text-[10px] font-extrabold tracking-wider text-white shadow-md uppercase ${
                     listing.featured_plan === "PREMIUM" ? "bg-accent-gold" : "bg-accent-blue"
                   }`}>
                     {listing.featured_plan === "PREMIUM" ? "💎 PREMIUM" : "⚡ DESTACADO"}

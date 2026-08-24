@@ -181,7 +181,7 @@ export default function HeroCarousel({ slides }: HeroCarouselProps) {
                 {slide.showCta !== false && (
                   <Link
                     href={slide.href}
-                    className={`inline-flex rounded-lg bg-gradient-to-r from-accent-gold to-accent-gold-hover px-5 py-2.5 text-[11px] font-extrabold text-background shadow-lg hover:scale-[1.03] active:scale-[0.98] transition-all ${
+                    className={`inline-flex rounded-lg bg-gradient-to-r from-accent-gold to-accent-gold-hover px-5 py-2.5 text-[11px] font-extrabold text-white shadow-lg hover:scale-[1.03] active:scale-[0.98] transition-all ${
                       slide.eyebrow || slide.title ? "mt-4" : ""
                     }`}
                   >

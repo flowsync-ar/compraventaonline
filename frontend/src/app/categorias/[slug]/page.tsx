@@ -82,7 +82,7 @@ export default async function CategoriaDetailPage({
           an empty promise even for a mid-level category. */}
       <Link
         href={`/search?category=${current.slug}`}
-        className="self-start rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover px-5 py-2.5 text-xs font-extrabold text-background shadow-md hover:opacity-90 transition-all"
+        className="self-start rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover px-5 py-2.5 text-xs font-extrabold text-white shadow-md hover:opacity-90 transition-all"
       >
         Ver publicaciones de {current.name} →
       </Link>

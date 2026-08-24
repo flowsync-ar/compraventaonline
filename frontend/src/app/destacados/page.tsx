@@ -166,7 +166,7 @@ export default async function DestacadosPage() {
           </p>
           <Link
             href="/dashboard?tab=publish"
-            className="mt-4 rounded-xl bg-accent-gold px-5 py-2.5 text-xs font-extrabold text-background shadow-md hover:opacity-90 transition-all"
+            className="mt-4 rounded-xl bg-accent-gold px-5 py-2.5 text-xs font-extrabold text-white shadow-md hover:opacity-90 transition-all"
           >
             Destacar Artículo
           </Link>
@@ -209,8 +209,8 @@ export default async function DestacadosPage() {
                   {/* Plan Badge */}
                   <span className={`absolute top-4 right-4 text-[9px] font-extrabold px-3 py-1 rounded-full uppercase tracking-widest border shadow-md flex items-center gap-1 ${
                     isPremium
-                      ? "bg-accent-gold text-background border-accent-gold animate-pulse"
-                      : "bg-accent-green text-background border-accent-green"
+                      ? "bg-accent-gold text-white border-accent-gold animate-pulse"
+                      : "bg-accent-green text-white border-accent-green"
                   }`}>
                     {isPremium ? "👑 Premium" : "⭐ Destacado"}
                   </span>
@@ -261,7 +261,7 @@ export default async function DestacadosPage() {
                     <span
                       className={`rounded-xl px-4 py-2 text-xs font-bold transition-all ${
                         isPremium
-                          ? "bg-gradient-to-r from-accent-gold to-accent-gold-hover text-background shadow-md hover:scale-[1.02] active:scale-[0.98]"
+                          ? "bg-gradient-to-r from-accent-gold to-accent-gold-hover text-white shadow-md hover:scale-[1.02] active:scale-[0.98]"
                           : "bg-card-bg border border-card-border text-foreground hover:text-accent-gold hover:border-accent-gold/40"
                       }`}
                     >

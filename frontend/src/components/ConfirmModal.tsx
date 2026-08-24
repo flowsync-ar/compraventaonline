@@ -33,7 +33,7 @@ export default function ConfirmModal({
       <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
     </svg>
   );
-  let confirmBtnClass = "rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover px-4 py-2 text-xs font-bold text-background shadow-md hover:opacity-95 transition-all disabled:opacity-50 cursor-pointer";
+  let confirmBtnClass = "rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover px-4 py-2 text-xs font-bold text-white shadow-md hover:opacity-95 transition-all disabled:opacity-50 cursor-pointer";
 
   if (type === "danger") {
     icon = (

@@ -165,7 +165,7 @@ export default function AdminPreciosPage() {
                   type="button"
                   onClick={() => setMode("PERCENT")}
                   className={`rounded-xl px-4 py-2.5 text-sm font-bold transition-all cursor-pointer ${
-                    mode === "PERCENT" ? "bg-accent-gold text-background" : "bg-card-bg border border-card-border text-foreground"
+                    mode === "PERCENT" ? "bg-accent-gold text-white" : "bg-card-bg border border-card-border text-foreground"
                   }`}
                 >
                   Porcentaje
@@ -174,7 +174,7 @@ export default function AdminPreciosPage() {
                   type="button"
                   onClick={() => setMode("FIXED")}
                   className={`rounded-xl px-4 py-2.5 text-sm font-bold transition-all cursor-pointer ${
-                    mode === "FIXED" ? "bg-accent-gold text-background" : "bg-card-bg border border-card-border text-foreground"
+                    mode === "FIXED" ? "bg-accent-gold text-white" : "bg-card-bg border border-card-border text-foreground"
                   }`}
                 >
                   Monto fijo
@@ -203,7 +203,7 @@ export default function AdminPreciosPage() {
                 type="button"
                 onClick={() => setConfirmOpen(true)}
                 disabled={!canApply}
-                className="rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover px-5 py-2.5 text-sm font-extrabold text-background shadow-md hover:opacity-90 transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                className="rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover px-5 py-2.5 text-sm font-extrabold text-white shadow-md hover:opacity-90 transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
               >
                 Aplicar a {selectedIds.size} producto{selectedIds.size === 1 ? "" : "s"}
               </button>

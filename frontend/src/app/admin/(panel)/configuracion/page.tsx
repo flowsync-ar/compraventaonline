@@ -125,7 +125,7 @@ export default function AdminConfiguracionPage() {
         <button
           type="submit"
           disabled={saving}
-          className="w-fit rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover px-5 py-2.5 text-sm font-extrabold text-background shadow-md hover:opacity-90 transition-all disabled:opacity-50 cursor-pointer"
+          className="w-fit rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover px-5 py-2.5 text-sm font-extrabold text-white shadow-md hover:opacity-90 transition-all disabled:opacity-50 cursor-pointer"
         >
           {saving ? "Guardando..." : "Guardar"}
         </button>

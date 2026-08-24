@@ -123,7 +123,7 @@ export default function TermsAcceptanceModal({
             <button
               onClick={onAccept}
               disabled={!reachedEnd}
-              className="flex-1 rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover py-3 text-xs font-extrabold text-background shadow-md hover:opacity-95 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:opacity-40"
+              className="flex-1 rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover py-3 text-xs font-extrabold text-white shadow-md hover:opacity-95 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:opacity-40"
             >
               Acepto los Términos
             </button>

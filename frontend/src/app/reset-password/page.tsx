@@ -180,7 +180,7 @@ export default function ResetPasswordPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover py-4 text-sm font-extrabold text-background shadow-md hover:opacity-95 transition-all mt-2 disabled:opacity-50 cursor-pointer"
+              className="w-full rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover py-4 text-sm font-extrabold text-white shadow-md hover:opacity-95 transition-all mt-2 disabled:opacity-50 cursor-pointer"
             >
               {loading ? "Guardando..." : "Guardar nueva contraseña"}
             </button>

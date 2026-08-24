@@ -215,7 +215,7 @@ export default function PurchasesPage() {
             </p>
             <Link
               href="/search"
-              className="mt-4 rounded-xl bg-accent-gold px-5 py-2.5 text-sm font-extrabold text-background shadow-md hover:opacity-90 transition-all"
+              className="mt-4 rounded-xl bg-accent-gold px-5 py-2.5 text-sm font-extrabold text-white shadow-md hover:opacity-90 transition-all"
             >
               Explorar productos
             </Link>
@@ -345,7 +345,7 @@ export default function PurchasesPage() {
                   )}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="rounded-xl bg-accent-green py-3 text-xs font-extrabold text-background shadow-md hover:opacity-95 transition-all text-center flex items-center justify-center gap-1.5"
+                  className="rounded-xl bg-accent-green py-3 text-xs font-extrabold text-white shadow-md hover:opacity-95 transition-all text-center flex items-center justify-center gap-1.5"
                 >
                   <span>💬</span> WhatsApp
                 </a>
@@ -415,7 +415,7 @@ export default function PurchasesPage() {
               <button
                 onClick={handleSubmitRating}
                 disabled={!ratingValue || ratingSubmitting}
-                className="rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover py-3 text-xs font-extrabold text-background shadow-md hover:opacity-95 transition-all disabled:opacity-50 cursor-pointer"
+                className="rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover py-3 text-xs font-extrabold text-white shadow-md hover:opacity-95 transition-all disabled:opacity-50 cursor-pointer"
               >
                 {ratingSubmitting ? "Enviando..." : "Enviar calificación"}
               </button>

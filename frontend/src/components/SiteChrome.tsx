@@ -17,6 +17,10 @@ export default function SiteChrome({ children }: { children: ReactNode }) {
   const router = useRouter()
   const isAdmin = pathname?.startsWith("/admin")
   const isMaintenance = pathname === "/mantenimiento"
+  // "/" only matches the home page itself — every other route starts with
+  // "/" too, so a plain startsWith would light up "Inicio" everywhere.
+  const isNavActive = (href: string) =>
+    href === "/" ? pathname === "/" : !!pathname?.startsWith(href)
 
   // Mobile nav dropdown (<md only — from md up the horizontal nav has
   // enough room to wrap onto 1-2 lines on its own, no need to hide it).
@@ -132,25 +136,25 @@ export default function SiteChrome({ children }: { children: ReactNode }) {
 
                 {mobileMenuOpen && (
                   <div className="absolute left-0 top-full mt-2 w-60 rounded-2xl bg-card-bg-solid border border-card-border p-2 shadow-2xl z-50 flex flex-col gap-1 animate-in fade-in slide-in-from-top-2 duration-200">
-                    <Link href="/" className="px-3 py-2.5 rounded-xl text-sm font-semibold text-foreground/80 hover:text-accent-gold hover:bg-card-border/30 transition-all">
+                    <Link href="/" className={`px-3 py-2.5 rounded-xl text-sm font-semibold hover:text-accent-gold hover:bg-card-border/30 transition-all ${isNavActive("/") ? "text-accent-gold bg-accent-gold/10" : "text-foreground/80"}`}>
                       Inicio
                     </Link>
-                    <Link href="/categorias" className="px-3 py-2.5 rounded-xl text-sm font-semibold text-foreground/80 hover:text-accent-gold hover:bg-card-border/30 transition-all">
+                    <Link href="/categorias" className={`px-3 py-2.5 rounded-xl text-sm font-semibold hover:text-accent-gold hover:bg-card-border/30 transition-all ${isNavActive("/categorias") ? "text-accent-gold bg-accent-gold/10" : "text-foreground/80"}`}>
                       Categorías
                     </Link>
-                    <Link href="/destacados" className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-sm font-semibold text-foreground/80 hover:text-accent-gold hover:bg-card-border/30 transition-all">
+                    <Link href="/destacados" className={`flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-sm font-semibold hover:text-accent-gold hover:bg-card-border/30 transition-all ${isNavActive("/destacados") ? "text-accent-gold bg-accent-gold/10" : "text-foreground/80"}`}>
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5 text-accent-gold stroke-foreground stroke-[1.5] drop-shadow-sm shrink-0">
                         <path fillRule="evenodd" d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.006 5.404.434c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.321 21.38c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.434 2.082-5.005Z" clipRule="evenodd" />
                       </svg>
                       Destacados
                     </Link>
-                    <Link href="/search" className="px-3 py-2.5 rounded-xl text-sm font-semibold text-foreground/80 hover:text-accent-gold hover:bg-card-border/30 transition-all">
+                    <Link href="/search" className={`px-3 py-2.5 rounded-xl text-sm font-semibold hover:text-accent-gold hover:bg-card-border/30 transition-all ${isNavActive("/search") ? "text-accent-gold bg-accent-gold/10" : "text-foreground/80"}`}>
                       Buscar
                     </Link>
-                    <Link href="/envios" className="px-3 py-2.5 rounded-xl text-sm font-semibold text-foreground/80 hover:text-accent-gold hover:bg-card-border/30 transition-all">
+                    <Link href="/envios" className={`px-3 py-2.5 rounded-xl text-sm font-semibold hover:text-accent-gold hover:bg-card-border/30 transition-all ${isNavActive("/envios") ? "text-accent-gold bg-accent-gold/10" : "text-foreground/80"}`}>
                       Envíos & Logística
                     </Link>
-                    <Link href="/support" className="px-3 py-2.5 rounded-xl text-sm font-semibold text-foreground/80 hover:text-accent-gold hover:bg-card-border/30 transition-all">
+                    <Link href="/support" className={`px-3 py-2.5 rounded-xl text-sm font-semibold hover:text-accent-gold hover:bg-card-border/30 transition-all ${isNavActive("/support") ? "text-accent-gold bg-accent-gold/10" : "text-foreground/80"}`}>
                       Ayuda
                     </Link>
                   </div>
@@ -164,7 +168,7 @@ export default function SiteChrome({ children }: { children: ReactNode }) {
                     items: nav, search, session controls). */}
                 <ThemedImage
                   lightSrc="/logo-cvo.png"
-                  darkSrc="/logo-cvo-dark.png"
+                  darkSrc="/logo-cvo.png"
                   alt="CompraVentaOnline La Pampa"
                   className="absolute left-0 top-1/2 -translate-y-1/2 h-16 sm:h-24 w-auto max-w-none object-contain transition-transform group-hover:scale-105"
                 />
@@ -194,25 +198,25 @@ export default function SiteChrome({ children }: { children: ReactNode }) {
               comprime junto con él — siguen coincidiendo en ancho. */}
           <div className="flex flex-col lg:grid lg:grid-cols-[minmax(0,max-content)] gap-2 lg:gap-3.5 lg:col-start-2 lg:row-start-1 lg:justify-self-center min-w-0">
             <nav className="hidden md:flex flex-wrap items-center justify-center lg:justify-start gap-x-5 gap-y-1.5 sm:gap-x-6 min-w-0">
-              <Link href="/" className="text-sm font-semibold text-foreground/80 hover:text-accent-gold transition-colors">
+              <Link href="/" className={`text-sm font-semibold hover:text-accent-gold transition-colors ${isNavActive("/") ? "text-accent-gold" : "text-foreground/80"}`}>
                 Inicio
               </Link>
-              <Link href="/categorias" className="text-sm font-semibold text-foreground/80 hover:text-accent-gold transition-colors">
+              <Link href="/categorias" className={`text-sm font-semibold hover:text-accent-gold transition-colors ${isNavActive("/categorias") ? "text-accent-gold" : "text-foreground/80"}`}>
                 Categorías
               </Link>
-              <Link href="/destacados" className="text-sm font-semibold text-foreground/80 hover:text-accent-gold transition-colors flex items-center gap-1.5">
+              <Link href="/destacados" className={`text-sm font-semibold hover:text-accent-gold transition-colors flex items-center gap-1.5 ${isNavActive("/destacados") ? "text-accent-gold" : "text-foreground/80"}`}>
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5 text-accent-gold stroke-foreground stroke-[1.5] drop-shadow-sm animate-pulse">
                   <path fillRule="evenodd" d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.006 5.404.434c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.321 21.38c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.434 2.082-5.005Z" clipRule="evenodd" />
                 </svg>
                 Destacados
               </Link>
-              <Link href="/search" className="text-sm font-semibold text-foreground/80 hover:text-accent-gold transition-colors">
+              <Link href="/search" className={`text-sm font-semibold hover:text-accent-gold transition-colors ${isNavActive("/search") ? "text-accent-gold" : "text-foreground/80"}`}>
                 Buscar
               </Link>
-              <Link href="/envios" className="text-sm font-semibold text-foreground/80 hover:text-accent-gold transition-colors">
+              <Link href="/envios" className={`text-sm font-semibold hover:text-accent-gold transition-colors ${isNavActive("/envios") ? "text-accent-gold" : "text-foreground/80"}`}>
                 Envíos & Logística
               </Link>
-              <Link href="/support" className="text-sm font-semibold text-foreground/80 hover:text-accent-gold transition-colors">
+              <Link href="/support" className={`text-sm font-semibold hover:text-accent-gold transition-colors ${isNavActive("/support") ? "text-accent-gold" : "text-foreground/80"}`}>
                 Ayuda
               </Link>
             </nav>
@@ -239,7 +243,7 @@ export default function SiteChrome({ children }: { children: ReactNode }) {
             <div className="flex flex-col items-center sm:items-start gap-1">
               <ThemedImage
                 lightSrc="/logo-cvo.png"
-                darkSrc="/logo-cvo-dark.png"
+                darkSrc="/logo-cvo.png"
                 alt="CompraVentaOnline.com.ar"
                 className="h-8 w-auto object-contain opacity-90"
               />

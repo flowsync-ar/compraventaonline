@@ -621,7 +621,7 @@ export default function ListingDetailPage() {
         <span className="text-5xl">🌾</span>
         <h2 className="font-heading text-2xl font-bold text-foreground mt-4">Publicación no encontrada</h2>
         <p className="text-text-muted text-sm mt-2">La oferta que estás buscando no existe o ya caducó.</p>
-        <Link href="/search" className="mt-6 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover px-6 py-3 text-xs font-bold text-background shadow-md">
+        <Link href="/search" className="mt-6 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover px-6 py-3 text-xs font-bold text-white shadow-md">
           Volver al buscador
         </Link>
       </div>
@@ -728,7 +728,7 @@ export default function ListingDetailPage() {
             className="rounded-3xl overflow-hidden bg-card-bg border border-card-border p-3 shadow-xl relative aspect-[4/3] flex items-center justify-center group cursor-zoom-in"
           >
             {listing.featured_plan === "PREMIUM" && (
-              <span className="absolute top-6 left-6 z-10 rounded-xl bg-accent-gold px-3.5 py-1 text-xs font-extrabold tracking-wider text-background shadow-md uppercase">
+              <span className="absolute top-6 left-6 z-10 rounded-xl bg-accent-gold px-3.5 py-1 text-xs font-extrabold tracking-wider text-white shadow-md uppercase">
                 💎 Premium Pampeano
               </span>
             )}
@@ -984,8 +984,8 @@ export default function ListingDetailPage() {
                     onClick={handleAddToCart}
                     className={`rounded-xl px-4 py-4 text-xs font-extrabold text-center shadow-md hover:scale-[1.01] active:scale-[0.99] transition-all cursor-pointer flex items-center justify-center gap-2 ${
                       addedToCart
-                        ? "bg-accent-green text-background border border-accent-green/30"
-                        : "bg-gradient-to-r from-accent-gold to-accent-gold-hover text-background"
+                        ? "bg-accent-green text-white border border-accent-green/30"
+                        : "bg-gradient-to-r from-accent-gold to-accent-gold-hover text-white"
                     }`}
                   >
                     {addedToCart ? <><span>✓</span> ¡Agregado!</> : <><span>🛒</span> Agregar al Carrito</>}
@@ -1167,7 +1167,7 @@ export default function ListingDetailPage() {
                     className="w-full bg-background border border-card-border rounded-xl px-4 py-3 text-xs text-foreground focus:outline-none focus:border-accent-gold resize-none"
                   />
                 </div>
-                <button type="submit" className="w-full rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover py-4 text-xs font-extrabold text-background shadow-md hover:opacity-95 transition-all mt-2 cursor-pointer">
+                <button type="submit" className="w-full rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover py-4 text-xs font-extrabold text-white shadow-md hover:opacity-95 transition-all mt-2 cursor-pointer">
                   Enviar Pregunta
                 </button>
               </form>
@@ -1332,7 +1332,7 @@ export default function ListingDetailPage() {
                 >
                   {paymentLoading ? (
                     <>
-                      <svg className="animate-spin h-4 w-4 text-background" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                       </svg>

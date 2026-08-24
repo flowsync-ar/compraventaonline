@@ -216,7 +216,7 @@ export default function FavoritesPage() {
           </p>
           <Link
             href="/search"
-            className="mt-2 rounded-xl bg-accent-blue hover:opacity-95 text-background font-extrabold text-xs px-6 py-3 shadow-md transition-all cursor-pointer active:scale-95"
+            className="mt-2 rounded-xl bg-accent-blue hover:opacity-95 text-white font-extrabold text-xs px-6 py-3 shadow-md transition-all cursor-pointer active:scale-95"
           >
             Buscar Productos
           </Link>
@@ -259,7 +259,7 @@ export default function FavoritesPage() {
                   />
                   {!isAvailable && (
                     <div className="absolute inset-0 bg-black/40 flex items-center justify-center p-4">
-                      <span className="bg-red-500 text-background text-[10px] font-extrabold px-2.5 py-1 rounded-full shadow-md uppercase tracking-wider text-center">
+                      <span className="bg-red-500 text-white text-[10px] font-extrabold px-2.5 py-1 rounded-full shadow-md uppercase tracking-wider text-center">
                         No Disponible
                       </span>
                     </div>

@@ -1857,7 +1857,7 @@ function DashboardPageContent() {
         <p className="text-text-muted text-sm mt-2">No pudimos vincular un perfil comercial con esta cuenta de usuario.</p>
         <button 
           onClick={handleLogout} 
-          className="mt-6 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover px-6 py-3 text-xs font-bold text-background shadow-md cursor-pointer"
+          className="mt-6 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover px-6 py-3 text-xs font-bold text-white shadow-md cursor-pointer"
         >
           Volver a iniciar sesión
         </button>
@@ -1924,7 +1924,7 @@ function DashboardPageContent() {
                   <button
                     type="button"
                     onClick={handleShareToWhatsAppStatus}
-                    className="flex items-center justify-center gap-1.5 rounded-xl bg-accent-green py-3 text-xs font-extrabold text-background shadow-md hover:opacity-90 transition-all cursor-pointer"
+                    className="flex items-center justify-center gap-1.5 rounded-xl bg-accent-green py-3 text-xs font-extrabold text-white shadow-md hover:opacity-90 transition-all cursor-pointer"
                   >
                     💬 Estado de WhatsApp
                   </button>
@@ -1987,7 +1987,7 @@ function DashboardPageContent() {
                 setErrorMsg("");
               }}
               className={`px-4 py-2 rounded-lg text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
-                activeTab === "summary" ? "bg-accent-blue text-background shadow-md" : "text-foreground/80 hover:text-accent-blue"
+                activeTab === "summary" ? "bg-accent-blue text-white shadow-md" : "text-foreground/80 hover:text-accent-blue"
               }`}
             >
               Resumen
@@ -2013,7 +2013,7 @@ function DashboardPageContent() {
                 setErrorMsg("");
               }}
               className={`px-4 py-2 rounded-lg text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
-                activeTab === "publish" ? "bg-accent-blue text-background shadow-md" : "text-foreground/80 hover:text-accent-blue"
+                activeTab === "publish" ? "bg-accent-blue text-white shadow-md" : "text-foreground/80 hover:text-accent-blue"
               }`}
             >
               Publicar Artículo
@@ -2039,7 +2039,7 @@ function DashboardPageContent() {
                 setErrorMsg("");
               }}
               className={`px-4 py-2 rounded-lg text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
-                activeTab === "inventory" ? "bg-accent-blue text-background shadow-md" : "text-foreground/80 hover:text-accent-blue"
+                activeTab === "inventory" ? "bg-accent-blue text-white shadow-md" : "text-foreground/80 hover:text-accent-blue"
               }`}
             >
               Mis Publicaciones ({myListings.length})
@@ -2051,7 +2051,7 @@ function DashboardPageContent() {
                 setErrorMsg("");
               }}
               className={`px-4 py-2 rounded-lg text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
-                activeTab === "questions" ? "bg-accent-blue text-background shadow-md" : "text-foreground/80 hover:text-accent-blue"
+                activeTab === "questions" ? "bg-accent-blue text-white shadow-md" : "text-foreground/80 hover:text-accent-blue"
               }`}
             >
               Consultas
@@ -2079,7 +2079,7 @@ function DashboardPageContent() {
                 setErrorMsg("");
               }}
               className={`px-4 py-2 rounded-lg text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
-                activeTab === "rewards" ? "bg-accent-blue text-background shadow-md" : "text-foreground/80 hover:text-accent-blue"
+                activeTab === "rewards" ? "bg-accent-blue text-white shadow-md" : "text-foreground/80 hover:text-accent-blue"
               }`}
             >
               Mis Premios ({rewards.filter(r => !r.claimed).length})
@@ -2091,7 +2091,7 @@ function DashboardPageContent() {
                 setErrorMsg("");
               }}
               className={`px-4 py-2 rounded-lg text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
-                activeTab === "social" ? "bg-accent-blue text-background shadow-md" : "text-foreground/80 hover:text-accent-blue"
+                activeTab === "social" ? "bg-accent-blue text-white shadow-md" : "text-foreground/80 hover:text-accent-blue"
               }`}
             >
               Redes Sociales
@@ -2103,7 +2103,7 @@ function DashboardPageContent() {
                 setProfileErrorMsg("");
               }}
               className={`px-4 py-2 rounded-lg text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
-                activeTab === "profile" ? "bg-accent-blue text-background shadow-md" : "text-foreground/80 hover:text-accent-blue"
+                activeTab === "profile" ? "bg-accent-blue text-white shadow-md" : "text-foreground/80 hover:text-accent-blue"
               }`}
             >
               Mis Datos
@@ -2176,7 +2176,7 @@ function DashboardPageContent() {
               </div>
               <button 
                 onClick={() => setActiveTab("rewards")}
-                className="bg-accent-gold hover:bg-accent-gold-hover text-background text-xs font-bold px-4 py-2.5 rounded-xl hover:opacity-90 shadow-md transition-all cursor-pointer whitespace-nowrap"
+                className="bg-accent-gold hover:bg-accent-gold-hover text-white text-xs font-bold px-4 py-2.5 rounded-xl hover:opacity-90 shadow-md transition-all cursor-pointer whitespace-nowrap"
               >
                 Ver mis premios ({rewards.filter(r => !r.claimed).length} disponibles)
               </button>
@@ -2575,7 +2575,7 @@ function DashboardPageContent() {
 
                               {/* Badge Portada */}
                               {isCover && (
-                                <span className="absolute bottom-1.5 left-1.5 bg-accent-gold text-background text-[9px] font-extrabold px-1.5 py-0.5 rounded shadow-md pointer-events-none uppercase tracking-wider">
+                                <span className="absolute bottom-1.5 left-1.5 bg-accent-gold text-white text-[9px] font-extrabold px-1.5 py-0.5 rounded shadow-md pointer-events-none uppercase tracking-wider">
                                   Portada
                                 </span>
                               )}
@@ -2689,7 +2689,7 @@ function DashboardPageContent() {
                   <button
                     type="submit"
                     disabled={loading || isUploadingImages}
-                    className="flex-1 rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover py-4 text-xs font-extrabold text-background shadow-md hover:opacity-95 transition-all disabled:opacity-50 cursor-pointer"
+                    className="flex-1 rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover py-4 text-xs font-extrabold text-white shadow-md hover:opacity-95 transition-all disabled:opacity-50 cursor-pointer"
                   >
                     {isUploadingImages
                       ? "Subiendo imágenes..."
@@ -2778,7 +2778,7 @@ function DashboardPageContent() {
                 <button
                   onClick={handleBulkPreview}
                   disabled={bulkPreviewLoading || !csvFile}
-                  className="w-full rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover py-4 text-xs font-extrabold text-background shadow-md hover:opacity-95 transition-all mt-2 disabled:opacity-50 cursor-pointer"
+                  className="w-full rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover py-4 text-xs font-extrabold text-white shadow-md hover:opacity-95 transition-all mt-2 disabled:opacity-50 cursor-pointer"
                 >
                   {bulkPreviewLoading ? "Leyendo archivo..." : "Continuar y Revisar"}
                 </button>
@@ -2846,7 +2846,7 @@ function DashboardPageContent() {
                       <button
                         onClick={handleBulkAssignCategory}
                         disabled={!bulkAssignCategoryId}
-                        className="rounded-lg bg-accent-gold text-background px-4 py-2 text-[11px] font-extrabold hover:opacity-90 transition-all disabled:opacity-40 cursor-pointer shrink-0"
+                        className="rounded-lg bg-accent-gold text-white px-4 py-2 text-[11px] font-extrabold hover:opacity-90 transition-all disabled:opacity-40 cursor-pointer shrink-0"
                       >
                         Cambiar categoría
                       </button>
@@ -2968,7 +2968,7 @@ function DashboardPageContent() {
                                       <img src="/sinimagen.png" alt="Sin imagen" className="h-full w-full object-cover pointer-events-none" />
                                     )}
                                     {row.images.length > 0 && (
-                                      <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-accent-green text-background text-[8px] font-extrabold flex items-center justify-center pointer-events-none">
+                                      <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-accent-green text-white text-[8px] font-extrabold flex items-center justify-center pointer-events-none">
                                         {row.images.length}
                                       </span>
                                     )}
@@ -3102,7 +3102,7 @@ function DashboardPageContent() {
                                               className="w-full h-full object-contain pointer-events-none"
                                             />
                                             {idx === 0 && (
-                                              <span className="absolute bottom-1 left-1 bg-accent-gold text-background text-[8px] font-extrabold px-1 py-0.5 rounded uppercase pointer-events-none">
+                                              <span className="absolute bottom-1 left-1 bg-accent-gold text-white text-[8px] font-extrabold px-1 py-0.5 rounded uppercase pointer-events-none">
                                                 Portada
                                               </span>
                                             )}
@@ -3146,7 +3146,7 @@ function DashboardPageContent() {
                 <button
                   onClick={handleConfirmBulkPublish}
                   disabled={bulkConfirming || bulkPreviewRows.filter((r) => r.valid && r.categoryId).length === 0}
-                  className="w-full rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover py-4 text-xs font-extrabold text-background shadow-md hover:opacity-95 transition-all mt-2 disabled:opacity-50 cursor-pointer"
+                  className="w-full rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover py-4 text-xs font-extrabold text-white shadow-md hover:opacity-95 transition-all mt-2 disabled:opacity-50 cursor-pointer"
                 >
                   {bulkConfirming
                     ? "Publicando..."
@@ -3714,7 +3714,7 @@ function DashboardPageContent() {
                             onClick={() => setCurrentPage(page)}
                             className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-extrabold transition-all cursor-pointer select-none active:scale-95 ${
                               isCurrent
-                                ? "bg-accent-gold text-background shadow-[0_0_12px_rgba(235,178,57,0.3)]"
+                                ? "bg-accent-gold text-white shadow-[0_0_12px_rgba(235,178,57,0.3)]"
                                 : "bg-card-bg-solid border border-card-border text-foreground hover:bg-card-bg hover:border-card-border-hover"
                             }`}
                           >
@@ -3772,7 +3772,7 @@ function DashboardPageContent() {
                         type="button"
                         onClick={() => setQuestionsFilter(f.key)}
                         className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
-                          questionsFilter === f.key ? "bg-accent-blue text-background shadow-sm" : "text-text-muted hover:text-foreground"
+                          questionsFilter === f.key ? "bg-accent-blue text-white shadow-sm" : "text-text-muted hover:text-foreground"
                         }`}
                       >
                         {f.label}
@@ -3854,7 +3854,7 @@ function DashboardPageContent() {
                               <button
                                 onClick={() => handleReplyToQuestion(q.id)}
                                 disabled={!questionReplyText.trim()}
-                                className="px-2.5 py-1 text-[10px] rounded-lg bg-gradient-to-r from-accent-gold to-accent-gold-hover text-background font-bold shadow-md cursor-pointer disabled:opacity-50"
+                                className="px-2.5 py-1 text-[10px] rounded-lg bg-gradient-to-r from-accent-gold to-accent-gold-hover text-white font-bold shadow-md cursor-pointer disabled:opacity-50"
                               >
                                 Enviar Respuesta
                               </button>
@@ -3966,7 +3966,7 @@ function DashboardPageContent() {
                                 setSelectedListingForReward(eligible[0].id);
                               }
                             }}
-                            className="bg-gradient-to-r from-accent-gold to-accent-gold-hover text-background text-xs font-extrabold px-3 py-1.5 rounded-lg shadow-sm hover:opacity-95 transition-all cursor-pointer"
+                            className="bg-gradient-to-r from-accent-gold to-accent-gold-hover text-white text-xs font-extrabold px-3 py-1.5 rounded-lg shadow-sm hover:opacity-95 transition-all cursor-pointer"
                           >
                             Canjear
                           </button>
@@ -4019,7 +4019,7 @@ function DashboardPageContent() {
                       <button
                         onClick={() => handleClaimReward(selectedRewardToClaim.id, selectedListingForReward)}
                         disabled={loading || myListings.filter(l => l.status === "APPROVED").length === 0}
-                        className="rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover px-4 py-2 text-xs font-bold text-background shadow-md hover:opacity-95 transition-all disabled:opacity-50 cursor-pointer"
+                        className="rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover px-4 py-2 text-xs font-bold text-white shadow-md hover:opacity-95 transition-all disabled:opacity-50 cursor-pointer"
                       >
                         {loading ? "Procesando..." : "Confirmar Canje"}
                       </button>
@@ -4142,7 +4142,7 @@ function DashboardPageContent() {
                         <button
                           onClick={() => handleConnectSocial(key)}
                           disabled={socialConnecting === key || !socialHandleInputs[key]?.trim()}
-                          className="rounded-lg bg-accent-gold text-background px-4 py-2 text-[11px] font-extrabold hover:opacity-90 transition-all cursor-pointer disabled:opacity-40 whitespace-nowrap"
+                          className="rounded-lg bg-accent-gold text-white px-4 py-2 text-[11px] font-extrabold hover:opacity-90 transition-all cursor-pointer disabled:opacity-40 whitespace-nowrap"
                         >
                           {socialConnecting === key ? "Vinculando..." : "Vincular"}
                         </button>
@@ -4240,7 +4240,7 @@ function DashboardPageContent() {
                       type="button"
                       onClick={() => setProfileType("PERSONAL_SELLER")}
                       className={`py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                        profileType === "PERSONAL_SELLER" ? "bg-accent-blue text-background shadow-md" : "text-text-muted hover:text-foreground"
+                        profileType === "PERSONAL_SELLER" ? "bg-accent-blue text-white shadow-md" : "text-text-muted hover:text-foreground"
                       }`}
                     >
                       Particular
@@ -4249,7 +4249,7 @@ function DashboardPageContent() {
                       type="button"
                       onClick={() => setProfileType("BUSINESS_SELLER")}
                       className={`py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                        profileType === "BUSINESS_SELLER" ? "bg-accent-blue text-background shadow-md" : "text-text-muted hover:text-foreground"
+                        profileType === "BUSINESS_SELLER" ? "bg-accent-blue text-white shadow-md" : "text-text-muted hover:text-foreground"
                       }`}
                     >
                       Comercio
@@ -4416,7 +4416,7 @@ function DashboardPageContent() {
                 type="submit"
                 form="profile-form"
                 disabled={profileSaving}
-                className="rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover px-12 py-3 text-xs font-extrabold text-background shadow-md hover:opacity-95 transition-all disabled:opacity-50 cursor-pointer"
+                className="rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover px-12 py-3 text-xs font-extrabold text-white shadow-md hover:opacity-95 transition-all disabled:opacity-50 cursor-pointer"
               >
                 {profileSaving ? "Guardando..." : "Guardar Cambios"}
               </button>

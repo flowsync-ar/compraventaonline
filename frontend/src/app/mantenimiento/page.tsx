@@ -13,7 +13,7 @@ export default function MantenimientoPage() {
       <div className="max-w-md w-full text-center flex flex-col items-center gap-5 rounded-3xl glass-panel p-10">
         <ThemedImage
           lightSrc="/logo-cvo.png"
-          darkSrc="/logo-cvo-dark.png"
+          darkSrc="/logo-cvo.png"
           alt="CompraVentaOnline"
           className="h-16 w-auto object-contain"
         />

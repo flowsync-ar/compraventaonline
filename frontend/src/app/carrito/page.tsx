@@ -218,7 +218,7 @@ export default function CartCheckoutPage() {
         <div className="py-20 text-center border border-dashed border-card-border rounded-3xl flex flex-col items-center gap-2 bg-card-bg-solid">
           <span className="text-4xl">🛒</span>
           <h3 className="font-heading text-sm font-bold text-foreground mt-2">Tu carrito está vacío</h3>
-          <Link href="/search" className="mt-4 rounded-xl bg-accent-gold px-5 py-2.5 text-sm font-extrabold text-background shadow-md hover:opacity-90 transition-all">
+          <Link href="/search" className="mt-4 rounded-xl bg-accent-gold px-5 py-2.5 text-sm font-extrabold text-white shadow-md hover:opacity-90 transition-all">
             Explorar productos
           </Link>
         </div>

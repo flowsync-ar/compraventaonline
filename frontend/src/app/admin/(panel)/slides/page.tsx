@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import ConfirmModal from "@/components/ConfirmModal"
+import { imageToWebp } from "@/lib/imageToWebp"
 
 interface Slide {
   id: string
@@ -87,13 +88,14 @@ export default function AdminSlidesPage() {
   }
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>, target: "desktop" | "mobile") => {
-    const file = e.target.files?.[0]
-    if (!file) return
+    const rawFile = e.target.files?.[0]
+    if (!rawFile) return
 
     setError(null)
     const setUploadingState = target === "mobile" ? setUploadingMobile : setUploading
     setUploadingState(true)
     try {
+      const file = await imageToWebp(rawFile)
       const formData = new FormData()
       formData.append("file", file)
       const res = await fetch("/api/admin/slides/upload", { method: "POST", body: formData })

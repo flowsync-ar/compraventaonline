@@ -11,6 +11,7 @@ import GenericAvatar from "@/components/GenericAvatar"
 import Toast from "@/components/Toast"
 import TermsAcceptanceModal from "@/components/TermsAcceptanceModal"
 import { LA_PAMPA_CITIES } from "@/lib/constants/laPampaCities"
+import { imageToWebp } from "@/lib/imageToWebp"
 
 // useSearchParams() requires a Suspense boundary in Next.js 16 (same fix
 // as the dashboard's "Vender" tab-sync bug) — needed here so the header's
@@ -196,13 +197,14 @@ function LoginPageContent() {
     }
   }
 
-  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    if (file.size > 3 * 1024 * 1024) {
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawFile = e.target.files?.[0]
+    if (!rawFile) return
+    if (rawFile.size > 3 * 1024 * 1024) {
       setErrorMsg("La foto de perfil no puede superar los 3MB.")
       return
     }
+    const file = await imageToWebp(rawFile)
     setAvatarFile(file)
     setAvatarPreview((prev) => {
       if (prev) URL.revokeObjectURL(prev)

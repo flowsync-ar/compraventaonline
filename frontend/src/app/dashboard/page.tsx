@@ -11,6 +11,7 @@ import { LA_PAMPA_CITIES } from "@/lib/constants/laPampaCities";
 import { createClient } from "@/lib/supabase/client";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { QuestionWithBuyer } from "@/lib/supabase/types";
+import { imageToWebp, imagesToWebp } from "@/lib/imageToWebp";
 
 interface Listing {
   id: string;
@@ -625,7 +626,8 @@ function DashboardPageContent() {
     setBulkUploadingRow(rowNumber);
     try {
       const uploadedUrls: string[] = [];
-      for (const file of fileArray) {
+      const webpFiles = await imagesToWebp(fileArray);
+      for (const file of webpFiles) {
         const ext = file.name.split(".").pop() ?? "jpg";
         const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
         const path = `${sellerId}/bulk-${rowNumber}/${filename}`;
@@ -827,8 +829,9 @@ function DashboardPageContent() {
     setIsUploadingImages(true);
     try {
       const uploadedUrls: string[] = [];
+      const webpFiles = await imagesToWebp(fileArray);
 
-      for (const file of fileArray) {
+      for (const file of webpFiles) {
         const ext = file.name.split(".").pop() ?? "jpg";
         const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
         const path = `${sellerId}/${tempListingId}/${filename}`;
@@ -1189,19 +1192,21 @@ function DashboardPageContent() {
   };
 
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !sellerProfile) return;
+    const rawFile = e.target.files?.[0];
+    if (!rawFile || !sellerProfile) return;
 
     setAvatarError("");
-    const ext = AVATAR_EXT_BY_MIME[file.type];
-    if (!ext) {
+    if (!AVATAR_EXT_BY_MIME[rawFile.type]) {
       setAvatarError("Formato no soportado. Usá PNG, JPG, WEBP o GIF.");
       return;
     }
-    if (file.size > 3 * 1024 * 1024) {
+    if (rawFile.size > 3 * 1024 * 1024) {
       setAvatarError("La imagen no puede superar los 3MB.");
       return;
     }
+
+    const file = await imageToWebp(rawFile);
+    const ext = AVATAR_EXT_BY_MIME[file.type] ?? AVATAR_EXT_BY_MIME[rawFile.type];
 
     setAvatarUploading(true);
     try {

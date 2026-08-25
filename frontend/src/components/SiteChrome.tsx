@@ -17,6 +17,7 @@ export default function SiteChrome({ children }: { children: ReactNode }) {
   const router = useRouter()
   const isAdmin = pathname?.startsWith("/admin")
   const isMaintenance = pathname === "/mantenimiento"
+  const isHomePage = pathname === "/"
   // "/" only matches the home page itself — every other route starts with
   // "/" too, so a plain startsWith would light up "Inicio" everywhere.
   const isNavActive = (href: string) =>
@@ -201,7 +202,13 @@ export default function SiteChrome({ children }: { children: ReactNode }) {
               dentro de ese espacio menor, y el buscador se comprime junto
               con él — siguen coincidiendo en ancho. */}
           <div className="flex flex-col xl:grid xl:grid-cols-[minmax(0,max-content)] gap-2 xl:gap-6 xl:col-start-2 xl:row-start-1 xl:self-start xl:justify-self-center min-w-0">
-            <div className="w-full">
+            {/* Debajo de xl (mobile/tablet) el buscador es un bloque grande
+                apilado (input + 2 selects + botón) — mostrarlo en TODAS
+                las páginas ahí abajo empuja mucho contenido y es
+                redundante en pantallas como el detalle de una publicación
+                o el dashboard. Se reserva para la home. Desde xl+ (una
+                sola fila, compacto) se muestra siempre, como en desktop. */}
+            <div className={isHomePage ? "w-full" : "hidden xl:block w-full"}>
               <HomeSearchBar />
             </div>
 

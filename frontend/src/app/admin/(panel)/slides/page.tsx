@@ -95,7 +95,7 @@ export default function AdminSlidesPage() {
     const setUploadingState = target === "mobile" ? setUploadingMobile : setUploading
     setUploadingState(true)
     try {
-      const file = await imageToWebp(rawFile)
+      const file = await imageToWebp(rawFile, 0.85, 1920)
       const formData = new FormData()
       formData.append("file", file)
       const res = await fetch("/api/admin/slides/upload", { method: "POST", body: formData })

@@ -231,7 +231,7 @@ export default function FavoritesPage() {
             const image =
               listing?.image_url ??
               product?.images?.[0] ??
-              "/sinimagen.png";
+              "/sinimagen.webp";
             const price = listing?.price ?? null;
             const currencySymbol = listing?.currencies?.symbol ?? "$";
             const condition = listing?.condition === "NEW" ? "Nuevo" : listing?.condition === "USED" ? "Usado" : null;

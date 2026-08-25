@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import CustomDropdown from "@/components/CustomDropdown";
 import SellerAvatar from "@/components/SellerAvatar";
 import { createClient } from "@/lib/supabase/client";
@@ -632,7 +633,7 @@ export default function ListingDetailPage() {
   const seller = listing.sellers;
   const isOwnListing = !!sellerId && seller?.id === sellerId;
   const images = product?.images ?? [];
-  const mainImage = activeImage ?? images[0] ?? "/sinimagen.png";
+  const mainImage = activeImage ?? images[0] ?? "/sinimagen.webp";
 
   const openImageModal = (img: string) => {
     const idx = images.indexOf(img);
@@ -737,11 +738,12 @@ export default function ListingDetailPage() {
                 🔍 Ver {images.length} fotos
               </span>
             )}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
+            <Image
               src={mainImage}
               alt={product?.name ?? "Producto"}
-              className="rounded-2xl object-contain h-full w-full max-h-[500px] transition-transform duration-500 group-hover:scale-[1.02]"
+              fill
+              sizes="(max-width: 1024px) 90vw, 700px"
+              className="rounded-2xl object-contain p-2 transition-transform duration-500 group-hover:scale-[1.02]"
             />
           </div>
 
@@ -754,12 +756,11 @@ export default function ListingDetailPage() {
                   <button
                     key={idx}
                     onClick={() => setActiveImage(img)}
-                    className={`h-16 w-16 rounded-xl overflow-hidden border-2 bg-card-bg cursor-pointer transition-all hover:scale-105 active:scale-95 shrink-0 ${
+                    className={`relative h-16 w-16 rounded-xl overflow-hidden border-2 bg-card-bg cursor-pointer transition-all hover:scale-105 active:scale-95 shrink-0 ${
                       isSelected ? "border-accent-gold shadow-md" : "border-card-border hover:border-accent-gold/40"
                     }`}
                   >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={img} alt={`${product?.name} miniatura ${idx + 1}`} className="h-full w-full object-contain" />
+                    <Image src={img} alt={`${product?.name} miniatura ${idx + 1}`} fill sizes="64px" className="object-contain" />
                   </button>
                 );
               })}
@@ -1284,9 +1285,8 @@ export default function ListingDetailPage() {
             ) : (
               <>
                 <div className="rounded-2xl bg-background border border-card-border p-4 flex items-center gap-3 text-xs">
-                  <div className="h-12 w-12 rounded-lg overflow-hidden border border-card-border shrink-0">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={mainImage} alt={product?.name ?? "Producto"} className="h-full w-full object-contain" />
+                  <div className="relative h-12 w-12 rounded-lg overflow-hidden border border-card-border shrink-0">
+                    <Image src={mainImage} alt={product?.name ?? "Producto"} fill sizes="48px" className="object-contain" />
                   </div>
                   <div className="flex-1 min-w-0 text-left">
                     <h4 className="font-bold text-foreground truncate">{product?.name}</h4>
@@ -1411,12 +1411,11 @@ export default function ListingDetailPage() {
                 <button
                   key={idx}
                   onClick={() => setModalImageIndex(idx)}
-                  className={`h-12 w-12 shrink-0 rounded-lg overflow-hidden border-2 cursor-pointer transition-all ${
+                  className={`relative h-12 w-12 shrink-0 rounded-lg overflow-hidden border-2 cursor-pointer transition-all ${
                     idx === modalImageIndex ? "border-accent-gold" : "border-white/20 hover:border-white/50"
                   }`}
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={img} alt={`Miniatura ${idx + 1}`} className="h-full w-full object-contain bg-white/5" />
+                  <Image src={img} alt={`Miniatura ${idx + 1}`} fill sizes="48px" className="object-contain bg-white/5" />
                 </button>
               ))}
             </div>

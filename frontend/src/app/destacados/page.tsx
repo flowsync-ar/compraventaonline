@@ -180,7 +180,7 @@ export default async function DestacadosPage() {
             const isPremium = item.featured_plan === "PREMIUM";
             const product = item.products;
             const seller = item.sellers;
-            const image = product?.images?.[0] ?? "/sinimagen.png";
+            const image = product?.images?.[0] ?? "/sinimagen.webp";
 
             return (
               <Link

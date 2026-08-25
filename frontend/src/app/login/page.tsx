@@ -204,7 +204,7 @@ function LoginPageContent() {
       setErrorMsg("La foto de perfil no puede superar los 3MB.")
       return
     }
-    const file = await imageToWebp(rawFile)
+    const file = await imageToWebp(rawFile, 0.85, 512)
     setAvatarFile(file)
     setAvatarPreview((prev) => {
       if (prev) URL.revokeObjectURL(prev)

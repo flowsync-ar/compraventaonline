@@ -631,7 +631,9 @@ function DashboardPageContent() {
         const ext = file.name.split(".").pop() ?? "jpg";
         const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
         const path = `${sellerId}/bulk-${rowNumber}/${filename}`;
-        const { error } = await supabase.storage.from("listings").upload(path, file, { upsert: false });
+        const { error } = await supabase.storage
+          .from("listings")
+          .upload(path, file, { upsert: false, cacheControl: "31536000" });
         if (!error) {
           const { data: urlData } = supabase.storage.from("listings").getPublicUrl(path);
           if (urlData?.publicUrl) uploadedUrls.push(urlData.publicUrl);
@@ -838,7 +840,7 @@ function DashboardPageContent() {
 
         const { error } = await supabase.storage
           .from("listings")
-          .upload(path, file, { upsert: false });
+          .upload(path, file, { upsert: false, cacheControl: "31536000" });
 
         if (!error) {
           const { data: urlData } = supabase.storage
@@ -849,13 +851,14 @@ function DashboardPageContent() {
             uploadedUrls.push(urlData.publicUrl);
           }
         } else {
-          // Fallback: read as base64 for preview when storage is not yet configured
-          const base64 = await new Promise<string>((resolve) => {
-            const reader = new FileReader();
-            reader.onloadend = () => resolve(reader.result as string);
-            reader.readAsDataURL(file);
-          });
-          uploadedUrls.push(base64);
+          // No base64 fallback — that used to embed the raw image directly
+          // in products.images, which meant every query touching that
+          // column (search, home, listing detail, favoritos...) shipped
+          // the full image bytes in the JSON payload on every page load.
+          // A real Storage failure needs to be visible, not silently
+          // turned into a much worse problem.
+          console.error("[handleImageFiles] Storage upload failed:", error.message);
+          setErrorMsg("No se pudo subir una de las imágenes. Probá de nuevo.");
         }
       }
 
@@ -971,7 +974,7 @@ function DashboardPageContent() {
       }
 
       const supabase = getSupabase();
-      const defaultImage = "/sinimagen.png";
+      const defaultImage = "/sinimagen.webp";
       const imageList = productImages.length > 0 ? productImages : [defaultImage];
 
       if (selectedListingToEdit) {
@@ -1205,7 +1208,7 @@ function DashboardPageContent() {
       return;
     }
 
-    const file = await imageToWebp(rawFile);
+    const file = await imageToWebp(rawFile, 0.85, 512);
     const ext = AVATAR_EXT_BY_MIME[file.type] ?? AVATAR_EXT_BY_MIME[rawFile.type];
 
     setAvatarUploading(true);
@@ -1215,7 +1218,7 @@ function DashboardPageContent() {
 
       const { error: uploadError } = await supabase.storage
         .from("avatars")
-        .upload(path, file, { contentType: file.type, upsert: true });
+        .upload(path, file, { contentType: file.type, upsert: true, cacheControl: "31536000" });
       if (uploadError) throw uploadError;
 
       const { data: publicUrlData } = supabase.storage.from("avatars").getPublicUrl(path);
@@ -2940,7 +2943,7 @@ function DashboardPageContent() {
                                       <img src={row.images[0]} alt="" className="h-full w-full object-contain pointer-events-none" />
                                     ) : (
                                       // eslint-disable-next-line @next/next/no-img-element
-                                      <img src="/sinimagen.png" alt="Sin imagen" className="h-full w-full object-cover pointer-events-none" />
+                                      <img src="/sinimagen.webp" alt="Sin imagen" className="h-full w-full object-cover pointer-events-none" />
                                     )}
                                     {row.images.length > 0 && (
                                       <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-accent-green text-white text-[8px] font-extrabold flex items-center justify-center pointer-events-none">

@@ -1,10 +1,36 @@
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
+import Image from "next/image";
 import CategorySubcategoryFilter from "../../components/CategorySubcategoryFilter";
 import CustomDropdown from "../../components/CustomDropdown";
 import FavoriteButton from "../../components/FavoriteButton";
 import { LA_PAMPA_CITIES } from "@/lib/constants/laPampaCities";
 import { getCachedCategories, buildChildrenMap } from "@/lib/categories";
+
+// Builds the numbered page list with "…" gaps, e.g. for current=10,
+// total=42: [1, "…", 5,6,7,8,9,10,11,12,13,14,15, "…", 42]. First/last
+// page always show (boundaryCount); up to `siblingCount` pages on each
+// side of the current page always show; anything in between collapses
+// into a single "…" per side. Below the "everything already fits"
+// threshold, just returns every page number with no gaps at all.
+function getPageNumbers(current: number, total: number, siblingCount = 5, boundaryCount = 1): (number | "dots")[] {
+  const totalNumbers = siblingCount * 2 + boundaryCount * 2 + 3;
+  if (total <= totalNumbers) {
+    return Array.from({ length: total }, (_, i) => i + 1);
+  }
+
+  const leftSibling = Math.max(current - siblingCount, boundaryCount + 1);
+  const rightSibling = Math.min(current + siblingCount, total - boundaryCount);
+
+  const pages: (number | "dots")[] = [];
+  for (let p = 1; p <= boundaryCount; p++) pages.push(p);
+  if (leftSibling > boundaryCount + 1) pages.push("dots");
+  for (let p = leftSibling; p <= rightSibling; p++) pages.push(p);
+  if (rightSibling < total - boundaryCount) pages.push("dots");
+  for (let p = total - boundaryCount + 1; p <= total; p++) pages.push(p);
+
+  return pages;
+}
 
 // Case- and accent-insensitive comparison ("guitarra" matches "Guitarra Acústica").
 function normalize(text: string): string {
@@ -62,6 +88,8 @@ async function getCategoryAndDescendantSlugs(rootSlug: string): Promise<Set<stri
   return result;
 }
 
+const PAGE_SIZE = 50;
+
 async function searchListings(params: {
   q?: string;
   category?: string;
@@ -70,13 +98,16 @@ async function searchListings(params: {
   location?: string;
   sort?: string;
   seller?: string;
-}): Promise<ListingRow[]> {
+  page?: string;
+}): Promise<{ listings: ListingRow[]; total: number }> {
   try {
     const supabase = await createClient();
+    const page = Math.max(1, parseInt(params.page ?? "1", 10) || 1);
 
     let query = supabase
       .from("listings")
-      .select(`
+      .select(
+        `
         id,
         price,
         condition,
@@ -97,7 +128,9 @@ async function searchListings(params: {
           location
         ),
         currencies ( symbol )
-      `)
+      `,
+        { count: "exact" }
+      )
       .eq("status", "APPROVED");
 
     if (params.seller) {
@@ -116,19 +149,42 @@ async function searchListings(params: {
       query = query.order("created_at", { ascending: false });
     }
 
-    const { data, error } = await query.limit(50);
+    // q / category / location can't be filtered at the DB level (see the
+    // comments below), so they're applied in JS after a wider fetch and
+    // the page itself is sliced out of that already-filtered array.
+    // Without any of those, pagination can go straight to the DB via
+    // .range() — exact and cheap regardless of catalog size.
+    const hasClientSideFilters = !!(params.q || params.category || params.subcategory || params.location);
+
+    if (!hasClientSideFilters) {
+      const from = (page - 1) * PAGE_SIZE;
+      const { data, error, count } = await query.range(from, from + PAGE_SIZE - 1);
+
+      if (error) {
+        console.error("[search] Error fetching listings:", error.message);
+        return { listings: [], total: 0 };
+      }
+      return { listings: (data ?? []) as unknown as ListingRow[], total: count ?? 0 };
+    }
+
+    // Client-filtered path: PostgREST's .or() doesn't reliably support
+    // filtering across an embedded relation, and there's no RPC/view layer
+    // set up for this yet — so this fetches a generous window (capped,
+    // not the whole table) and filters/paginates it in memory. Fine at
+    // this catalog's current scale; would need a real search index (or a
+    // Postgres function) if it grows enough for 1000 to stop being "wide
+    // enough" to contain a full result set.
+    const { data, error } = await query.limit(1000);
 
     if (error) {
       console.error("[search] Error fetching listings:", error.message);
-      return [];
+      return { listings: [], total: 0 };
     }
-    if (!data) return [];
+    if (!data) return { listings: [], total: 0 };
 
     let results = data as unknown as ListingRow[];
 
-    // Client-side keyword filter — PostgREST's .or() doesn't reliably support
-    // filtering across an embedded relation (products.name/brand here).
-    // Case- and accent-insensitive.
+    // Client-side keyword filter — case- and accent-insensitive.
     if (params.q) {
       const q = normalize(params.q);
       results = results.filter(
@@ -138,16 +194,15 @@ async function searchListings(params: {
       );
     }
 
-    // Client-side category slug filter (PostgREST nested filter has limited OR
-    // support). `subcategory` (from the 2-level dropdown form) wins over
-    // `category` if both are present — it's the more specific pick.
-    // Categories can nest arbitrarily deep (category -> subcategory ->
-    // sub-subcategory, matching MercadoLibre's real structure), and a
-    // seller assigns a product to whichever level they picked. So matching
-    // a target category means matching it PLUS every descendant at any
-    // depth — not just its direct children — otherwise picking a broad
-    // category (or even a mid-level one with its own children) would miss
-    // products tagged at a deeper leaf.
+    // Client-side category slug filter. `subcategory` (from the 2-level
+    // dropdown form) wins over `category` if both are present — it's the
+    // more specific pick. Categories can nest arbitrarily deep (category
+    // -> subcategory -> sub-subcategory, matching MercadoLibre's real
+    // structure), and a seller assigns a product to whichever level they
+    // picked. So matching a target category means matching it PLUS every
+    // descendant at any depth — not just its direct children — otherwise
+    // picking a broad category (or even a mid-level one with its own
+    // children) would miss products tagged at a deeper leaf.
     const targetSlug = params.subcategory || params.category;
     if (targetSlug) {
       const validSlugs = await getCategoryAndDescendantSlugs(targetSlug);
@@ -161,10 +216,12 @@ async function searchListings(params: {
       results = results.filter((l) => l.sellers?.location === params.location);
     }
 
-    return results;
+    const total = results.length;
+    const from = (page - 1) * PAGE_SIZE;
+    return { listings: results.slice(from, from + PAGE_SIZE), total };
   } catch (err) {
     console.error("[search] Unexpected error fetching listings:", err);
-    return [];
+    return { listings: [], total: 0 };
   }
 }
 
@@ -206,13 +263,33 @@ async function fetchCategories(): Promise<SearchCategory[]> {
 export default async function SearchPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; category?: string; subcategory?: string; condition?: string; location?: string; sort?: string; seller?: string }>;
+  searchParams: Promise<{ q?: string; category?: string; subcategory?: string; condition?: string; location?: string; sort?: string; seller?: string; page?: string }>;
 }) {
   const params = await searchParams;
-  const [listings, categories] = await Promise.all([
+  const [{ listings, total }, categories] = await Promise.all([
     searchListings(params),
     fetchCategories(),
   ]);
+
+  const currentPage = Math.max(1, parseInt(params.page ?? "1", 10) || 1);
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const hasActiveFilters = !!(params.q || params.category || params.condition || params.location || params.sort || params.seller);
+
+  // Builds a /search URL with every current filter preserved, only `page`
+  // swapped out — used by the Anterior/Siguiente links below.
+  const pageHref = (targetPage: number) => {
+    const qs = new URLSearchParams();
+    if (params.q) qs.set("q", params.q);
+    if (params.category) qs.set("category", params.category);
+    if (params.subcategory) qs.set("subcategory", params.subcategory);
+    if (params.condition) qs.set("condition", params.condition);
+    if (params.location) qs.set("location", params.location);
+    if (params.sort) qs.set("sort", params.sort);
+    if (params.seller) qs.set("seller", params.seller);
+    if (targetPage > 1) qs.set("page", String(targetPage));
+    const qsString = qs.toString();
+    return `/search${qsString ? `?${qsString}` : ""}`;
+  };
 
   // Only needed for the "Mostrando publicaciones de: X" banner — the
   // listings query already embeds sellers, but if this seller has zero
@@ -233,89 +310,113 @@ export default async function SearchPage({
 
       <div className="flex flex-col lg:flex-row gap-8">
 
-        {/* Filters Form Panel */}
-        <aside className="w-full lg:w-64 shrink-0">
-          <form action="/search" method="GET" className="flex flex-col gap-6 p-6 rounded-2xl glass-panel">
-            <h3 className="font-heading text-sm font-extrabold text-foreground uppercase tracking-wider border-b border-card-border pb-3">Filtros</h3>
+        {/* Filters Form Panel — sticky only from lg (desktop): below that
+            it's stacked above the results in a single column, where
+            "following the scroll" would just make it cover the results
+            instead. top-36/max-h leave room for the sticky header (~143px)
+            plus a small gap; overflow-y-auto keeps a tall filter list from
+            running off the bottom of the viewport on shorter screens. */}
+        <aside className="w-full lg:w-64 shrink-0 lg:sticky lg:top-36 lg:max-h-[calc(100vh-9.5rem)] lg:overflow-y-auto">
+          <form action="/search" method="GET" className="rounded-2xl glass-panel p-6">
+            {/* Acordeón SOLO en mobile/tablet (<lg) — el panel de filtros
+                entero es alto y en pantallas chicas empujaba todo el
+                resultado bien abajo. Browsers no dejan "forzar visible"
+                por CSS el contenido de un <details> cerrado (no es un
+                display:none pisable, el estado real manda), así que en
+                vez de pelear con eso: queda SIEMPRE abierto por defecto,
+                y en desktop (lg:pointer-events-none en el summary) directamente
+                no se puede tocar el header para cerrarlo — se ve
+                exactamente como el sidebar fijo de siempre. En mobile sí
+                se puede tocar para colapsarlo. */}
+            <details className="group" open>
+              <summary className="flex items-center justify-between cursor-pointer lg:cursor-default lg:pointer-events-none list-none [&::-webkit-details-marker]:hidden font-heading text-sm font-extrabold text-foreground uppercase tracking-wider border-b border-card-border pb-3">
+                Filtros
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="lg:hidden text-text-muted transition-transform group-open:rotate-180">
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
+              </summary>
 
-            {/* Preserva el filtro por vendedor (llegado desde "Más
-                artículos de este vendedor" en el detalle de una
-                publicación) cuando se refina con otros filtros. */}
-            {params.seller && <input type="hidden" name="seller" value={params.seller} />}
+              <div className="flex flex-col gap-6 pt-6">
+                {/* Preserva el filtro por vendedor (llegado desde "Más
+                    artículos de este vendedor" en el detalle de una
+                    publicación) cuando se refina con otros filtros. */}
+                {params.seller && <input type="hidden" name="seller" value={params.seller} />}
 
-            {/* Input Search */}
-            <div className="flex flex-col gap-2">
-              <label className="text-xs font-bold text-foreground">Palabra Clave</label>
-              <input
-                type="text"
-                name="q"
-                defaultValue={params.q || ""}
-                placeholder="Ej. taladro..."
-                className="w-full bg-background border border-card-border rounded-xl px-3 py-2 text-xs text-foreground focus:outline-none focus:border-accent-gold"
-              />
-            </div>
+                {/* Input Search */}
+                <div className="flex flex-col gap-2">
+                  <label className="text-xs font-bold text-foreground">Palabra Clave</label>
+                  <input
+                    type="text"
+                    name="q"
+                    defaultValue={params.q || ""}
+                    placeholder="Ej. taladro..."
+                    className="w-full bg-background border border-card-border rounded-xl px-3 py-2 text-xs text-foreground focus:outline-none focus:border-accent-gold"
+                  />
+                </div>
 
-            {/* Location Filter */}
-            <div className="flex flex-col gap-2">
-              <label className="text-xs font-bold text-foreground">Ubicación</label>
-              <CustomDropdown
-                name="location"
-                defaultValue={params.location || ""}
-                showSearch
-                options={[
-                  { name: "Todas las ubicaciones", value: "" },
-                  ...LA_PAMPA_CITIES.map((city) => ({ name: city, value: city })),
-                ]}
-              />
-            </div>
+                {/* Location Filter */}
+                <div className="flex flex-col gap-2">
+                  <label className="text-xs font-bold text-foreground">Ubicación</label>
+                  <CustomDropdown
+                    name="location"
+                    defaultValue={params.location || ""}
+                    showSearch
+                    options={[
+                      { name: "Todas las ubicaciones", value: "" },
+                      ...LA_PAMPA_CITIES.map((city) => ({ name: city, value: city })),
+                    ]}
+                  />
+                </div>
 
-            {/* Category / Subcategory Dropdowns */}
-            <CategorySubcategoryFilter
-              categories={categories}
-              defaultCategory={params.category || ""}
-              defaultSubcategory={params.subcategory || ""}
-            />
+                {/* Category / Subcategory Dropdowns */}
+                <CategorySubcategoryFilter
+                  categories={categories}
+                  defaultCategory={params.category || ""}
+                  defaultSubcategory={params.subcategory || ""}
+                />
 
-            {/* Condition Choice */}
-            <div className="flex flex-col gap-2">
-              <label className="text-xs font-bold text-foreground">Condición</label>
-              <CustomDropdown
-                name="condition"
-                defaultValue={params.condition || ""}
-                options={[
-                  { name: "Cualquier estado", value: "" },
-                  { name: "Nuevo", value: "NEW" },
-                  { name: "Usado", value: "USED" },
-                ]}
-              />
-            </div>
+                {/* Condition Choice */}
+                <div className="flex flex-col gap-2">
+                  <label className="text-xs font-bold text-foreground">Condición</label>
+                  <CustomDropdown
+                    name="condition"
+                    defaultValue={params.condition || ""}
+                    options={[
+                      { name: "Cualquier estado", value: "" },
+                      { name: "Nuevo", value: "NEW" },
+                      { name: "Usado", value: "USED" },
+                    ]}
+                  />
+                </div>
 
-            {/* Sort Choice */}
-            <div className="flex flex-col gap-2">
-              <label className="text-xs font-bold text-foreground">Ordenar Por</label>
-              <CustomDropdown
-                name="sort"
-                defaultValue={params.sort || ""}
-                options={[
-                  { name: "Relevancia", value: "" },
-                  { name: "Menor precio", value: "price_asc" },
-                  { name: "Mayor precio", value: "price_desc" },
-                ]}
-              />
-            </div>
+                {/* Sort Choice */}
+                <div className="flex flex-col gap-2">
+                  <label className="text-xs font-bold text-foreground">Ordenar Por</label>
+                  <CustomDropdown
+                    name="sort"
+                    defaultValue={params.sort || ""}
+                    options={[
+                      { name: "Relevancia", value: "" },
+                      { name: "Menor precio", value: "price_asc" },
+                      { name: "Mayor precio", value: "price_desc" },
+                    ]}
+                  />
+                </div>
 
-            <button type="submit" className="w-full rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover py-3 text-xs font-extrabold text-white shadow-md hover:opacity-95 transition-all mt-2">
-              Aplicar Filtros
-            </button>
+                <button type="submit" className="w-full rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover py-3 text-xs font-extrabold text-white shadow-md hover:opacity-95 transition-all mt-2">
+                  Aplicar Filtros
+                </button>
 
-            {(params.q || params.category || params.condition || params.location || params.sort || params.seller) && (
-              <Link
-                href="/search"
-                className="w-full text-center rounded-xl border border-card-border py-2.5 text-xs font-bold text-foreground hover:bg-card-border/50 hover:text-accent-gold transition-all"
-              >
-                Limpiar Filtros
-              </Link>
-            )}
+                {hasActiveFilters && (
+                  <Link
+                    href="/search"
+                    className="w-full text-center rounded-xl border border-card-border py-2.5 text-xs font-bold text-foreground hover:bg-card-border/50 hover:text-accent-gold transition-all"
+                  >
+                    Limpiar Filtros
+                  </Link>
+                )}
+              </div>
+            </details>
           </form>
         </aside>
 
@@ -333,7 +434,7 @@ export default async function SearchPage({
           )}
           <div className="flex items-center justify-between border-b border-card-border pb-4 mb-6">
             <span className="text-xs font-bold text-text-muted">
-              Se encontraron <span className="text-foreground">{listings.length}</span> publicaciones
+              Se encontraron <span className="text-foreground">{total}</span> publicaciones
             </span>
           </div>
 
@@ -347,7 +448,7 @@ export default async function SearchPage({
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {listings.map((listing) => {
                 const product = listing.products;
-                const image = product?.images?.[0] ?? "/sinimagen.png";
+                const image = product?.images?.[0] ?? "/sinimagen.webp";
                 return (
                   <Link key={listing.id} href={`/listings/${listing.id}`} className="group flex flex-col rounded-2xl glass-card overflow-hidden relative cursor-pointer">
                     {listing.featured_plan !== "FREE" && (
@@ -357,11 +458,12 @@ export default async function SearchPage({
                     )}
                     <FavoriteButton listingId={listing.id} />
                     <div className="h-44 w-full bg-card-bg overflow-hidden relative">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
+                      <Image
                         src={image}
                         alt={product?.name ?? "Producto"}
-                        className="h-full w-full object-contain transition-transform duration-500 group-hover:scale-105"
+                        fill
+                        sizes="(max-width: 768px) 90vw, (max-width: 1024px) 45vw, 30vw"
+                        className="object-contain transition-transform duration-500 group-hover:scale-105"
                       />
                     </div>
                     <div className="p-5 flex-1 flex flex-col gap-3">
@@ -395,6 +497,49 @@ export default async function SearchPage({
                 );
               })}
             </div>
+          )}
+
+          {totalPages > 1 && (
+            <nav aria-label="Paginación" className="flex items-center justify-center flex-wrap gap-1.5 border-t border-card-border pt-6 mt-8">
+              {currentPage > 1 && (
+                <Link
+                  href={pageHref(currentPage - 1)}
+                  className="flex items-center gap-1 rounded-lg px-3 py-2 text-xs font-bold text-text-muted hover:text-accent-gold transition-all"
+                >
+                  ‹ Anterior
+                </Link>
+              )}
+
+              {getPageNumbers(currentPage, totalPages).map((p, idx) =>
+                p === "dots" ? (
+                  <span key={`dots-${idx}`} className="px-2 text-xs font-bold text-text-muted select-none">
+                    …
+                  </span>
+                ) : (
+                  <Link
+                    key={p}
+                    href={pageHref(p)}
+                    aria-current={p === currentPage ? "page" : undefined}
+                    className={`flex items-center justify-center h-9 min-w-9 rounded-lg px-2 text-xs font-bold transition-all ${
+                      p === currentPage
+                        ? "border-2 border-accent-gold text-accent-gold"
+                        : "text-text-muted hover:bg-card-border/30 hover:text-foreground"
+                    }`}
+                  >
+                    {p}
+                  </Link>
+                )
+              )}
+
+              {currentPage < totalPages && (
+                <Link
+                  href={pageHref(currentPage + 1)}
+                  className="flex items-center gap-1 rounded-lg px-3 py-2 text-xs font-bold text-text-muted hover:text-accent-gold transition-all"
+                >
+                  Siguiente ›
+                </Link>
+              )}
+            </nav>
           )}
         </section>
 

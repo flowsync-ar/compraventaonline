@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
 
   const { error: uploadError } = await admin.storage
     .from("hero-slides")
-    .upload(path, file, { upsert: false, contentType: file.type })
+    .upload(path, file, { upsert: false, contentType: file.type, cacheControl: "31536000" })
 
   if (uploadError) {
     return NextResponse.json({ error: uploadError.message }, { status: 500 })

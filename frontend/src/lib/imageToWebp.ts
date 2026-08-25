@@ -1,14 +1,21 @@
 // Every image upload in the app (product photos, avatars, hero carousel)
 // runs through this before hitting Supabase Storage — WebP is meaningfully
-// smaller than JPEG/PNG at the same visual quality, and it's what actually
-// controls page weight since these uploads are shown at full size all over
-// the public site (listing cards, carousel, profile).
+// smaller than JPEG/PNG at the same visual quality, and downscaling to a
+// sane max dimension is what actually controls page weight: a photo
+// straight off a phone camera (4000px+ on the long side) was previously
+// re-encoded to WebP but kept at FULL resolution, then served as-is in a
+// 300x200 card or even a 64x64 thumbnail — the browser downloaded the
+// whole file every time just to shrink it with CSS.
 //
 // Runs client-side (Canvas), not server-side: most upload call sites go
 // straight from the browser to Supabase Storage with no API route in
 // between to run sharp on, so this is the one place that's actually in
 // every path.
-export async function imageToWebp(file: File, quality = 0.85): Promise<File> {
+export async function imageToWebp(
+  file: File,
+  quality = 0.85,
+  maxDimension = 1600
+): Promise<File> {
   // Already WebP: nothing to do. GIF: skipped on purpose — canvas only
   // captures a single frame, which would silently kill animation.
   if (file.type === "image/webp" || file.type === "image/gif" || !file.type.startsWith("image/")) {
@@ -17,12 +24,16 @@ export async function imageToWebp(file: File, quality = 0.85): Promise<File> {
 
   try {
     const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, maxDimension / Math.max(bitmap.width, bitmap.height));
+    const width = Math.round(bitmap.width * scale);
+    const height = Math.round(bitmap.height * scale);
+
     const canvas = document.createElement("canvas");
-    canvas.width = bitmap.width;
-    canvas.height = bitmap.height;
+    canvas.width = width;
+    canvas.height = height;
     const ctx = canvas.getContext("2d");
     if (!ctx) return file;
-    ctx.drawImage(bitmap, 0, 0);
+    ctx.drawImage(bitmap, 0, 0, width, height);
     bitmap.close();
 
     const blob = await new Promise<Blob | null>((resolve) =>
@@ -41,6 +52,10 @@ export async function imageToWebp(file: File, quality = 0.85): Promise<File> {
   }
 }
 
-export async function imagesToWebp(files: File[], quality = 0.85): Promise<File[]> {
-  return Promise.all(files.map((file) => imageToWebp(file, quality)));
+export async function imagesToWebp(
+  files: File[],
+  quality = 0.85,
+  maxDimension = 1600
+): Promise<File[]> {
+  return Promise.all(files.map((file) => imageToWebp(file, quality, maxDimension)));
 }

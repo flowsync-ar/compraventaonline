@@ -224,7 +224,7 @@ export async function POST(request: NextRequest) {
         const path = `${userId}/avatar.${ext}`
         const { error: uploadError } = await admin.storage
           .from("avatars")
-          .upload(path, buffer, { contentType: match[1], upsert: true })
+          .upload(path, buffer, { contentType: match[1], upsert: true, cacheControl: "31536000" })
 
         if (uploadError) {
           console.warn("Could not upload avatar:", uploadError.message)
@@ -302,7 +302,7 @@ export async function POST(request: NextRequest) {
     to: email,
     fullName,
     confirmUrl,
-    logoUrl: `${origin}/logo-cvo-dark.png`,
+    logoUrl: `${origin}/logo-cvo-new.png`,
   })
 
   return NextResponse.json({

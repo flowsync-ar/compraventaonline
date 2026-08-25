@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import Link from "next/link";
+import Image from "next/image";
 import HeroCarousel, { type HeroSlide } from "@/components/HeroCarousel";
 import FavoriteButton from "@/components/FavoriteButton";
 
@@ -223,7 +224,7 @@ export default async function HomePage() {
             if (!listing) return null;
             const product = listing.products;
             const seller = listing.sellers;
-            const image = product?.images?.[0] ?? "/sinimagen.png";
+            const image = product?.images?.[0] ?? "/sinimagen.webp";
             return (
               <Link
                 key={highlight.id}
@@ -242,11 +243,12 @@ export default async function HomePage() {
 
                 {/* Image Container */}
                 <div className="h-48 w-full bg-card-bg overflow-hidden relative">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
+                  <Image
                     src={image}
                     alt={product?.name ?? "Producto"}
-                    className="h-full w-full object-contain transition-transform duration-500 group-hover:scale-105"
+                    fill
+                    sizes="(max-width: 640px) 90vw, (max-width: 1024px) 45vw, 23vw"
+                    className="object-contain transition-transform duration-500 group-hover:scale-105"
                   />
                 </div>
 

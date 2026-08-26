@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import "./globals.css";
 import SiteChrome from "../components/SiteChrome";
 
@@ -35,6 +36,11 @@ export default function RootLayout({
         />
       </head>
       <body className="flex min-h-screen flex-col font-sans bg-background text-foreground antialiased selection:bg-accent-gold selection:text-white">
+        <Script
+          src="https://cloud.umami.is/script.js"
+          data-website-id="f7038b2c-d579-41cc-9a2f-7fad22cde88d"
+          strategy="afterInteractive"
+        />
         <SiteChrome>{children}</SiteChrome>
       </body>
     </html>

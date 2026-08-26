@@ -4,6 +4,7 @@ import Image from "next/image";
 import CategorySubcategoryFilter from "../../components/CategorySubcategoryFilter";
 import CustomDropdown from "../../components/CustomDropdown";
 import FavoriteButton from "../../components/FavoriteButton";
+import FiltersAccordion from "../../components/FiltersAccordion";
 import { LA_PAMPA_CITIES } from "@/lib/constants/laPampaCities";
 import { getCachedCategories, buildChildrenMap } from "@/lib/categories";
 
@@ -317,19 +318,17 @@ export default async function SearchPage({
             plus a small gap; overflow-y-auto keeps a tall filter list from
             running off the bottom of the viewport on shorter screens. */}
         <aside className="w-full lg:w-64 shrink-0 lg:sticky lg:top-36 lg:max-h-[calc(100vh-9.5rem)] lg:overflow-y-auto">
-          <form action="/search" method="GET" className="rounded-2xl glass-panel p-6">
+          <form action="/search" method="GET" className="rounded-2xl glass-panel p-4 lg:p-6">
             {/* Acordeón SOLO en mobile/tablet (<lg) — el panel de filtros
-                entero es alto y en pantallas chicas empujaba todo el
-                resultado bien abajo. Browsers no dejan "forzar visible"
-                por CSS el contenido de un <details> cerrado (no es un
-                display:none pisable, el estado real manda), así que en
-                vez de pelear con eso: queda SIEMPRE abierto por defecto,
-                y en desktop (lg:pointer-events-none en el summary) directamente
-                no se puede tocar el header para cerrarlo — se ve
-                exactamente como el sidebar fijo de siempre. En mobile sí
-                se puede tocar para colapsarlo. */}
-            <details className="group" open>
-              <summary className="flex items-center justify-between cursor-pointer lg:cursor-default lg:pointer-events-none list-none [&::-webkit-details-marker]:hidden font-heading text-sm font-extrabold text-foreground uppercase tracking-wider border-b border-card-border pb-3">
+                entero es alto y en pantallas chicas/tablet empujaba todo el
+                resultado bien abajo, obligando a scrollear mucho para ver
+                la primera publicación. Arranca COLAPSADO en mobile/tablet y
+                se auto-abre al llegar a lg (ver FiltersAccordion); en
+                desktop además queda bloqueado para cerrar (lg:pointer-events-none
+                en el summary) — se ve exactamente como el sidebar fijo de
+                siempre. En mobile/tablet sí se puede tocar para expandirlo. */}
+            <FiltersAccordion>
+              <summary className="flex items-center justify-between cursor-pointer lg:cursor-default lg:pointer-events-none list-none [&::-webkit-details-marker]:hidden font-heading text-xs lg:text-sm font-extrabold text-foreground uppercase tracking-wider group-open:border-b group-open:border-card-border group-open:pb-3 lg:border-b lg:border-card-border lg:pb-3">
                 Filtros
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="lg:hidden text-text-muted transition-transform group-open:rotate-180">
                   <path d="m6 9 6 6 6-6" />
@@ -416,7 +415,7 @@ export default async function SearchPage({
                   </Link>
                 )}
               </div>
-            </details>
+            </FiltersAccordion>
           </form>
         </aside>
 

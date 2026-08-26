@@ -6,6 +6,7 @@ import ThemedImage from "@/components/ThemedImage"
 
 const LINKS = [
   { href: "/admin", label: "Estadísticas", icon: "📊" },
+  { href: "/admin/metricas", label: "Métricas", icon: "🩺" },
   { href: "/admin/slides", label: "Carousel", icon: "🖼️" },
   { href: "/admin/categorias", label: "Categorías", icon: "🏷️" },
   { href: "/admin/usuarios", label: "Usuarios", icon: "👥" },

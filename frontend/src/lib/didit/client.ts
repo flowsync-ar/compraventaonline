@@ -46,6 +46,35 @@ export async function createVerificationSession(params: {
   return res.json()
 }
 
+interface SessionDecisionResult {
+  status: string
+  vendor_data?: string | null
+  face_matches?: { status: string; score?: number }[] | null
+}
+
+// Fallback for when the "status.updated" webhook never arrives (or lands
+// late) — pulls the ground-truth status straight from Didit instead of
+// waiting passively for a callback. Requires the API key to hold the
+// read:sessions privilege (same key works if it was granted that scope).
+export async function getSessionDecision(sessionId: string): Promise<SessionDecisionResult> {
+  const apiKey = process.env.DIDIT_API_KEY?.trim()
+  if (!apiKey) {
+    throw new Error("Didit no está configurado en el servidor (falta DIDIT_API_KEY)")
+  }
+
+  const res = await fetch(`${DIDIT_API_BASE}/v3/session/${sessionId}/decision/`, {
+    headers: { "x-api-key": apiKey },
+  })
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}))
+    console.error("[didit] getSessionDecision failed", res.status, data)
+    throw new Error(`No se pudo consultar el estado de la verificación (HTTP ${res.status})`)
+  }
+
+  return res.json()
+}
+
 // Didit signs the RAW webhook body (before any JSON.parse/re-stringify)
 // with HMAC-SHA256 using the webhook secret, sent in the X-Signature-V2
 // header. Verifying against the parsed-then-reserialized body would fail

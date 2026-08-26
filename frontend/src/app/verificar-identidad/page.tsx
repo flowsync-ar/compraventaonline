@@ -47,6 +47,23 @@ function VerifyIdentityContent() {
       router.push(nextPath);
       return;
     }
+
+    // Not verified in our DB yet — double-check with Didit directly in case
+    // the "status.updated" webhook for the final decision never arrived
+    // (this is what left sellers stuck re-doing KYC in a loop even after
+    // Didit had already approved them).
+    try {
+      const res = await fetch("/api/kyc/status", { method: "POST" });
+      const data = await res.json();
+      if (data.verified) {
+        setVerified(true);
+        router.push(nextPath);
+        return;
+      }
+    } catch {
+      // Best-effort reconciliation — fall through to the normal screen.
+    }
+
     setChecking(false);
   };
 
@@ -56,28 +73,28 @@ function VerifyIdentityContent() {
 
   // Didit's review can take a few seconds after they bounce the user back
   // — poll a handful of times instead of asking them to refresh manually.
+  // Each tick asks Didit directly (via /api/kyc/status) instead of just
+  // re-reading our own DB, since that's exactly the value the webhook is
+  // supposed to keep in sync and sometimes doesn't.
   useEffect(() => {
     if (!returningFromDidit) return;
     let attempts = 0;
     const maxAttempts = 8;
     const timer = setInterval(async () => {
       attempts++;
-      const supabase = getSupabase();
-      const { data: { session } } = await supabase.auth.getSession();
-      const uid = session?.user?.id;
-      if (!uid) return;
-      const { data: seller } = await supabase
-        .from("sellers")
-        .select("identity_verified")
-        .eq("user_id", uid)
-        .single();
-      if (seller?.identity_verified) {
-        clearInterval(timer);
-        setVerified(true);
-        router.push(nextPath);
-      } else if (attempts >= maxAttempts) {
-        clearInterval(timer);
+      try {
+        const res = await fetch("/api/kyc/status", { method: "POST" });
+        const data = await res.json();
+        if (data.verified) {
+          clearInterval(timer);
+          setVerified(true);
+          router.push(nextPath);
+          return;
+        }
+      } catch {
+        // ignore, try again next tick
       }
+      if (attempts >= maxAttempts) clearInterval(timer);
     }, 3000);
     return () => clearInterval(timer);
   }, [returningFromDidit]); // eslint-disable-line react-hooks/exhaustive-deps

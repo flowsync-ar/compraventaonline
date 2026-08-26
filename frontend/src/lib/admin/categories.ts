@@ -1,10 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/lib/supabase/types"
 
-// Enforces a 2-level category hierarchy: a category can only become a
-// subcategory of a root category (parent_id IS NULL), never of another
-// subcategory, and a category that already has children can't itself
-// become a subcategory (would create a 3rd level).
+// Categories can nest to any depth (Computación -> Periféricos -> Teclados
+// y Mouse -> Mouse, etc) — the only real constraint is that the tree can't
+// have cycles. This walks UP from the proposed parent through its own
+// ancestors; if currentId shows up along that chain, assigning parentId
+// would make currentId an ancestor of itself.
 export async function validateParentId(
   admin: SupabaseClient<Database>,
   parentId: string | null | undefined,
@@ -25,17 +26,18 @@ export async function validateParentId(
   if (parentError || !parent) {
     return { ok: false, error: "La categoría padre seleccionada no existe." }
   }
-  if (parent.parent_id) {
-    return { ok: false, error: "No se puede colgar de una subcategoría (máximo 2 niveles)." }
-  }
 
   if (currentId) {
-    const { count } = await admin
-      .from("categories")
-      .select("id", { count: "exact", head: true })
-      .eq("parent_id", currentId)
-    if (count && count > 0) {
-      return { ok: false, error: "Esta categoría ya tiene subcategorías propias, no puede pasar a ser una subcategoría." }
+    let cursor: string | null = parent.parent_id
+    const seen = new Set<string>([parentId])
+    while (cursor) {
+      if (cursor === currentId) {
+        return { ok: false, error: "No se puede mover una categoría dentro de una de sus propias subcategorías." }
+      }
+      if (seen.has(cursor)) break // malformed cycle already in the data — bail instead of looping forever
+      seen.add(cursor)
+      const { data: node } = await admin.from("categories").select("parent_id").eq("id", cursor).single()
+      cursor = node?.parent_id ?? null
     }
   }
 

@@ -1,7 +1,8 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import ConfirmModal from "@/components/ConfirmModal"
+import CustomDropdown from "@/components/CustomDropdown"
 
 interface Category {
   id: string
@@ -9,6 +10,74 @@ interface Category {
   slug: string
   icon: string | null
   parent_id: string | null
+}
+
+// DFS from the roots down, computing each category's depth — used both
+// for the parent-picker dropdown (indented, any depth) and the table
+// (arbitrary nesting, not just "root + direct child" like before).
+function flattenTree(categories: Category[]): { category: Category; depth: number }[] {
+  const childrenByParentId = new Map<string | null, Category[]>()
+  for (const c of categories) {
+    const key = c.parent_id
+    const siblings = childrenByParentId.get(key) ?? []
+    siblings.push(c)
+    childrenByParentId.set(key, siblings)
+  }
+
+  const result: { category: Category; depth: number }[] = []
+  const visit = (parentId: string | null, depth: number, seen: Set<string>) => {
+    for (const c of childrenByParentId.get(parentId) ?? []) {
+      if (seen.has(c.id)) continue // guards against a malformed cycle in the data
+      result.push({ category: c, depth })
+      visit(c.id, depth + 1, new Set(seen).add(c.id))
+    }
+  }
+  visit(null, 0, new Set())
+  return result
+}
+
+// Categoría raíz (naranja), subcategoría (azul), y de ahí en adelante negro —
+// pedido explícito del usuario para diferenciar visualmente los niveles.
+function depthColor(depth: number): string {
+  if (depth === 0) return "#F6843B"
+  if (depth === 1) return "#187cff"
+  return "#000000"
+}
+
+// Root-to-leaf chain (inclusive of the category itself) — used to render
+// the full breadcrumb ("Computación → Periféricos → Parlantes") when a
+// search match is buried several levels deep, so the result doesn't lose
+// its context.
+function getAncestorChain(categories: Category[], id: string): Category[] {
+  const chain: Category[] = []
+  let current = categories.find((c) => c.id === id)
+  while (current) {
+    chain.unshift(current)
+    const parentId: string | null = current.parent_id
+    current = parentId ? categories.find((c) => c.id === parentId) : undefined
+  }
+  return chain
+}
+
+function getDescendantIds(categories: Category[], id: string): Set<string> {
+  const childrenByParentId = new Map<string | null, Category[]>()
+  for (const c of categories) {
+    const siblings = childrenByParentId.get(c.parent_id) ?? []
+    siblings.push(c)
+    childrenByParentId.set(c.parent_id, siblings)
+  }
+
+  const result = new Set<string>()
+  const queue = [id]
+  while (queue.length > 0) {
+    const current = queue.shift()!
+    for (const child of childrenByParentId.get(current) ?? []) {
+      if (result.has(child.id)) continue
+      result.add(child.id)
+      queue.push(child.id)
+    }
+  }
+  return result
 }
 
 export default function AdminCategoriasPage() {
@@ -24,6 +93,9 @@ export default function AdminCategoriasPage() {
   const [saving, setSaving] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<Category | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [showForm, setShowForm] = useState(false)
+  const [search, setSearch] = useState("")
+  const formRef = useRef<HTMLFormElement>(null)
 
   const loadCategories = async () => {
     const res = await fetch("/api/admin/categories")
@@ -35,6 +107,13 @@ export default function AdminCategoriasPage() {
   useEffect(() => {
     loadCategories() // eslint-disable-line react-hooks/set-state-in-effect
   }, [])
+
+  // The form only mounts once showForm flips to true, so scrollIntoView has
+  // to run after that DOM node exists — a plain call right after setShowForm
+  // would still be targeting the pre-render (not-yet-mounted) form.
+  useEffect(() => {
+    if (showForm) formRef.current?.scrollIntoView({ behavior: "smooth", block: "center" })
+  }, [showForm, editingId])
 
   const resetForm = () => {
     setEditingId(null)
@@ -50,6 +129,7 @@ export default function AdminCategoriasPage() {
     setSlug(category.slug)
     setIcon(category.icon ?? "")
     setParentId(category.parent_id ?? "")
+    setShowForm(true)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -72,6 +152,7 @@ export default function AdminCategoriasPage() {
         return
       }
       resetForm()
+      setShowForm(false)
       loadCategories()
     } finally {
       setSaving(false)
@@ -95,13 +176,51 @@ export default function AdminCategoriasPage() {
     }
   }
 
-  const rootCategories = categories.filter((c) => !c.parent_id && c.id !== editingId)
+  const tree = flattenTree(categories)
+
+  // Parent picker excludes the category being edited AND all of its own
+  // descendants — picking either would create a cycle (a category can't
+  // end up "below itself" in the tree).
+  const excludedIds = editingId ? new Set([editingId, ...getDescendantIds(categories, editingId)]) : new Set<string>()
+  const parentOptions = tree.filter(({ category }) => !excludedIds.has(category.id))
+
+  const filteredTree = search.trim()
+    ? tree.filter(({ category }) => category.name.toLowerCase().includes(search.trim().toLowerCase()))
+    : tree
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="font-heading text-2xl font-extrabold text-foreground">Categorías</h1>
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <h1 className="font-heading text-2xl font-extrabold text-foreground">Categorías</h1>
+        {!showForm && (
+          <button
+            type="button"
+            onClick={() => {
+              resetForm()
+              setShowForm(true)
+            }}
+            className="rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover px-5 py-2.5 text-sm font-extrabold text-white shadow-md hover:opacity-90 transition-all cursor-pointer"
+          >
+            + Agregar categoría
+          </button>
+        )}
+      </div>
 
+      <div className="relative">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none">
+          <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+        </svg>
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Buscar categoría o subcategoría..."
+          className="w-full bg-background border border-card-border rounded-xl pl-11 pr-4 py-2.5 text-sm text-foreground focus:outline-none focus:border-accent-gold"
+        />
+      </div>
+
+      {showForm && (
       <form
+        ref={formRef}
         onSubmit={handleSubmit}
         className="rounded-2xl glass-panel p-6 flex flex-col md:flex-row items-end gap-3 flex-wrap"
       >
@@ -134,18 +253,21 @@ export default function AdminCategoriasPage() {
         </div>
         <div className="flex-1 w-full">
           <label className="text-sm font-bold text-foreground block mb-1.5">Categoría padre (opcional)</label>
-          <select
-            value={parentId}
-            onChange={(e) => setParentId(e.target.value)}
-            className="w-full bg-background border border-card-border rounded-xl px-4 py-2.5 text-sm text-foreground focus:outline-none focus:border-accent-gold"
-          >
-            <option value="">— Categoría principal —</option>
-            {rootCategories.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
+          <CustomDropdown
+            name="parentId"
+            defaultValue={parentId}
+            showSearch
+            placeholder="Buscar categoría..."
+            options={[
+              { name: "— Categoría principal —", value: "" },
+              ...parentOptions.map(({ category, depth }) => ({
+                name: `${"— ".repeat(depth)}${category.name}`,
+                value: category.id,
+                color: depthColor(depth),
+              })),
+            ]}
+            onChange={(val) => setParentId(val)}
+          />
         </div>
         <div className="flex gap-2 w-full md:w-auto">
           <button
@@ -155,23 +277,27 @@ export default function AdminCategoriasPage() {
           >
             {editingId ? "Guardar" : "Crear"}
           </button>
-          {editingId && (
-            <button
-              type="button"
-              onClick={resetForm}
-              className="rounded-xl border border-card-border px-4 py-2.5 text-sm font-bold text-text-muted hover:bg-card-bg/25 transition-all cursor-pointer"
-            >
-              Cancelar
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => {
+              resetForm()
+              setShowForm(false)
+            }}
+            className="rounded-xl border border-card-border px-4 py-2.5 text-sm font-bold text-text-muted hover:bg-card-bg/25 transition-all cursor-pointer"
+          >
+            Cancelar
+          </button>
         </div>
       </form>
+      )}
 
       {error && <p className="text-sm text-red-500 font-bold">{error}</p>}
 
       <div className="rounded-2xl glass-panel p-6 overflow-x-auto">
         {loading ? (
           <p className="text-sm text-text-muted">Cargando...</p>
+        ) : filteredTree.length === 0 ? (
+          <p className="text-sm text-text-muted">No se encontraron categorías para &quot;{search}&quot;.</p>
         ) : (
           <table className="w-full text-left text-sm border-collapse">
             <thead>
@@ -183,23 +309,36 @@ export default function AdminCategoriasPage() {
               </tr>
             </thead>
             <tbody>
-              {categories
-                .filter((c) => !c.parent_id)
-                .flatMap((root) => [
-                  root,
-                  ...categories.filter((c) => c.parent_id === root.id),
-                ])
-                .map((category) => (
+              {filteredTree.map(({ category, depth }) => (
                 <tr key={category.id} className="border-b border-card-border/30 hover:bg-card-bg/30 transition-colors">
                   <td className="py-2.5">{category.icon}</td>
-                  <td className="py-2.5 font-bold text-foreground">
-                    {category.parent_id ? (
-                      <span className="pl-4 inline-flex items-center gap-1.5 text-text-muted font-semibold">
+                  <td className="py-2.5 font-bold">
+                    {search.trim() ? (
+                      <span className="inline-flex flex-wrap items-center gap-1.5">
+                        {getAncestorChain(categories, category.id).map((ancestor, i, chain) => (
+                          <span key={ancestor.id} className="inline-flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleEdit(ancestor)}
+                              style={{ color: depthColor(i) }}
+                              className={`hover:underline cursor-pointer ${i === chain.length - 1 ? "font-bold" : "font-semibold text-xs"}`}
+                            >
+                              {ancestor.name}
+                            </button>
+                            {i < chain.length - 1 && <span className="text-text-muted text-xs">→</span>}
+                          </span>
+                        ))}
+                      </span>
+                    ) : depth > 0 ? (
+                      <span
+                        className="inline-flex items-center gap-1.5"
+                        style={{ paddingLeft: `${depth * 1.25}rem`, color: depthColor(depth) }}
+                      >
                         <span className="text-xs">↳</span>
-                        <span className="text-foreground">{category.name}</span>
+                        <span>{category.name}</span>
                       </span>
                     ) : (
-                      category.name
+                      <span style={{ color: depthColor(depth) }}>{category.name}</span>
                     )}
                   </td>
                   <td className="py-2.5 text-text-muted">{category.slug}</td>

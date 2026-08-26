@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useMemo, Suspense, Fragment } from "react"
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import CustomDropdown from "@/components/CustomDropdown";
+import CategorySubcategoryPicker from "@/components/CategorySubcategoryPicker";
 import ConfirmModal from "@/components/ConfirmModal";
 import Toast from "@/components/Toast";
 import SellerAvatar from "@/components/SellerAvatar";
@@ -167,6 +168,11 @@ function DashboardPageContent() {
   // mano en cada red (hasta que exista el auto-posteo real).
   const [shareModalData, setShareModalData] = useState<{ imageDataUrl: string; caption: string } | null>(null);
   const [shareModalLoading, setShareModalLoading] = useState(false);
+
+  // Modal shown right after successfully creating a NEW listing (not on
+  // edit) — confirms what got published and asks whether to keep
+  // publishing more or go see the result in "Mis Publicaciones".
+  const [publishSuccessInfo, setPublishSuccessInfo] = useState<{ name: string; price: number; symbol: string } | null>(null);
 
   // Consultas — same data/answer/hide logic as the header bell dropdown
   // (HeaderSessionBar.tsx), but rendered as a full tab so a seller can
@@ -1074,6 +1080,11 @@ function DashboardPageContent() {
 
         setMyListings([listingData as unknown as Listing, ...myListings]);
         setSuccessMsg("¡Publicación creada con éxito! Ya se encuentra activa.");
+        setPublishSuccessInfo({
+          name: productName,
+          price: parseFloat(price),
+          symbol: currencies.find((c) => c.id === currencyId)?.symbol ?? "$",
+        });
 
         // Si tildó compartir en redes, generamos ya la imagen con sello +
         // texto listo para pegar (ver comentario en handlePublishAndShare
@@ -1963,6 +1974,53 @@ function DashboardPageContent() {
         </div>
       )}
 
+      {/* Modal post-publicación (solo al CREAR, no al editar): confirma
+          qué se publicó y a cuánto, y pregunta si el vendedor quiere
+          seguir cargando publicaciones o ya terminó por ahora. El
+          formulario ya quedó reseteado en handlePublish, así que "Sí"
+          solo cierra el modal; "No" además lo manda a ver sus
+          publicaciones activas. */}
+      {publishSuccessInfo && (
+        <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-card-bg-solid border border-card-border rounded-3xl w-full max-w-sm flex flex-col items-center text-center shadow-2xl p-6 gap-4 animate-in fade-in zoom-in-95 duration-200">
+            <div className="h-14 w-14 rounded-full bg-accent-green/10 border border-accent-green/30 flex items-center justify-center text-3xl">
+              ✅
+            </div>
+            <div className="flex flex-col gap-1">
+              <h3 className="font-heading text-base font-bold text-foreground">¡Publicaste tu artículo!</h3>
+              <p className="text-sm text-text-muted">
+                <span className="font-bold text-foreground">{publishSuccessInfo.name}</span> por{" "}
+                <span className="font-bold text-accent-gold">
+                  {publishSuccessInfo.symbol}{publishSuccessInfo.price.toLocaleString("es-AR")}
+                </span>
+              </p>
+            </div>
+
+            <p className="text-xs text-text-muted">¿Querés publicar otro producto?</p>
+
+            <div className="grid grid-cols-2 gap-2 w-full mt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setPublishSuccessInfo(null);
+                  setActiveTab("inventory");
+                }}
+                className="rounded-xl border border-card-border py-2.5 text-xs font-bold text-foreground hover:border-accent-gold hover:text-accent-gold transition-all cursor-pointer"
+              >
+                No, ver mis publicaciones
+              </button>
+              <button
+                type="button"
+                onClick={() => setPublishSuccessInfo(null)}
+                className="rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover py-2.5 text-xs font-extrabold text-white shadow-md hover:opacity-95 transition-all cursor-pointer"
+              >
+                Sí, publicar otro
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {statusUpdating && (
         <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
           <div className="flex flex-col items-center gap-3 bg-card-bg border border-card-border p-6 rounded-2xl shadow-2xl animate-in zoom-in-95 duration-200">
@@ -2234,35 +2292,19 @@ function DashboardPageContent() {
             {publishMode === "direct" ? (
               <form onSubmit={handlePublish} className="flex flex-col gap-6">
                 
-                {/* 1. Categoría primero */}
-                <div className="flex flex-col gap-2">
-                  <label className="text-xs font-bold text-foreground">Categoría</label>
-                  <CustomDropdown
-                    name="categoryId"
-                    defaultValue={categoryId}
-                    onChange={(val) => {
-                      setCategoryId(val);
-                      setDynamicAttributes({});
-                    }}
-                    options={[
-                      // Real placeholder, not just an empty defaultValue —
-                      // without this CustomDropdown falls back to options[0]
-                      // (whatever category sorts first alphabetically) both
-                      // visually AND as the value it actually submits.
-                      { name: "Seleccioná una categoría", value: "" },
-                      ...categories
-                        .filter((cat) => !cat.parentId)
-                        .flatMap((root) => [
-                          { name: root.name, value: root.id },
-                          ...categories
-                            .filter((cat) => cat.parentId === root.id)
-                            .map((sub) => ({ name: sub.name, value: sub.id, groupLabel: root.name })),
-                        ]),
-                    ]}
-                    showSearch={true}
-                    placeholder="Buscar categoría..."
-                  />
-                </div>
+                {/* 1. Categoría primero — Categoría + Subcategoría en cascada:
+                    elegir una categoría con hijos (p.ej. "Computación")
+                    muestra un segundo dropdown para elegir entre sus
+                    subcategorías (Notebooks, Monitores, etc). */}
+                <CategorySubcategoryPicker
+                  key={selectedListingToEdit?.id ?? "new"}
+                  categories={categories}
+                  value={categoryId}
+                  onChange={(val) => {
+                    setCategoryId(val);
+                    setDynamicAttributes({});
+                  }}
+                />
 
                 {/* 2. Atributos específicos de la categoría seleccionada (ej. Autos) */}
                 {(() => {

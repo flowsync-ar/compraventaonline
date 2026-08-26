@@ -9,6 +9,9 @@ interface DropdownOption {
   // non-selectable header is rendered above the first one in each group.
   // Leave unset for plain, ungrouped dropdowns (e.g. Condición, Ordenar por).
   groupLabel?: string;
+  // Optional per-option text color (e.g. depth-based coloring in a category
+  // tree dropdown). Leave unset to use the default option text color.
+  color?: string;
 }
 
 interface Props {
@@ -71,7 +74,13 @@ export default function CustomDropdown({
       {/* Trigger Button */}
       <button
         type="button"
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => {
+          // Clear any leftover search text from a previous open/close cycle
+          // that ended without picking an option — otherwise it silently
+          // keeps filtering out options on the next open.
+          if (!isOpen) setSearch("");
+          setIsOpen(!isOpen);
+        }}
         className={triggerClassName ?? DEFAULT_TRIGGER_CLASSNAME}
       >
         <span className="truncate">{selected.name}</span>
@@ -141,7 +150,7 @@ export default function CustomDropdown({
                             : "text-foreground/80 hover:bg-card-border/30"
                         }`}
                       >
-                        <span className="truncate">{opt.name}</span>
+                        <span className="truncate" style={opt.color ? { color: opt.color } : undefined}>{opt.name}</span>
                         {isSelected && <span className="text-accent-gold text-[10px]">✓</span>}
                       </button>
                     </div>

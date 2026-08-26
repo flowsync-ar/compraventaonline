@@ -294,7 +294,7 @@ export default function FavoritesPage() {
 
                     <h3 className="font-heading text-sm font-bold text-foreground line-clamp-2">
                       {isAvailable ? (
-                        <Link href={`/listings/${item.listing_id}`} className="hover:text-accent-blue transition-colors">
+                        <Link href={`/listings/${item.listing_id}`} prefetch={false} className="hover:text-accent-blue transition-colors">
                           {title}
                         </Link>
                       ) : (
@@ -315,6 +315,7 @@ export default function FavoritesPage() {
                         </div>
                         <Link
                           href={`/listings/${item.listing_id}`}
+                          prefetch={false}
                           className="bg-card-bg-solid hover:bg-accent-blue/5 border border-card-border hover:border-accent-blue/40 text-foreground hover:text-accent-blue rounded-lg px-3.5 py-1.5 text-[10px] font-extrabold transition-all active:scale-95"
                         >
                           Ver Detalle

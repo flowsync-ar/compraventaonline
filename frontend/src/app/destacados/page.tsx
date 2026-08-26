@@ -186,6 +186,7 @@ export default async function DestacadosPage() {
               <Link
                 href={`/listings/${item.id}`}
                 key={highlight.id}
+                prefetch={false}
                 className={`relative rounded-3xl border bg-card-bg-solid overflow-hidden flex flex-col group transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 ${
                   isPremium
                     ? "border-accent-gold/40 shadow-[0_0_15px_rgba(217,119,6,0.06)] hover:border-accent-gold"

@@ -295,8 +295,39 @@ export default function HeaderSessionBar() {
     }
 
     checkUnread()
-    const intervalId = setInterval(checkUnread, 15000)
-    return () => clearInterval(intervalId)
+
+    // 5 min is plenty for a notification badge (not a chat) — the previous
+    // 15s interval ran unconditionally, including in backgrounded tabs, and
+    // was the single biggest driver of Supabase egress/request volume: it
+    // scaled with (logged-in tabs × time), not with actual activity. Pausing
+    // while hidden and re-checking the instant the tab regains focus keeps
+    // it feeling fresh without paying for tabs nobody is looking at.
+    let intervalId: ReturnType<typeof setInterval> | null = null
+    const startPolling = () => {
+      if (intervalId) return
+      intervalId = setInterval(checkUnread, 5 * 60 * 1000)
+    }
+    const stopPolling = () => {
+      if (!intervalId) return
+      clearInterval(intervalId)
+      intervalId = null
+    }
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        checkUnread()
+        startPolling()
+      } else {
+        stopPolling()
+      }
+    }
+
+    if (document.visibilityState === "visible") startPolling()
+    document.addEventListener("visibilitychange", handleVisibilityChange)
+
+    return () => {
+      stopPolling()
+      document.removeEventListener("visibilitychange", handleVisibilityChange)
+    }
   }, [profile]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSendReply = async (questionId: string) => {

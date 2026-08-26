@@ -449,7 +449,7 @@ export default async function SearchPage({
                 const product = listing.products;
                 const image = product?.images?.[0] ?? "/sinimagen.webp";
                 return (
-                  <Link key={listing.id} href={`/listings/${listing.id}`} className="group flex flex-col rounded-2xl glass-card overflow-hidden relative cursor-pointer">
+                  <Link key={listing.id} href={`/listings/${listing.id}`} prefetch={false} className="group flex flex-col rounded-2xl glass-card overflow-hidden relative cursor-pointer">
                     {listing.featured_plan !== "FREE" && (
                       <span className="absolute top-3 left-3 z-10 rounded-lg bg-accent-gold px-2 py-0.5 text-[10px] font-extrabold tracking-wider text-white shadow-md uppercase">
                         💎 PREMIUM

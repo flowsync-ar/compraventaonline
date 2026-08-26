@@ -229,6 +229,7 @@ export default async function HomePage() {
               <Link
                 key={highlight.id}
                 href={`/listings/${listing.id}`}
+                prefetch={false}
                 className="group flex flex-col rounded-2xl glass-card overflow-hidden relative cursor-pointer"
               >
                 <FavoriteButton listingId={listing.id} />

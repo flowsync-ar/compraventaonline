@@ -343,6 +343,12 @@ export default function HeaderSessionBar() {
       return
     }
 
+    fetch(`/api/questions/${questionId}/notify`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ event: "answered" }),
+    }).catch(() => {})
+
     setReplyingToId(null)
     setReplyText("")
 

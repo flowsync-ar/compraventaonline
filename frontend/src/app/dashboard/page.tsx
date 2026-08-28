@@ -1636,6 +1636,12 @@ function DashboardPageContent() {
       return;
     }
 
+    fetch(`/api/questions/${questionId}/notify`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ event: "answered" }),
+    }).catch(() => {});
+
     setReplyingToQuestionId(null);
     setQuestionReplyText("");
     setQuestions((prev) =>

@@ -555,15 +555,25 @@ export default function ListingDetailPage() {
 
     const supabase = getSupabase();
     try {
-      const { error } = await supabase
+      const { data: inserted, error } = await supabase
         .from("questions")
         .insert({
           listing_id: id,
           question: contactMsg,
           buyer_id: sellerId,
-        });
+        })
+        .select("id")
+        .single();
 
       if (error) throw error;
+
+      if (inserted) {
+        fetch(`/api/questions/${inserted.id}/notify`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ event: "asked" }),
+        }).catch(() => {});
+      }
 
       setContactSuccess(true);
 

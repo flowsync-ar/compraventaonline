@@ -1170,7 +1170,7 @@ export default function ListingDetailPage() {
                 <div className="flex flex-col gap-2">
                   <label className="text-xs font-bold text-foreground">Tu Consulta</label>
                   <textarea
-                    rows={4}
+                    rows={3}
                     required
                     value={contactMsg}
                     onChange={(e) => setContactMsg(e.target.value)}

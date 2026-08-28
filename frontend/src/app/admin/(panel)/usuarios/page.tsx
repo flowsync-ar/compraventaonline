@@ -14,6 +14,7 @@ interface AdminUser {
   location: string | null
   status: "ACTIVE" | "SUSPENDED"
   created_at: string
+  identity_verified: boolean
 }
 
 export default function AdminUsuariosPage() {
@@ -102,27 +103,39 @@ export default function AdminUsuariosPage() {
           <table className="w-full text-left text-sm border-collapse">
             <thead>
               <tr className="border-b border-card-border text-text-muted font-bold select-none">
-                <th className="py-2">Nombre</th>
-                <th className="py-2">Email</th>
-                <th className="py-2">Tipo</th>
-                <th className="py-2">Teléfono</th>
-                <th className="py-2">Ubicación</th>
-                <th className="py-2">Estado</th>
-                <th className="py-2">Registrado</th>
-                <th className="py-2 text-right">Acciones</th>
+                <th className="py-2 pr-4">Nombre</th>
+                <th className="py-2 px-4">Email</th>
+                <th className="py-2 px-4">Tipo</th>
+                <th className="py-2 px-4">Teléfono</th>
+                <th className="py-2 px-4">Ubicación</th>
+                <th className="py-2 px-4">ID Verificado</th>
+                <th className="py-2 px-4">Estado</th>
+                <th className="py-2 px-4">Registrado</th>
+                <th className="py-2 pl-4 text-right">Acciones</th>
               </tr>
             </thead>
             <tbody>
               {filtered.map((user) => (
                 <tr key={user.id} className="border-b border-card-border/30 hover:bg-card-bg/30 transition-colors">
-                  <td className="py-2.5 font-bold text-foreground">{user.name}</td>
-                  <td className="py-2.5 text-text-muted">{user.email ?? "—"}</td>
-                  <td className="py-2.5 text-text-muted">
+                  <td className="py-2.5 pr-4 font-bold text-foreground whitespace-nowrap">{user.name}</td>
+                  <td className="py-2.5 px-4 text-text-muted">{user.email ?? "—"}</td>
+                  <td className="py-2.5 px-4 text-text-muted whitespace-nowrap">
                     {user.type === "BUSINESS_SELLER" ? "Empresa" : "Personal"}
                   </td>
-                  <td className="py-2.5 text-text-muted">{user.phone ?? "—"}</td>
-                  <td className="py-2.5 text-text-muted">{user.location ?? "—"}</td>
-                  <td className="py-2.5">
+                  <td className="py-2.5 px-4 text-text-muted whitespace-nowrap">{user.phone ?? "—"}</td>
+                  <td className="py-2.5 px-4 text-text-muted whitespace-nowrap">{user.location ?? "—"}</td>
+                  <td className="py-2.5 px-4">
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${
+                        user.identity_verified
+                          ? "bg-accent-green/10 text-accent-green"
+                          : "bg-text-muted/10 text-text-muted"
+                      }`}
+                    >
+                      {user.identity_verified ? "Sí" : "No"}
+                    </span>
+                  </td>
+                  <td className="py-2.5 px-4">
                     <span
                       className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${
                         user.status === "ACTIVE"
@@ -133,10 +146,10 @@ export default function AdminUsuariosPage() {
                       {user.status === "ACTIVE" ? "Activo" : "Suspendido"}
                     </span>
                   </td>
-                  <td className="py-2.5 text-text-muted">
+                  <td className="py-2.5 px-4 text-text-muted whitespace-nowrap">
                     {new Date(user.created_at).toLocaleDateString("es-AR")}
                   </td>
-                  <td className="py-2.5 text-right whitespace-nowrap">
+                  <td className="py-2.5 pl-4 text-right whitespace-nowrap">
                     <div className="flex items-center justify-end gap-2">
                       <div className="relative group">
                         <button

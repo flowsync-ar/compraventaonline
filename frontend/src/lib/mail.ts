@@ -66,7 +66,7 @@ export async function sendConfirmationEmail(params: {
       ].join("\n"),
       html: `
         <div style="font-family:sans-serif;max-width:560px;margin:0 auto;background:#ffffff;border-radius:14px;overflow:hidden;border:1px solid #f3e0c2;">
-          <div style="background-color:#0f172a;padding:20px 48px;text-align:center;">
+          <div style="background-color:#ffffff;padding:20px 48px;text-align:center;border-bottom:1px solid #f3e0c2;">
             <img src="${logoUrl}" alt="CompraVentaOnline" width="260" style="display:block;width:260px;height:auto;margin:0 auto;" />
           </div>
 
@@ -84,7 +84,7 @@ export async function sendConfirmationEmail(params: {
             <div style="margin:28px 0;text-align:center;">
               <a
                 href="${confirmUrl}"
-                style="background-color:#d97706;color:#ffffff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:700;display:inline-block;font-size:15px;letter-spacing:0.02em;"
+                style="background-color:#2A6BC5;color:#ffffff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:700;display:inline-block;font-size:15px;letter-spacing:0.02em;"
               >
                 Confirmar mi cuenta
               </a>
@@ -139,7 +139,7 @@ export async function sendPasswordResetEmail(params: {
       ].join("\n"),
       html: `
         <div style="font-family:sans-serif;max-width:560px;margin:0 auto;background:#ffffff;border-radius:14px;overflow:hidden;border:1px solid #f3e0c2;">
-          <div style="background-color:#0f172a;padding:20px 48px;text-align:center;">
+          <div style="background-color:#ffffff;padding:20px 48px;text-align:center;border-bottom:1px solid #f3e0c2;">
             <img src="${logoUrl}" alt="CompraVentaOnline" width="260" style="display:block;width:260px;height:auto;margin:0 auto;" />
           </div>
 
@@ -154,7 +154,7 @@ export async function sendPasswordResetEmail(params: {
             <div style="margin:28px 0;text-align:center;">
               <a
                 href="${resetUrl}"
-                style="background-color:#d97706;color:#ffffff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:700;display:inline-block;font-size:15px;letter-spacing:0.02em;"
+                style="background-color:#2A6BC5;color:#ffffff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:700;display:inline-block;font-size:15px;letter-spacing:0.02em;"
               >
                 Elegir nueva contraseña
               </a>
@@ -217,7 +217,7 @@ export async function sendQuestionEmailToSeller(params: {
       ].join("\n"),
       html: `
         <div style="font-family:sans-serif;max-width:560px;margin:0 auto;background:#ffffff;border-radius:14px;overflow:hidden;border:1px solid #f3e0c2;">
-          <div style="background-color:#0f172a;padding:20px 48px;text-align:center;">
+          <div style="background-color:#ffffff;padding:20px 48px;text-align:center;border-bottom:1px solid #f3e0c2;">
             <img src="${logoUrl}" alt="CompraVentaOnline" width="260" style="display:block;width:260px;height:auto;margin:0 auto;" />
           </div>
 
@@ -237,7 +237,7 @@ export async function sendQuestionEmailToSeller(params: {
             <div style="margin:28px 0;text-align:center;">
               <a
                 href="${listingUrl}"
-                style="background-color:#d97706;color:#ffffff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:700;display:inline-block;font-size:15px;letter-spacing:0.02em;"
+                style="background-color:#2A6BC5;color:#ffffff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:700;display:inline-block;font-size:15px;letter-spacing:0.02em;"
               >
                 Ver la publicación
               </a>
@@ -303,7 +303,7 @@ export async function sendAnswerEmailToBuyer(params: {
       ].join("\n"),
       html: `
         <div style="font-family:sans-serif;max-width:560px;margin:0 auto;background:#ffffff;border-radius:14px;overflow:hidden;border:1px solid #f3e0c2;">
-          <div style="background-color:#0f172a;padding:20px 48px;text-align:center;">
+          <div style="background-color:#ffffff;padding:20px 48px;text-align:center;border-bottom:1px solid #f3e0c2;">
             <img src="${logoUrl}" alt="CompraVentaOnline" width="260" style="display:block;width:260px;height:auto;margin:0 auto;" />
           </div>
 
@@ -328,7 +328,7 @@ export async function sendAnswerEmailToBuyer(params: {
             <div style="margin:28px 0;text-align:center;">
               <a
                 href="${listingUrl}"
-                style="background-color:#d97706;color:#ffffff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:700;display:inline-block;font-size:15px;letter-spacing:0.02em;"
+                style="background-color:#2A6BC5;color:#ffffff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:700;display:inline-block;font-size:15px;letter-spacing:0.02em;"
               >
                 Ver la publicación
               </a>

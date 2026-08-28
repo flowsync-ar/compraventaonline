@@ -57,6 +57,8 @@ export default function HeaderSessionBar() {
   const unreadCount = unreadReceivedCount + unreadAnsweredCount + unreadSalesCount
   const [replyingToId, setReplyingToId] = useState<string | null>(null)
   const [replyText, setReplyText] = useState("")
+  const [replyingAnsweredId, setReplyingAnsweredId] = useState<string | null>(null)
+  const [answeredReplyText, setAnsweredReplyText] = useState("")
 
   // Refs for click-outside detection
   const cartRef = useRef<HTMLDivElement>(null)
@@ -410,6 +412,43 @@ export default function HeaderSessionBar() {
     setAnsweredNotifications([])
   }
 
+  // Lets the buyer keep the conversation going after the seller answers —
+  // inserts a new question row on the same listing instead of leaving them
+  // stuck with no way to reply from here.
+  const handleSendFollowUp = async (n: AnsweredQuestionForBuyer) => {
+    if (!answeredReplyText.trim() || !n.listing?.id || !profile) return
+
+    const { data: inserted, error } = await getSupabase()
+      .from("questions")
+      .insert({
+        listing_id: n.listing.id,
+        question: answeredReplyText,
+        buyer_id: profile.id,
+      })
+      .select("id")
+      .single()
+
+    if (error) {
+      alert("Error al enviar tu mensaje.")
+      return
+    }
+
+    await getSupabase().from("questions").update({ is_read_by_buyer: true }).eq("id", n.id)
+
+    if (inserted) {
+      fetch(`/api/questions/${inserted.id}/notify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ event: "asked" }),
+      }).catch(() => {})
+    }
+
+    setReplyingAnsweredId(null)
+    setAnsweredReplyText("")
+    setAnsweredNotifications((prev) => prev.filter((a) => a.id !== n.id))
+    setUnreadAnsweredCount((prev) => Math.max(0, prev - 1))
+  }
+
   const handleLogout = async () => {
     await getSupabase().auth.signOut()
     // Hard redirect on purpose: a client-side router.push() left the user
@@ -757,16 +796,18 @@ export default function HeaderSessionBar() {
 
                     <div className="flex flex-col gap-3 pr-1">
                       {answeredNotifications.map((n) => (
-                        <Link
+                        <div
                           key={n.id}
-                          href={`/listings/${n.listing?.id ?? "#"}`}
-                          onClick={() => setShowNotifications(false)}
-                          className="p-3 rounded-xl border bg-accent-green/5 border-accent-green/20 flex flex-col gap-2 text-xs hover:border-accent-green/40 transition-colors"
+                          className="p-3 rounded-xl border bg-accent-green/5 border-accent-green/20 flex flex-col gap-2 text-xs"
                         >
                           <div className="flex justify-between items-start gap-3">
-                            <span className="font-bold text-foreground line-clamp-1">
+                            <Link
+                              href={`/listings/${n.listing?.id ?? "#"}`}
+                              onClick={() => setShowNotifications(false)}
+                              className="font-bold text-foreground line-clamp-1 hover:text-accent-green transition-colors"
+                            >
                               {n.listing?.product?.name ?? "Publicación"}
-                            </span>
+                            </Link>
                             <span className="text-[9px] text-text-muted shrink-0">
                               {new Date(n.updated_at).toLocaleDateString("es-AR")}
                             </span>
@@ -776,7 +817,47 @@ export default function HeaderSessionBar() {
                             <span className="text-[9px] font-bold text-accent-green block mb-0.5 uppercase">Respuesta del vendedor:</span>
                             <p className="text-foreground leading-relaxed">&quot;{n.answer}&quot;</p>
                           </div>
-                        </Link>
+
+                          {replyingAnsweredId === n.id ? (
+                            <div className="flex flex-col gap-2">
+                              <textarea
+                                value={answeredReplyText}
+                                onChange={(e) => setAnsweredReplyText(e.target.value)}
+                                placeholder="Escribí tu respuesta..."
+                                className="w-full bg-background border border-card-border rounded-lg p-2 text-xs text-foreground focus:outline-none focus:border-accent-gold resize-none h-16"
+                                required
+                              />
+                              <div className="flex justify-end gap-2">
+                                <button
+                                  onClick={() => {
+                                    setReplyingAnsweredId(null)
+                                    setAnsweredReplyText("")
+                                  }}
+                                  className="text-[10px] font-bold text-text-muted hover:text-foreground cursor-pointer"
+                                >
+                                  Cancelar
+                                </button>
+                                <button
+                                  onClick={() => handleSendFollowUp(n)}
+                                  disabled={!answeredReplyText.trim()}
+                                  className="text-[10px] font-bold text-white bg-accent-gold px-3 py-1.5 rounded-lg hover:opacity-90 disabled:opacity-50 cursor-pointer"
+                                >
+                                  Enviar
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => {
+                                setReplyingAnsweredId(n.id)
+                                setAnsweredReplyText("")
+                              }}
+                              className="self-start text-[10px] font-bold text-accent-gold hover:underline cursor-pointer"
+                            >
+                              Responder
+                            </button>
+                          )}
+                        </div>
                       ))}
                     </div>
                   </>

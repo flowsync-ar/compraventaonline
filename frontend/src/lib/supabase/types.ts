@@ -102,6 +102,65 @@ export type Database = {
           },
         ]
       }
+      category_suggestions: {
+        Row: {
+          created_at: string
+          id: string
+          seller_id: string
+          status: string
+          suggested_name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          seller_id: string
+          status?: string
+          suggested_name: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          seller_id?: string
+          status?: string
+          suggested_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "category_suggestions_seller_id_fkey"
+            columns: ["seller_id"]
+            isOneToOne: false
+            referencedRelation: "sellers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      support_messages: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          message: string
+          name: string
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          message: string
+          name: string
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          message?: string
+          name?: string
+          status?: string
+        }
+        Relationships: []
+      }
       currencies: {
         Row: {
           code: Database["public"]["Enums"]["currency_code"]
@@ -683,6 +742,7 @@ export type Database = {
           email: string
           id: string
           identity_verified: boolean
+          highlight_free: boolean
           location: string | null
           mercadopago_connected: boolean
           name: string
@@ -707,6 +767,7 @@ export type Database = {
           email: string
           id?: string
           identity_verified?: boolean
+          highlight_free?: boolean
           location?: string | null
           mercadopago_connected?: boolean
           name: string
@@ -731,6 +792,7 @@ export type Database = {
           email?: string
           id?: string
           identity_verified?: boolean
+          highlight_free?: boolean
           location?: string | null
           mercadopago_connected?: boolean
           name?: string

@@ -15,6 +15,7 @@ interface AdminUser {
   status: "ACTIVE" | "SUSPENDED"
   created_at: string
   identity_verified: boolean
+  highlight_free: boolean
 }
 
 export default function AdminUsuariosPage() {
@@ -27,6 +28,8 @@ export default function AdminUsuariosPage() {
   const [deleting, setDeleting] = useState(false)
   const [verifyTarget, setVerifyTarget] = useState<AdminUser | null>(null)
   const [verifying, setVerifying] = useState(false)
+  const [highlightTarget, setHighlightTarget] = useState<AdminUser | null>(null)
+  const [togglingHighlight, setTogglingHighlight] = useState(false)
 
   const loadUsers = async () => {
     const res = await fetch("/api/admin/users")
@@ -79,6 +82,27 @@ export default function AdminUsuariosPage() {
     }
   }
 
+  const handleToggleHighlightFree = async () => {
+    if (!highlightTarget) return
+    setTogglingHighlight(true)
+    try {
+      const res = await fetch(`/api/admin/users/${highlightTarget.id}/highlight-free`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: !highlightTarget.highlight_free }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        alert(data.error ?? "No se pudo actualizar el destacado gratis.")
+        return
+      }
+      setHighlightTarget(null)
+      loadUsers()
+    } finally {
+      setTogglingHighlight(false)
+    }
+  }
+
   const handleDelete = async () => {
     if (!deleteTarget) return
     setDeleting(true)
@@ -105,13 +129,13 @@ export default function AdminUsuariosPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-col items-start gap-3">
         <h1 className="font-heading text-2xl font-extrabold text-foreground">Usuarios</h1>
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Buscar por nombre, email o teléfono..."
-          className="w-64 bg-background border border-card-border rounded-xl px-4 py-2 text-sm text-foreground focus:outline-none focus:border-accent-gold"
+          className="w-full max-w-md bg-background border border-card-border rounded-xl px-4 py-2 text-sm text-foreground focus:outline-none focus:border-accent-gold"
         />
       </div>
 
@@ -128,6 +152,7 @@ export default function AdminUsuariosPage() {
                 <th className="py-2 px-4">Teléfono</th>
                 <th className="py-2 px-4">Ubicación</th>
                 <th className="py-2 px-4">ID Verificado</th>
+                <th className="py-2 px-4">Destacar gratis</th>
                 <th className="py-2 px-4">Estado</th>
                 <th className="py-2 px-4">Registrado</th>
                 <th className="py-2 pl-4 text-right">Acciones</th>
@@ -152,6 +177,17 @@ export default function AdminUsuariosPage() {
                       }`}
                     >
                       {user.identity_verified ? "Sí" : "No"}
+                    </span>
+                  </td>
+                  <td className="py-2.5 px-4">
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${
+                        user.highlight_free
+                          ? "bg-accent-gold/10 text-accent-gold"
+                          : "bg-text-muted/10 text-text-muted"
+                      }`}
+                    >
+                      {user.highlight_free ? "Sí" : "No"}
                     </span>
                   </td>
                   <td className="py-2.5 px-4">
@@ -185,21 +221,28 @@ export default function AdminUsuariosPage() {
                       </div>
 
                       {!user.identity_verified && (
-                        <div className="relative group">
-                          <button
-                            onClick={() => setVerifyTarget(user)}
-                            disabled={pendingId === user.id}
-                            className="bg-card-bg border border-card-border text-accent-blue hover:border-accent-blue/40 h-8 w-8 rounded-lg flex items-center justify-center transition-all cursor-pointer disabled:opacity-50"
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-4 h-4">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M15 9h3.75M15 12h3.75M15 15h3.75M4.5 19.5h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Zm6-10.125a1.875 1.875 0 1 1-3.75 0 1.875 1.875 0 0 1 3.75 0Zm1.294 6.336a6.721 6.721 0 0 1-3.17.789 6.721 6.721 0 0 1-3.168-.789 3.376 3.376 0 0 1 6.338 0Z" />
-                            </svg>
-                          </button>
-                          <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max rounded bg-card-bg-solid border border-card-border px-2 py-1 text-[10px] font-bold text-foreground opacity-0 transition-opacity group-hover:opacity-100 shadow-xl z-30">
-                            Activar verificación
-                          </span>
-                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setVerifyTarget(user)}
+                          disabled={pendingId === user.id}
+                          className="h-8 px-2.5 rounded-lg border border-accent-blue/40 bg-accent-blue/10 text-accent-blue text-[10px] font-extrabold uppercase tracking-wide hover:bg-accent-blue/15 transition-all cursor-pointer disabled:opacity-50"
+                        >
+                          Verificar ID
+                        </button>
                       )}
+
+                      <button
+                        type="button"
+                        onClick={() => setHighlightTarget(user)}
+                        disabled={pendingId === user.id}
+                        className={`h-8 px-2.5 rounded-lg border text-[10px] font-extrabold uppercase tracking-wide transition-all cursor-pointer disabled:opacity-50 ${
+                          user.highlight_free
+                            ? "border-accent-gold/40 bg-accent-gold/10 text-accent-gold hover:bg-accent-gold/15"
+                            : "border-card-border bg-card-bg text-foreground hover:border-accent-gold/40"
+                        }`}
+                      >
+                        {user.highlight_free ? "Quitar gratis" : "Destacar gratis"}
+                      </button>
 
                       <div className="relative group">
                         <button
@@ -262,6 +305,21 @@ export default function AdminUsuariosPage() {
         isLoading={verifying}
         onConfirm={handleVerifyIdentity}
         onCancel={() => setVerifyTarget(null)}
+      />
+
+      <ConfirmModal
+        isOpen={highlightTarget !== null}
+        title={highlightTarget?.highlight_free ? "Quitar destacado gratis" : "Permitir destacado gratis"}
+        description={
+          highlightTarget?.highlight_free
+            ? `¿Sacar el destacado gratis a ${highlightTarget?.name}? A partir de ahora va a tener que pagar por producto.`
+            : `¿Permitir que ${highlightTarget?.name} destaque publicaciones sin pagar?`
+        }
+        confirmText={highlightTarget?.highlight_free ? "Quitar" : "Activar"}
+        type="warning"
+        isLoading={togglingHighlight}
+        onConfirm={handleToggleHighlightFree}
+        onCancel={() => setHighlightTarget(null)}
       />
 
       <ConfirmModal

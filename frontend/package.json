@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "import-ml-categories": "node --env-file=.env.local scripts/import-ml-categories.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.0",

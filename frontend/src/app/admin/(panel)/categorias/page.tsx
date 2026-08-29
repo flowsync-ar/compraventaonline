@@ -12,6 +12,14 @@ interface Category {
   parent_id: string | null
 }
 
+interface CategorySuggestion {
+  id: string
+  suggested_name: string
+  status: string
+  created_at: string
+  sellers: { name: string; email: string } | null
+}
+
 // DFS from the roots down, computing each category's depth — used both
 // for the parent-picker dropdown (indented, any depth) and the table
 // (arbitrary nesting, not just "root + direct child" like before).
@@ -95,7 +103,14 @@ export default function AdminCategoriasPage() {
   const [deleting, setDeleting] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [search, setSearch] = useState("")
+  const [suggestions, setSuggestions] = useState<CategorySuggestion[]>([])
   const formRef = useRef<HTMLFormElement>(null)
+
+  const loadSuggestions = async () => {
+    const res = await fetch("/api/admin/category-suggestions")
+    const data = await res.json()
+    if (res.ok) setSuggestions(data.suggestions ?? [])
+  }
 
   const loadCategories = async () => {
     const res = await fetch("/api/admin/categories")
@@ -105,7 +120,8 @@ export default function AdminCategoriasPage() {
   }
 
   useEffect(() => {
-    loadCategories() // eslint-disable-line react-hooks/set-state-in-effect
+    loadCategories()
+    loadSuggestions()
   }, [])
 
   // The form only mounts once showForm flips to true, so scrollIntoView has
@@ -159,6 +175,15 @@ export default function AdminCategoriasPage() {
     }
   }
 
+  const handleSuggestionStatus = async (id: string, status: "DONE" | "DISMISSED") => {
+    const res = await fetch("/api/admin/category-suggestions", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, status }),
+    })
+    if (res.ok) loadSuggestions()
+  }
+
   const handleDelete = async () => {
     if (!deleteTarget) return
     setDeleting(true)
@@ -205,6 +230,50 @@ export default function AdminCategoriasPage() {
           </button>
         )}
       </div>
+
+      {suggestions.filter((s) => s.status === "PENDING").length > 0 && (
+        <div className="rounded-2xl border border-accent-gold/30 bg-accent-gold/5 p-5 flex flex-col gap-3">
+          <h2 className="font-heading text-sm font-extrabold text-foreground uppercase tracking-wider">
+            Categorías pedidas por vendedores
+          </h2>
+          <p className="text-xs text-text-muted -mt-1">
+            Un vendedor buscó y no encontró estas categorías. Revisá si conviene crearlas.
+          </p>
+          <ul className="flex flex-col gap-2">
+            {suggestions
+              .filter((s) => s.status === "PENDING")
+              .map((s) => (
+                <li key={s.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-card-bg-solid border border-card-border px-3 py-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-foreground">“{s.suggested_name}”</p>
+                    <p className="text-[11px] text-text-muted">
+                      Pedida por {s.sellers?.name ?? "Vendedor"}
+                      {s.sellers?.email ? ` · ${s.sellers.email}` : ""}
+                      {" · "}
+                      {new Date(s.created_at).toLocaleDateString("es-AR")}
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleSuggestionStatus(s.id, "DONE")}
+                      className="h-8 px-2.5 rounded-lg border border-accent-green/40 bg-accent-green/10 text-accent-green text-[10px] font-extrabold uppercase cursor-pointer"
+                    >
+                      Vista / creada
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSuggestionStatus(s.id, "DISMISSED")}
+                      className="h-8 px-2.5 rounded-lg border border-card-border text-text-muted text-[10px] font-extrabold uppercase cursor-pointer"
+                    >
+                      Descartar
+                    </button>
+                  </div>
+                </li>
+              ))}
+          </ul>
+        </div>
+      )}
 
       <div className="relative">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none">

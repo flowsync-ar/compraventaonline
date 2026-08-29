@@ -15,7 +15,6 @@ import type { QuestionWithBuyer } from "@/lib/supabase/types";
 import { imageToWebp, imagesToWebp } from "@/lib/imageToWebp";
 import dynamic from "next/dynamic";
 import { isRichHtmlEmpty, sanitizeRichHtml } from "@/lib/richText";
-import { canFeatureForFree } from "@/lib/freeHighlight";
 
 const RichTextEditor = dynamic(() => import("@/components/RichTextEditor"), {
   ssr: false,
@@ -77,6 +76,7 @@ interface SellerProfile {
   bank_cbu: string | null;
   bank_alias: string | null;
   identity_verified: boolean;
+  highlight_free: boolean;
 }
 
 interface PendingTransferOrder {
@@ -416,7 +416,7 @@ function DashboardPageContent() {
         // 1. Fetch seller profile for this auth user
         const { data: profileData, error: profileError } = await supabase
           .from("sellers")
-          .select("id, name, type, score, tier, user_id, phone, location, document_number, bio, avatar_url, username, mercadopago_connected, bank_cbu, bank_alias, identity_verified")
+          .select("id, name, type, score, tier, user_id, phone, location, document_number, bio, avatar_url, username, mercadopago_connected, bank_cbu, bank_alias, identity_verified, highlight_free")
           .eq("user_id", userId!)
           .single();
 
@@ -1004,7 +1004,7 @@ function DashboardPageContent() {
             .from("products")
             .update({
               name: productName,
-              brand,
+              brand: brand.trim() || null,
               description: descriptionHtml,
               category_id: categoryId || null,
               images: imageList,
@@ -1021,7 +1021,7 @@ function DashboardPageContent() {
             price: parseFloat(price),
             stock: parseInt(stock),
             condition,
-            featured_plan: canFeatureForFree(userEmail)
+            featured_plan: !!sellerProfile?.highlight_free
               ? (featuredPlan === "FEATURED" ? "FEATURED" : "FREE")
               : (selectedListingToEdit?.featured_plan === "FEATURED" || selectedListingToEdit?.featured_plan === "PREMIUM"
                 ? "FEATURED"
@@ -1059,7 +1059,7 @@ function DashboardPageContent() {
           .from("products")
           .insert({
             name: productName,
-            brand,
+            brand: brand.trim() || null,
             description: descriptionHtml,
             category_id: categoryId || null,
             images: imageList,
@@ -1081,7 +1081,7 @@ function DashboardPageContent() {
             price: parseFloat(price),
             condition,
             stock: parseInt(stock),
-            featured_plan: canFeatureForFree(userEmail) && featuredPlan === "FEATURED" ? "FEATURED" : "FREE",
+            featured_plan: !!sellerProfile?.highlight_free && featuredPlan === "FEATURED" ? "FEATURED" : "FREE",
             currency_id: currencyId || null,
             image_url: imageList[0] ?? null,
             status: "APPROVED",
@@ -1425,7 +1425,7 @@ function DashboardPageContent() {
     setHighlightingListingId(listingId);
     setErrorMsg("");
     try {
-      if (canFeatureForFree(userEmail)) {
+      if (!!sellerProfile?.highlight_free) {
         const res = await fetch("/api/highlights/apply-free", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -2466,10 +2466,9 @@ function DashboardPageContent() {
                     />
                   </div>
                   <div className="flex flex-col gap-2">
-                    <label className="text-xs font-bold text-foreground">Marca</label>
+                    <label className="text-xs font-bold text-foreground">Marca (opcional)</label>
                     <input 
                       type="text" 
-                      required
                       value={brand}
                       onChange={(e) => setBrand(e.target.value)}
                       placeholder="Ej. Estancia La Pampa" 
@@ -2537,7 +2536,7 @@ function DashboardPageContent() {
 
                 <div className="flex flex-col gap-2">
                   <label className="text-xs font-bold text-foreground">Plan de Destacado (Monetización)</label>
-                  {canFeatureForFree(userEmail) ? (
+                  {!!sellerProfile?.highlight_free ? (
                     <CustomDropdown
                       name="featuredPlan"
                       defaultValue={featuredPlan}
@@ -3588,7 +3587,7 @@ function DashboardPageContent() {
                                   <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max rounded bg-card-bg-solid border border-card-border px-2 py-1 text-[10px] font-bold text-foreground opacity-0 transition-opacity group-hover:opacity-100 shadow-xl z-30">
                                     {highlightedUntil[listing.id] || listing.featured_plan === "FEATURED" || listing.featured_plan === "PREMIUM"
                                       ? "Ya está destacada"
-                                      : canFeatureForFree(userEmail)
+                                      : !!sellerProfile?.highlight_free
                                         ? "Destacar sin cargo"
                                         : `Destacar por $${highlightSettings.price.toLocaleString("es-AR")} (${highlightSettings.durationDays} días)`}
                                   </span>
@@ -3796,7 +3795,7 @@ function DashboardPageContent() {
                                   onClick={() => handleHighlightListing(listing.id)}
                                   disabled={loading || highlightingListingId === listing.id}
                                   className="bg-card-bg border border-card-border text-foreground hover:text-accent-gold hover:border-accent-gold/40 h-8 w-8 rounded-lg flex items-center justify-center transition-all cursor-pointer disabled:opacity-50"
-                                  aria-label={canFeatureForFree(userEmail) ? "Destacar sin cargo" : `Destacar por $${highlightSettings.price.toLocaleString("es-AR")} (${highlightSettings.durationDays} días)`}
+                                  aria-label={!!sellerProfile?.highlight_free ? "Destacar sin cargo" : `Destacar por $${highlightSettings.price.toLocaleString("es-AR")} (${highlightSettings.durationDays} días)`}
                                 >
                                   {highlightingListingId === listing.id ? (
                                     <span className="w-3.5 h-3.5 border-2 border-accent-gold border-t-transparent rounded-full animate-spin" />

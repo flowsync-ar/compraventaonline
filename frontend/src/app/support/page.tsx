@@ -15,6 +15,8 @@ export default function SupportPage() {
   const [contactEmail, setContactEmail] = useState("");
   const [contactMessage, setContactMessage] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const [submitError, setSubmitError] = useState("");
+  const [sending, setSending] = useState(false);
 
   const faqs: FAQItem[] = [
     {
@@ -63,16 +65,38 @@ export default function SupportPage() {
     ? faqs 
     : faqs.filter(faq => faq.category === activeTab);
 
-  const handleSubmitTicket = (e: React.FormEvent) => {
+  const handleSubmitTicket = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!contactName || !contactEmail || !contactMessage) return;
-    setSubmitted(true);
-    setContactName("");
-    setContactEmail("");
-    setContactMessage("");
-    setTimeout(() => {
-      setSubmitted(false);
-    }, 4000);
+    setSending(true);
+    setSubmitError("");
+    try {
+      const res = await fetch("/api/support-messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: contactName,
+          email: contactEmail,
+          message: contactMessage,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setSubmitError(data.error ?? "No se pudo enviar. Probá de nuevo.");
+        return;
+      }
+      setSubmitted(true);
+      setContactName("");
+      setContactEmail("");
+      setContactMessage("");
+      setTimeout(() => {
+        setSubmitted(false);
+      }, 4000);
+    } catch {
+      setSubmitError("No se pudo enviar. Probá de nuevo.");
+    } finally {
+      setSending(false);
+    }
   };
 
   return (
@@ -193,11 +217,16 @@ export default function SupportPage() {
                 />
               </div>
 
+              {submitError && (
+                <p className="text-xs text-red-500 font-bold">{submitError}</p>
+              )}
+
               <button 
                 type="submit"
-                className="w-full rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover py-3 text-sm font-extrabold text-white shadow-md hover:opacity-95 transition-all mt-2 cursor-pointer"
+                disabled={sending}
+                className="w-full rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover py-3 text-sm font-extrabold text-white shadow-md hover:opacity-95 transition-all mt-2 cursor-pointer disabled:opacity-50"
               >
-                Enviar Consulta
+                {sending ? "Enviando..." : "Enviar Consulta"}
               </button>
             </form>
           )}

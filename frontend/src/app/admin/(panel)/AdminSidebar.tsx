@@ -12,6 +12,7 @@ const LINKS = [
   { href: "/admin/usuarios", label: "Usuarios", icon: "👥" },
   { href: "/admin/publicaciones", label: "Publicaciones", icon: "📦" },
   { href: "/admin/reclamos", label: "Reclamos", icon: "🚩" },
+  { href: "/admin/consultas", label: "Consultas", icon: "💬" },
   { href: "/admin/precios", label: "Lista de Precios", icon: "💲" },
   { href: "/admin/configuracion", label: "Configuración", icon: "⚙️" },
 ]

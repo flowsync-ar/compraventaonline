@@ -77,6 +77,30 @@ function toSearchOptions(categories: CategoryOption[], nodes: CategoryOption[]) 
 // fills the whole path so the lower dropdowns appear already set.
 export default function CategorySubcategoryPicker({ categories, value, onChange, autoOpenRoot = false }: Props) {
   const [path, setPath] = useState<string[]>(() => buildPath(categories, value));
+  const [proposeMsg, setProposeMsg] = useState<string | null>(null);
+
+  const handlePropose = async (query: string) => {
+    setProposeMsg(null);
+    try {
+      const res = await fetch("/api/category-suggestions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: query }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setProposeMsg(data.error ?? "No se pudo enviar la propuesta.");
+        return;
+      }
+      setProposeMsg(
+        data.already
+          ? "Ya habías propuesto esa categoría. La estamos revisando."
+          : "¡Listo! Propusiste esa categoría. El equipo de CompraVentaOnline la va a revisar."
+      );
+    } catch {
+      setProposeMsg("No se pudo enviar la propuesta.");
+    }
+  };
 
   const handleLevelChange = (level: number, newId: string) => {
     if (newId && categories.some((c) => c.id === newId)) {
@@ -130,10 +154,14 @@ export default function CategorySubcategoryPicker({ categories, value, onChange,
               placeholder="Buscar categoría..."
               openOnMount={autoOpenRoot && i === 0}
               onChange={(val) => handleLevelChange(i, val)}
+              onProposeSearch={handlePropose}
             />
           </div>
         );
       })}
+      {proposeMsg && (
+        <p className="text-[11px] text-accent-gold font-semibold leading-relaxed">{proposeMsg}</p>
+      )}
     </>
   );
 }

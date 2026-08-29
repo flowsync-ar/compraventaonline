@@ -19,7 +19,7 @@ export default function AdminConfiguracionPage() {
       const res = await fetch("/api/admin/settings")
       const data = await res.json()
       if (res.ok) {
-        setHighlightPrice(String(data.settings.highlight_price))
+        setHighlightPrice(String(Math.round(Number(data.settings.highlight_price)) || ""))
         setHighlightDurationDays(String(data.settings.highlight_duration_days))
         setMaintenanceMode(Boolean(data.settings.maintenance_mode))
       } else {
@@ -60,7 +60,7 @@ export default function AdminConfiguracionPage() {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          highlightPrice: Number(highlightPrice),
+          highlightPrice: Number(highlightPrice.replace(/\D/g, "")),
           highlightDurationDays: Number(highlightDurationDays),
         }),
       })
@@ -96,11 +96,18 @@ export default function AdminConfiguracionPage() {
         <div>
           <label className="text-sm font-bold text-foreground block mb-1.5">Precio (ARS)</label>
           <input
-            type="number"
-            min="1"
-            step="1"
-            value={highlightPrice}
-            onChange={(e) => setHighlightPrice(e.target.value)}
+            type="text"
+            inputMode="numeric"
+            value={
+              highlightPrice
+                ? `$ ${parseInt(highlightPrice, 10).toLocaleString("es-AR")}`
+                : ""
+            }
+            onChange={(e) => {
+              const digits = e.target.value.replace(/\D/g, "")
+              setHighlightPrice(digits.replace(/^0+(?=\d)/, ""))
+            }}
+            placeholder="$ 2.000"
             required
             className="w-full bg-background border border-card-border rounded-xl px-4 py-2.5 text-sm text-foreground focus:outline-none focus:border-accent-gold"
           />

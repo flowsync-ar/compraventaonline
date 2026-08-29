@@ -1,6 +1,7 @@
 import type { ReactNode } from "react"
 import Link from "next/link"
 import AdminSidebar from "./AdminSidebar"
+import AdminInboxBell from "./AdminInboxBell"
 
 // The proxy already validated the admin session for every route under
 // /admin (except /admin/login, which renders its own minimal layout).
@@ -11,7 +12,8 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     <div className="min-h-screen bg-background flex">
       <AdminSidebar />
       <main className="flex-1 min-w-0 px-6 md:px-10 py-8 overflow-y-auto">
-        <div className="flex justify-end mb-4">
+        <div className="flex justify-end items-center gap-2 mb-4">
+          <AdminInboxBell />
           <Link
             href="/"
             target="_blank"

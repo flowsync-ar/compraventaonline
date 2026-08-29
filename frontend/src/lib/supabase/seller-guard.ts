@@ -5,6 +5,7 @@ export interface AuthedSeller {
   userId: string
   userEmail: string | null
   sellerId: string
+  highlightFree: boolean
 }
 
 /**
@@ -25,11 +26,16 @@ export async function requireSeller(
 
   const { data: sellerRow, error: sellerError } = await supabase
     .from("sellers")
-    .select("id")
+    .select("id, highlight_free")
     .eq("user_id", user.id)
     .single()
 
   if (sellerError || !sellerRow) return null
 
-  return { userId: user.id, userEmail: user.email ?? null, sellerId: sellerRow.id }
+  return {
+    userId: user.id,
+    userEmail: user.email ?? null,
+    sellerId: sellerRow.id,
+    highlightFree: !!sellerRow.highlight_free,
+  }
 }

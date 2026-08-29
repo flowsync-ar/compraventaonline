@@ -37,6 +37,9 @@ interface Props {
   // Open the panel on first mount (e.g. after "otra categoría" so the
   // seller lands on the root category picker without an extra click).
   openOnMount?: boolean;
+  // When the search has no matches, offer to propose the typed name
+  // (used on the publish category picker).
+  onProposeSearch?: (query: string) => void;
 }
 
 function normalizeForSearch(text: string): string {
@@ -69,6 +72,7 @@ export default function CustomDropdown({
   triggerClassName,
   panelWidthClassName = "w-full",
   openOnMount = false,
+  onProposeSearch,
 }: Props) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -193,7 +197,27 @@ export default function CustomDropdown({
             {/* List of options */}
             <div className="flex flex-col gap-0.5 max-h-48 overflow-y-auto pr-1">
               {filtered.length === 0 ? (
-                <span className="text-[10px] text-text-muted text-center py-4">No se encontraron resultados</span>
+                <div className="flex flex-col items-center gap-2 py-3 px-1 text-center">
+                  <span className="text-[10px] text-text-muted">No se encontraron resultados</span>
+                  {onProposeSearch && hasQuery && (
+                    <>
+                      <p className="text-[11px] text-foreground leading-snug">
+                        ¿Te gustaría proponer <span className="font-bold">“{search.trim()}”</span> a CompraVentaOnline?
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onProposeSearch(search.trim());
+                          setIsOpen(false);
+                          setSearch("");
+                        }}
+                        className="rounded-lg bg-accent-gold/15 border border-accent-gold/40 text-accent-gold px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-wide hover:bg-accent-gold/25 cursor-pointer"
+                      >
+                        Proponer esta categoría
+                      </button>
+                    </>
+                  )}
+                </div>
               ) : (
                 filtered.map((opt, idx) => {
                   const isSelected = opt.value === selected.value;

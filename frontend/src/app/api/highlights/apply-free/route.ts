@@ -2,19 +2,16 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient as createServerClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { requireSeller } from "@/lib/supabase/seller-guard"
-import { canFeatureForFree } from "@/lib/freeHighlight"
-
 const ACTIVE_STATUSES = ["APPROVED", "ACTIVE"]
 
-// Complimentary FEATURED for the two platform accounts. Everyone else
-// pays via /api/highlights/checkout.
+// Complimentary FEATURED when admin enabled sellers.highlight_free.
 export async function POST(request: NextRequest) {
   const supabase = await createServerClient()
   const seller = await requireSeller(supabase)
   if (!seller) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 })
   }
-  if (!canFeatureForFree(seller.userEmail)) {
+  if (!seller.highlightFree) {
     return NextResponse.json({ error: "Este destacado es de pago" }, { status: 403 })
   }
 

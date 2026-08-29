@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
   const admin = createAdminClient()
   const { data, error } = await admin
     .from("sellers")
-    .select("id, user_id, name, type, phone, location, status, created_at, identity_verified")
+    .select("id, user_id, name, type, phone, location, status, created_at, identity_verified, highlight_free")
     .order("created_at", { ascending: false })
 
   if (error) {

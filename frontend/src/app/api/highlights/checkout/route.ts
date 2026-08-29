@@ -3,7 +3,6 @@ import { createClient as createServerClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { requireSeller } from "@/lib/supabase/seller-guard"
 import { createCheckoutPreference, checkoutUrl } from "@/lib/mercadopago/client"
-import { canFeatureForFree } from "@/lib/freeHighlight"
 
 const PURCHASABLE_STATUSES = ["APPROVED", "ACTIVE"]
 
@@ -59,7 +58,7 @@ export async function POST(request: NextRequest) {
 
   const admin = createAdminClient()
 
-  if (canFeatureForFree(seller.userEmail)) {
+  if (seller.highlightFree) {
     const { error: freeError } = await admin
       .from("listings")
       .update({ featured_plan: "FEATURED" })

@@ -1,4 +1,4 @@
-export type NotifKind = "sale" | "question" | "answered"
+export type NotifKind = "sale" | "question" | "answered" | "category" | "support" | "report"
 
 export type NotifTray = {
   closed: Record<NotifKind, string[]>
@@ -9,6 +9,9 @@ const emptyKind = (): Record<NotifKind, string[]> => ({
   sale: [],
   question: [],
   answered: [],
+  category: [],
+  support: [],
+  report: [],
 })
 
 export function emptyNotifTray(): NotifTray {
@@ -74,16 +77,17 @@ export function deleteNotif(tray: NotifTray, kind: NotifKind, id: string): Notif
   }
 }
 
+const ALL_KINDS: NotifKind[] = ["sale", "question", "answered", "category", "support", "report"]
+
 export function emptyClosed(tray: NotifTray): NotifTray {
-  const kinds: NotifKind[] = ["sale", "question", "answered"]
   const deleted = { ...tray.deleted }
-  for (const kind of kinds) {
-    const extra = tray.closed[kind].filter((id) => !deleted[kind].includes(id))
-    deleted[kind] = [...deleted[kind], ...extra]
+  for (const kind of ALL_KINDS) {
+    const extra = (tray.closed[kind] ?? []).filter((id) => !(deleted[kind] ?? []).includes(id))
+    deleted[kind] = [...(deleted[kind] ?? []), ...extra]
   }
   return { closed: emptyKind(), deleted }
 }
 
 export function closedCount(tray: NotifTray) {
-  return tray.closed.sale.length + tray.closed.question.length + tray.closed.answered.length
+  return ALL_KINDS.reduce((n, kind) => n + (tray.closed[kind]?.length ?? 0), 0)
 }

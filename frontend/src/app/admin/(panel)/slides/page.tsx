@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import ConfirmModal from "@/components/ConfirmModal"
-import { imageToWebp } from "@/lib/imageToWebp"
+import { imageToBlurFillBanner, imageToWebp } from "@/lib/imageToWebp"
 
 interface Slide {
   id: string
@@ -29,16 +29,16 @@ export default function AdminSlidesPage() {
   const [imageUrlMobile, setImageUrlMobile] = useState("")
   const [eyebrow, setEyebrow] = useState("")
   const [title, setTitle] = useState("")
-  const [showTitle, setShowTitle] = useState(true)
+  const [showTitle, setShowTitle] = useState(false)
   const [ctaLabel, setCtaLabel] = useState("Ver más")
   const [href, setHref] = useState("/search")
   const [active, setActive] = useState(true)
-  const [darkOverlay, setDarkOverlay] = useState(true)
   const [imageFit, setImageFit] = useState<"cover" | "contain">("cover")
-  const [showCta, setShowCta] = useState(true)
+  const [showCta, setShowCta] = useState(false)
 
   const [uploading, setUploading] = useState(false)
   const [uploadingMobile, setUploadingMobile] = useState(false)
+  const [generatingBlur, setGeneratingBlur] = useState(false)
   const [saving, setSaving] = useState(false)
   const [reorderingId, setReorderingId] = useState<string | null>(null)
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
@@ -63,13 +63,12 @@ export default function AdminSlidesPage() {
     setImageUrlMobile("")
     setEyebrow("")
     setTitle("")
-    setShowTitle(true)
+    setShowTitle(false)
     setCtaLabel("Ver más")
     setHref("/search")
     setActive(true)
-    setDarkOverlay(true)
     setImageFit("cover")
-    setShowCta(true)
+    setShowCta(false)
   }
 
   const handleEdit = (slide: Slide) => {
@@ -82,7 +81,6 @@ export default function AdminSlidesPage() {
     setCtaLabel(slide.cta_label)
     setHref(slide.href)
     setActive(slide.active)
-    setDarkOverlay(slide.dark_overlay)
     setImageFit(slide.image_fit)
     setShowCta(slide.show_cta)
   }
@@ -106,9 +104,41 @@ export default function AdminSlidesPage() {
       }
       if (target === "mobile") setImageUrlMobile(data.imageUrl)
       else setImageUrl(data.imageUrl)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo subir la imagen.")
     } finally {
       setUploadingState(false)
       e.target.value = ""
+    }
+  }
+
+  const uploadSlideFile = async (file: File) => {
+    const formData = new FormData()
+    formData.append("file", file)
+    const res = await fetch("/api/admin/slides/upload", { method: "POST", body: formData })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error ?? "No se pudo subir la imagen.")
+    return data.imageUrl as string
+  }
+
+  const handleGenerateBlurFill = async () => {
+    if (!imageUrl) {
+      setError("Subí primero la imagen centrada.")
+      return
+    }
+    setError(null)
+    setGeneratingBlur(true)
+    try {
+      const res = await fetch(imageUrl)
+      if (!res.ok) throw new Error("No se pudo leer la imagen subida.")
+      const source = await res.blob()
+      const composed = await imageToBlurFillBanner(source)
+      setImageUrl(await uploadSlideFile(composed))
+      setImageFit("cover")
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo generar el fondo blur.")
+    } finally {
+      setGeneratingBlur(false)
     }
   }
 
@@ -129,7 +159,7 @@ export default function AdminSlidesPage() {
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageUrl, imageUrlMobile, eyebrow, title: showTitle ? title : "", ctaLabel, href, active, darkOverlay, imageFit, showCta }),
+        body: JSON.stringify({ imageUrl, imageUrlMobile, eyebrow, title: showTitle ? title : "", ctaLabel, href, active, darkOverlay: false, imageFit, showCta }),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -259,6 +289,15 @@ export default function AdminSlidesPage() {
                 className="hidden"
               />
             </label>
+            <button
+              type="button"
+              onClick={handleGenerateBlurFill}
+              disabled={!imageUrl || uploading || generatingBlur}
+              className="mt-1.5 w-full rounded-xl border border-accent-gold/40 bg-accent-gold/10 px-3 py-2 text-xs font-bold text-accent-gold hover:bg-accent-gold/20 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              title="Usa la imagen subida al centro, nítida, y rellena el ancho con la misma foto desenfocada."
+            >
+              {generatingBlur ? "Generando fondo…" : "Generar fondo blur"}
+            </button>
           </div>
 
           <div className="w-full md:w-48 shrink-0">
@@ -368,15 +407,6 @@ export default function AdminSlidesPage() {
                   className="h-4 w-4 accent-accent-gold cursor-pointer"
                 />
                 Activo
-              </label>
-              <label className="flex items-center gap-2 text-sm font-bold text-foreground cursor-pointer w-fit" title="Oscurece la imagen para que el título/botón se lean encima. Desactivalo si tu imagen ya trae texto propio.">
-                <input
-                  type="checkbox"
-                  checked={darkOverlay}
-                  onChange={(e) => setDarkOverlay(e.target.checked)}
-                  className="h-4 w-4 accent-accent-gold cursor-pointer"
-                />
-                Aplicar oscurecido a la imagen
               </label>
               <label className="flex items-center gap-2 text-sm font-bold text-foreground cursor-pointer w-fit" title="Cubrir: la imagen llena todo el ancho, puede recortar los bordes (ideal para fotos). Ajustar: nunca recorta, pero puede dejar franjas vacías a los costados (ideal para banners con texto propio).">
                 <span>Imagen:</span>

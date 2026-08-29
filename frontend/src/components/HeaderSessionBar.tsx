@@ -22,6 +22,8 @@ import {
   emptyClosed,
   closedCount,
 } from "@/lib/notificationTray"
+import { communityLanguageRejection, flaggedLanguageTerms } from "@/lib/communityLanguage"
+import LanguageHighlightField from "./LanguageHighlightField"
 
 function NotifCloseButton({ onClick, label = "Cerrar notificación" }: { onClick: () => void; label?: string }) {
   return (
@@ -420,6 +422,11 @@ export default function HeaderSessionBar() {
 
   const handleSendReply = async (questionId: string) => {
     if (!replyText.trim()) return
+    const languageError = communityLanguageRejection(replyText)
+    if (languageError) {
+      alert(languageError)
+      return
+    }
 
     const { error } = await getSupabase()
       .from("questions")
@@ -503,6 +510,11 @@ export default function HeaderSessionBar() {
   // stuck with no way to reply from here.
   const handleSendFollowUp = async (n: AnsweredQuestionForBuyer) => {
     if (!answeredReplyText.trim() || !n.listing?.id || !profile) return
+    const languageError = communityLanguageRejection(answeredReplyText)
+    if (languageError) {
+      alert(languageError)
+      return
+    }
 
     const { data: inserted, error } = await getSupabase()
       .from("questions")
@@ -949,11 +961,13 @@ export default function HeaderSessionBar() {
 
                           {replyingAnsweredId === n.id ? (
                             <div className="flex flex-col gap-2">
-                              <textarea
+                              <LanguageHighlightField
+                                as="textarea"
                                 value={answeredReplyText}
-                                onChange={(e) => setAnsweredReplyText(e.target.value)}
+                                onChange={setAnsweredReplyText}
+                                terms={flaggedLanguageTerms(answeredReplyText)}
                                 placeholder="Escribí tu respuesta..."
-                                className="w-full bg-background border border-card-border rounded-lg p-2 text-xs text-foreground focus:outline-none focus:border-accent-gold resize-none h-16"
+                                className="w-full h-16 bg-background border border-card-border rounded-lg p-2 text-xs text-foreground resize-none"
                                 required
                               />
                               <div className="flex justify-end gap-2">
@@ -1057,11 +1071,13 @@ export default function HeaderSessionBar() {
                           <div className="mt-1">
                             {replyingToId === n.id ? (
                               <div className="flex flex-col gap-2">
-                                <textarea
+                                <LanguageHighlightField
+                                  as="textarea"
                                   value={replyText}
-                                  onChange={(e) => setReplyText(e.target.value)}
+                                  onChange={setReplyText}
+                                  terms={flaggedLanguageTerms(replyText)}
                                   placeholder="Escribí tu respuesta..."
-                                  className="w-full bg-background border border-card-border rounded-lg p-2 text-xs text-foreground focus:outline-none focus:border-accent-gold resize-none h-16"
+                                  className="w-full h-16 bg-background border border-card-border rounded-lg p-2 text-xs text-foreground resize-none"
                                   required
                                 />
                                 <div className="flex justify-end gap-2">

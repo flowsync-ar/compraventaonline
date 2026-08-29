@@ -11,6 +11,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { getAncestors, type CategoryNode } from "@/lib/categories";
 import { getOrCreateVisitorId } from "@/lib/visitorId";
 import RichTextDisplay from "@/components/RichTextDisplay";
+import { communityLanguageRejection, flaggedLanguageTerms } from "@/lib/communityLanguage";
+import LanguageHighlightField from "@/components/LanguageHighlightField";
 
 interface Listing {
   id: string;
@@ -82,6 +84,7 @@ export default function ListingDetailPage() {
   // Contact Form States
   const [contactMsg, setContactMsg] = useState("Hola! Estoy interesado en tu publicación. ¿Sigue disponible?");
   const [contactSuccess, setContactSuccess] = useState(false);
+  const [contactError, setContactError] = useState("");
 
   // Questions list state
 
@@ -553,6 +556,12 @@ export default function ListingDetailPage() {
   const handleContactSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!sellerId) return;
+    setContactError("");
+    const languageError = communityLanguageRejection(contactMsg);
+    if (languageError) {
+      setContactError(languageError);
+      return;
+    }
 
     const supabase = getSupabase();
     try {
@@ -739,9 +748,9 @@ export default function ListingDetailPage() {
             onClick={() => openImageModal(mainImage)}
             className="rounded-3xl overflow-hidden bg-card-bg border border-card-border p-3 shadow-xl relative aspect-[4/3] flex items-center justify-center group cursor-zoom-in"
           >
-            {listing.featured_plan === "PREMIUM" && (
-              <span className="absolute top-6 left-6 z-10 rounded-xl bg-accent-gold px-3.5 py-1 text-xs font-extrabold tracking-wider text-white shadow-md uppercase">
-                💎 Premium Pampeano
+            {(listing.featured_plan === "FEATURED" || listing.featured_plan === "PREMIUM") && (
+              <span className="absolute top-6 left-6 z-10 rounded-full bg-accent-blue px-3 py-1 text-[10px] font-extrabold tracking-wider text-white shadow-md uppercase">
+                ⚡ PRODUCTO DESTACADO
               </span>
             )}
             {images.length > 1 && (
@@ -1172,15 +1181,30 @@ export default function ListingDetailPage() {
               <form onSubmit={handleContactSubmit} className="flex flex-col gap-4">
                 <div className="flex flex-col gap-2">
                   <label className="text-xs font-bold text-foreground">Tu Consulta</label>
-                  <textarea
+                  <LanguageHighlightField
+                    as="textarea"
                     rows={3}
                     required
                     value={contactMsg}
-                    onChange={(e) => setContactMsg(e.target.value)}
+                    onChange={setContactMsg}
+                    terms={flaggedLanguageTerms(contactMsg)}
                     placeholder="Escribí tu pregunta sobre este producto..."
-                    className="w-full bg-background border border-card-border rounded-xl px-4 py-3 text-xs text-foreground focus:outline-none focus:border-accent-gold resize-none"
+                    className="w-full bg-background border border-card-border rounded-xl px-4 py-3 text-xs text-foreground resize-none"
                   />
                 </div>
+                {contactError && (
+                  <p className="text-xs font-bold text-red-500">
+                    {contactError.split(/(«[^»]+»)/).map((part, index) =>
+                      part.startsWith("«") ? (
+                        <mark key={index} className="community-word-flag mx-0.5">
+                          {part.slice(1, -1)}
+                        </mark>
+                      ) : (
+                        part
+                      ),
+                    )}
+                  </p>
+                )}
                 <button type="submit" className="w-full rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover py-4 text-xs font-extrabold text-white shadow-md hover:opacity-95 transition-all mt-2 cursor-pointer">
                   Enviar Pregunta
                 </button>

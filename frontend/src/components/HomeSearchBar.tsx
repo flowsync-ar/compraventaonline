@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { LA_PAMPA_CITIES } from "@/lib/constants/laPampaCities";
 import CustomDropdown from "./CustomDropdown";
@@ -21,11 +21,24 @@ interface Category {
 // server-side fetch — self-fetching here is what lets one instance work
 // everywhere without every page needing to know about it.
 export default function HomeSearchBar() {
+  return (
+    <Suspense fallback={<div className="h-[46px] w-full rounded-2xl sm:rounded-full bg-card-bg/40" />}>
+      <HomeSearchBarForm />
+    </Suspense>
+  );
+}
+
+function HomeSearchBarForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("");
   const [location, setLocation] = useState("");
   const [categories, setCategories] = useState<Category[]>([]);
+
+  useEffect(() => {
+    setQuery(searchParams.get("q") ?? "");
+  }, [searchParams]);
 
   useEffect(() => {
     const supabase = createClient();
@@ -97,6 +110,19 @@ export default function HomeSearchBar() {
             placeholder="¿Qué estás buscando?"
             className="w-full bg-transparent text-sm text-foreground placeholder:text-text-muted outline-none"
           />
+          {query ? (
+            <button
+              type="button"
+              onClick={() => setQuery("")}
+              className="shrink-0 text-text-muted hover:text-foreground transition-colors cursor-pointer"
+              aria-label="Limpiar búsqueda"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          ) : null}
         </div>
 
         <div className="hidden sm:block w-px bg-card-border my-2.5" />

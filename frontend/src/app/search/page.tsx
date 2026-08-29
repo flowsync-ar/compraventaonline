@@ -8,6 +8,7 @@ import FiltersAccordion from "../../components/FiltersAccordion";
 import { LA_PAMPA_CITIES } from "@/lib/constants/laPampaCities";
 import { getCachedCategories, buildChildrenMap } from "@/lib/categories";
 import { stripRichText } from "@/lib/richText";
+import ClearableTextInput from "@/components/ClearableTextInput";
 
 // Builds the numbered page list with "…" gaps, e.g. for current=10,
 // total=42: [1, "…", 5,6,7,8,9,10,11,12,13,14,15, "…", 42]. First/last
@@ -88,6 +89,42 @@ async function getCategoryAndDescendantSlugs(rootSlug: string): Promise<Set<stri
     }
   }
   return result;
+}
+
+function searchTokens(text: string): string[] {
+  return normalize(text)
+    .split(/[^a-z0-9]+/)
+    .filter((token) => token.length >= 3);
+}
+
+function tokensRelate(a: string, b: string): boolean {
+  return a.includes(b) || b.includes(a);
+}
+
+// If the query names (or is a stem of) a category — "vino" → "Vinos y
+// Espumantes" — include that node and every descendant, so a Malbec
+// without "vino" in the title still shows up.
+async function getCategorySlugsRelatedToQuery(q: string): Promise<Set<string>> {
+  const query = normalize(q).trim();
+  if (query.length < 3) return new Set();
+
+  const categories = await getCachedCategories();
+  const queryTokens = searchTokens(q);
+  const matchedRoots = categories.filter((category) => {
+    const name = normalize(category.name);
+    const slug = normalize(category.slug).replace(/-/g, " ");
+    if (name.includes(query) || slug.includes(query)) return true;
+    const categoryTokens = [...searchTokens(category.name), ...searchTokens(category.slug)];
+    return queryTokens.some((qt) => categoryTokens.some((ct) => tokensRelate(qt, ct)));
+  });
+
+  const slugs = new Set<string>();
+  for (const root of matchedRoots) {
+    for (const slug of await getCategoryAndDescendantSlugs(root.slug)) {
+      slugs.add(slug);
+    }
+  }
+  return slugs;
 }
 
 const PAGE_SIZE = 50;
@@ -186,14 +223,22 @@ async function searchListings(params: {
 
     let results = data as unknown as ListingRow[];
 
-    // Client-side keyword filter — case- and accent-insensitive.
+    // Client-side keyword filter — title, brand, description, or a
+    // category whose name relates to the query (and its descendants).
     if (params.q) {
       const q = normalize(params.q);
-      results = results.filter(
-        (l) =>
-          (l.products?.name && normalize(l.products.name).includes(q)) ||
-          (l.products?.brand && normalize(l.products.brand).includes(q))
-      );
+      const relatedCategorySlugs = await getCategorySlugsRelatedToQuery(params.q);
+      results = results.filter((l) => {
+        if (l.products?.name && normalize(l.products.name).includes(q)) return true;
+        if (l.products?.brand && normalize(l.products.brand).includes(q)) return true;
+        const description = l.products?.description ? normalize(stripRichText(l.products.description)) : "";
+        if (description.includes(q)) return true;
+        const categorySlug = l.products?.categories?.slug;
+        if (categorySlug && relatedCategorySlugs.has(categorySlug)) return true;
+        const categoryName = l.products?.categories?.name;
+        if (categoryName && normalize(categoryName).includes(q)) return true;
+        return false;
+      });
     }
 
     // Client-side category slug filter. `subcategory` (from the 2-level
@@ -345,8 +390,8 @@ export default async function SearchPage({
                 {/* Input Search */}
                 <div className="flex flex-col gap-2">
                   <label className="text-xs font-bold text-foreground">Palabra Clave</label>
-                  <input
-                    type="text"
+                  <ClearableTextInput
+                    key={params.q || "q"}
                     name="q"
                     defaultValue={params.q || ""}
                     placeholder="Ej. taladro..."

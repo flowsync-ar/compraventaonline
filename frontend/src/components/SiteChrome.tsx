@@ -27,8 +27,8 @@ export default function SiteChrome({ children }: { children: ReactNode }) {
   const navButtonClass = (active: boolean) =>
     `inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-bold border shadow-sm transition-all ${
       active
-        ? "border-accent-gold/45 bg-accent-gold/10 text-accent-gold"
-        : "border-card-border bg-card-bg text-foreground/80 hover:border-accent-gold/40 hover:bg-accent-gold/5 hover:text-accent-gold"
+        ? "border-accent-blue bg-accent-blue text-white shadow-md"
+        : "border-accent-blue/25 bg-accent-blue/10 text-accent-blue hover:border-accent-blue hover:bg-accent-blue hover:text-white"
     }`
 
   // Mobile nav dropdown (<md only — from md up the horizontal nav has
@@ -152,12 +152,6 @@ export default function SiteChrome({ children }: { children: ReactNode }) {
                     <Link href="/categorias" className={navButtonClass(isNavActive("/categorias"))}>
                       Categorías
                     </Link>
-                    <Link href="/destacados" className={navButtonClass(isNavActive("/destacados"))}>
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 text-accent-gold stroke-foreground stroke-[1.5] drop-shadow-sm shrink-0">
-                        <path fillRule="evenodd" d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.006 5.404.434c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.321 21.38c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.434 2.082-5.005Z" clipRule="evenodd" />
-                      </svg>
-                      Destacados
-                    </Link>
                     <Link href="/search" className={navButtonClass(isNavActive("/search"))}>
                       Buscar
                     </Link>
@@ -226,12 +220,6 @@ export default function SiteChrome({ children }: { children: ReactNode }) {
               </Link>
               <Link href="/categorias" className={navButtonClass(isNavActive("/categorias"))}>
                 Categorías
-              </Link>
-              <Link href="/destacados" className={navButtonClass(isNavActive("/destacados"))}>
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 text-accent-gold stroke-foreground stroke-[1.5] drop-shadow-sm shrink-0">
-                  <path fillRule="evenodd" d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.006 5.404.434c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.321 21.38c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.434 2.082-5.005Z" clipRule="evenodd" />
-                </svg>
-                Destacados
               </Link>
               <Link href="/search" className={navButtonClass(isNavActive("/search"))}>
                 Buscar

@@ -70,9 +70,9 @@ export async function POST(request: NextRequest) {
     cta_label: body.ctaLabel?.trim() || "Ver más",
     href: body.href?.trim() || "/search",
     active: body.active ?? true,
-    dark_overlay: body.darkOverlay ?? true,
+    dark_overlay: body.darkOverlay ?? false,
     image_fit: body.imageFit === "contain" ? "contain" : "cover",
-    show_cta: body.showCta ?? true,
+    show_cta: body.showCta ?? false,
     sort_order: nextOrder,
   }
 

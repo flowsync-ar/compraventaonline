@@ -1,23 +1,38 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, type ReactNode } from "react";
 
 interface ToastProps {
   message: string;
   type: "success" | "error";
   onClose: () => void;
+  persist?: boolean;
+  footer?: ReactNode;
 }
 
-export default function Toast({ message, type, onClose }: ToastProps) {
+function formatToastMessage(message: string): ReactNode {
+  const parts = message.split(/(«[^»]+»)/);
+  if (parts.length === 1) return message;
+  return parts.map((part, index) =>
+    part.startsWith("«") && part.endsWith("»") ? (
+      <mark key={index} className="mx-0.5 rounded bg-white px-1 py-0.5 font-extrabold text-red-600">
+        {part.slice(1, -1)}
+      </mark>
+    ) : (
+      part
+    ),
+  );
+}
+
+export default function Toast({ message, type, onClose, persist = false, footer }: ToastProps) {
   useEffect(() => {
+    if (persist) return;
     const timer = setTimeout(onClose, 4000);
     return () => clearTimeout(timer);
-  }, [message, onClose]);
+  }, [message, onClose, persist]);
 
   return (
     <div
-      // 75% + blur — more see-through than the original /90, still legible
-      // (white text stays high-contrast against red/green either way).
       className={`pointer-events-auto flex items-start gap-2 rounded-xl border px-4 py-3 text-xs font-semibold text-white shadow-lg backdrop-blur-md animate-in slide-in-from-top-4 fade-in duration-300 ${
         type === "success"
           ? "bg-accent-green/75 border-accent-green/50"
@@ -25,7 +40,10 @@ export default function Toast({ message, type, onClose }: ToastProps) {
       }`}
     >
       <span>{type === "success" ? "✓" : "⚠️"}</span>
-      <span className="flex-1">{message}</span>
+      <div className="flex-1 flex flex-col gap-2">
+        <span>{formatToastMessage(message)}</span>
+        {footer}
+      </div>
       <button
         onClick={onClose}
         className="opacity-60 hover:opacity-100 transition-opacity cursor-pointer"

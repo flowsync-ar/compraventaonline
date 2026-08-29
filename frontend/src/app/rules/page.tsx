@@ -32,6 +32,7 @@ export default function RulesPage() {
           </h2>
           <ul className="flex flex-col gap-2 text-sm text-text-muted leading-relaxed list-none">
             <li className="flex gap-2"><span className="text-accent-gold shrink-0">→</span> Tratá a todos con respeto. No se tolera el acoso, la discriminación ni el lenguaje ofensivo.</li>
+            <li className="flex gap-2"><span className="text-accent-gold shrink-0">→</span> No se admiten publicaciones ni preguntas/respuestas que insulten, agredan o falten el respeto. El sistema las rechaza automáticamente.</li>
             <li className="flex gap-2"><span className="text-accent-gold shrink-0">→</span> Las preguntas y respuestas deben ser honestas y relevantes al producto.</li>
             <li className="flex gap-2"><span className="text-accent-gold shrink-0">→</span> No compartas datos personales de otros usuarios sin su consentimiento.</li>
             <li className="flex gap-2"><span className="text-accent-gold shrink-0">→</span> Está prohibido intentar cerrar operaciones fuera de la plataforma para evadir responsabilidades.</li>

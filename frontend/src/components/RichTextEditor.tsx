@@ -1,14 +1,18 @@
 "use client";
 
-import { useEffect, useReducer, type ReactNode } from "react";
+import { useEffect, useReducer, useRef, type ReactNode } from "react";
+import { Plugin, PluginKey } from "@tiptap/pm/state";
+import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
+import { findLanguageHighlightRanges } from "@/lib/communityLanguage";
 import { isRichHtmlEmpty, toEditorHtml } from "@/lib/richText";
 
 interface Props {
   value: string;
   onChange: (html: string) => void;
   placeholder?: string;
+  highlightTerms?: string[];
 }
 
 function ToolbarButton({
@@ -53,7 +57,10 @@ function ToolbarGroup({ children }: { children: ReactNode }) {
   );
 }
 
-export default function RichTextEditor({ value, onChange, placeholder }: Props) {
+export default function RichTextEditor({ value, onChange, placeholder, highlightTerms = [] }: Props) {
+  const termsRef = useRef(highlightTerms);
+  termsRef.current = highlightTerms;
+
   const editor = useEditor({
     immediatelyRender: false,
     extensions: [
@@ -88,6 +95,41 @@ export default function RichTextEditor({ value, onChange, placeholder }: Props) 
     editor.commands.setContent(next, { emitUpdate: false });
   }, [value, editor]);
 
+  useEffect(() => {
+    if (!editor) return;
+    const key = new PluginKey("communityHighlight");
+    const plugin = new Plugin({
+      key,
+      props: {
+        decorations(state) {
+          const terms = termsRef.current;
+          if (terms.length === 0) return DecorationSet.empty;
+          const decos: ReturnType<typeof Decoration.inline>[] = [];
+          state.doc.descendants((node, pos) => {
+            if (!node.isText || !node.text) return;
+            for (const range of findLanguageHighlightRanges(node.text, terms)) {
+              decos.push(
+                Decoration.inline(pos + range.start, pos + range.end, {
+                  class: "community-word-flag",
+                }),
+              );
+            }
+          });
+          return DecorationSet.create(state.doc, decos);
+        },
+      },
+    });
+    editor.registerPlugin(plugin);
+    return () => {
+      editor.unregisterPlugin(key);
+    };
+  }, [editor]);
+
+  useEffect(() => {
+    if (!editor) return;
+    editor.view.dispatch(editor.state.tr);
+  }, [highlightTerms, editor]);
+
   const [, rerender] = useReducer((n: number) => n + 1, 0);
   useEffect(() => {
     if (!editor) return;
@@ -105,9 +147,12 @@ export default function RichTextEditor({ value, onChange, placeholder }: Props) 
   }
 
   const empty = isRichHtmlEmpty(editor.getHTML());
+  const flagged = findLanguageHighlightRanges(editor.state.doc.textContent, highlightTerms).length > 0;
 
   return (
-    <div className="w-full overflow-hidden rounded-xl border border-card-border bg-background focus-within:border-accent-gold">
+    <div className={`w-full overflow-hidden rounded-xl border bg-background ${
+      flagged ? "border-red-500" : "border-card-border focus-within:border-accent-gold"
+    }`}>
       <div className="flex flex-wrap items-center gap-1.5 border-b border-card-border bg-card-bg/30 px-2 py-1.5">
         <ToolbarGroup>
           <ToolbarButton

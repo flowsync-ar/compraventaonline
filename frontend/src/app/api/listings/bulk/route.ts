@@ -3,6 +3,7 @@ import { createClient as createServerClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { TablesInsert } from '@/lib/supabase/types'
 import { validateBulkRowFields, validateCategoryId, type BulkRowInput } from '@/lib/bulk/validateRow'
+import { communityLanguageRejection } from '@/lib/communityLanguage'
 
 interface ConfirmRow extends BulkRowInput {
   categoryId?: string | null
@@ -87,6 +88,12 @@ export async function POST(req: NextRequest) {
     const category = validateCategoryId(rows[i].categoryId, categoriesById)
     if (!category.valid) {
       failed.push({ row: rowNumber, reason: category.reason })
+      continue
+    }
+
+    const languageError = communityLanguageRejection(fields.name, fields.brand, fields.description)
+    if (languageError) {
+      failed.push({ row: rowNumber, reason: languageError })
       continue
     }
 

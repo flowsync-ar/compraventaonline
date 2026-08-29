@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createAdminClient } from "@/lib/supabase/admin"
+import { communityLanguageRejection } from "@/lib/communityLanguage"
 
 export async function POST(request: NextRequest) {
   let body: { name?: string; email?: string; message?: string }
@@ -14,6 +15,10 @@ export async function POST(request: NextRequest) {
   const message = (body.message ?? "").trim()
   if (name.length < 2 || !email.includes("@") || message.length < 5) {
     return NextResponse.json({ error: "Completá nombre, email y mensaje." }, { status: 400 })
+  }
+  const languageError = communityLanguageRejection(name, message)
+  if (languageError) {
+    return NextResponse.json({ error: languageError }, { status: 400 })
   }
 
   const admin = createAdminClient()

@@ -214,6 +214,14 @@ body {
 .rich-text strike {
   text-decoration: line-through;
 }
+.community-word-flag {
+  color: #dc2626;
+  background: rgb(220 38 38 / 0.14);
+  border-radius: 0.2rem;
+  font-weight: inherit;
+  font-style: inherit;
+  padding: 0;
+}
 .ProseMirror:focus {
   outline: none;
 }

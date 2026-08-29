@@ -194,6 +194,7 @@ export default function HeroCarousel({ slides }: HeroCarouselProps) {
           );
         })}
 
+        {activeSlides.length > 1 && (
         <div className="absolute bottom-3 left-1/2 z-20 flex -translate-x-1/2 items-center gap-2">
           {activeSlides.map((slide, index) => (
             <button
@@ -209,6 +210,7 @@ export default function HeroCarousel({ slides }: HeroCarouselProps) {
             />
           ))}
         </div>
+        )}
       </div>
     </div>
   );

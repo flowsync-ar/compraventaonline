@@ -52,6 +52,47 @@ export async function imageToWebp(
   }
 }
 
+/** Wide hero: same photo as a blurred cover fill, sharp and contained in the center. */
+export async function imageToBlurFillBanner(
+  source: Blob,
+  quality = 0.85,
+  targetWidth = 1920,
+): Promise<File> {
+  const bitmap = await createImageBitmap(source)
+  const targetHeight = Math.round(
+    Math.min(680, Math.max(320, bitmap.height * Math.min(1, 1200 / Math.max(bitmap.width, bitmap.height)))),
+  )
+
+  const canvas = document.createElement("canvas")
+  canvas.width = targetWidth
+  canvas.height = targetHeight
+  const ctx = canvas.getContext("2d")
+  if (!ctx) {
+    bitmap.close()
+    throw new Error("No se pudo preparar el canvas")
+  }
+
+  ctx.fillStyle = "#111111"
+  ctx.fillRect(0, 0, targetWidth, targetHeight)
+
+  const coverScale = Math.max(targetWidth / bitmap.width, targetHeight / bitmap.height) * 1.25
+  const coverW = bitmap.width * coverScale
+  const coverH = bitmap.height * coverScale
+  ctx.filter = "blur(36px)"
+  ctx.drawImage(bitmap, (targetWidth - coverW) / 2, (targetHeight - coverH) / 2, coverW, coverH)
+
+  const containScale = Math.min(targetWidth / bitmap.width, targetHeight / bitmap.height)
+  const artW = bitmap.width * containScale
+  const artH = bitmap.height * containScale
+  ctx.filter = "none"
+  ctx.drawImage(bitmap, (targetWidth - artW) / 2, (targetHeight - artH) / 2, artW, artH)
+  bitmap.close()
+
+  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/webp", quality))
+  if (!blob) throw new Error("No se pudo generar la imagen")
+  return new File([blob], "slide-blur-fill.webp", { type: "image/webp" })
+}
+
 export async function imagesToWebp(
   files: File[],
   quality = 0.85,

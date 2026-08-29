@@ -14,7 +14,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { QuestionWithBuyer } from "@/lib/supabase/types";
 import { imageToWebp, imagesToWebp } from "@/lib/imageToWebp";
 import dynamic from "next/dynamic";
-import { isRichHtmlEmpty, sanitizeRichHtml } from "@/lib/richText";
+import { isRichHtmlEmpty, sanitizeRichHtml, stripRichText } from "@/lib/richText";
+import { communityLanguageRejection, flaggedLanguageTerms } from "@/lib/communityLanguage";
+import LanguageHighlightField from "@/components/LanguageHighlightField";
 
 const RichTextEditor = dynamic(() => import("@/components/RichTextEditor"), {
   ssr: false,
@@ -210,6 +212,14 @@ function DashboardPageContent() {
   const [loading, setLoading] = useState(false);
   const [successMsg, setSuccessMsg] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
+  const listingLanguageTerms = useMemo(
+    () => flaggedLanguageTerms(productName, brand, stripRichText(description)),
+    [productName, brand, description],
+  );
+  const replyLanguageTerms = useMemo(
+    () => flaggedLanguageTerms(questionReplyText),
+    [questionReplyText],
+  );
 
   // Mis Datos (edición de perfil)
   const [profileName, setProfileName] = useState("");
@@ -968,6 +978,13 @@ function DashboardPageContent() {
       return;
     }
 
+    const languageError = communityLanguageRejection(productName, brand, stripRichText(description));
+    if (languageError) {
+      setErrorMsg(languageError);
+      setLoading(false);
+      return;
+    }
+
     // Obtener la categoría seleccionada
     const selectedCategory = categories.find((cat) => cat.id === categoryId);
 
@@ -1671,6 +1688,11 @@ function DashboardPageContent() {
 
   const handleReplyToQuestion = async (questionId: string) => {
     if (!questionReplyText.trim()) return;
+    const languageError = communityLanguageRejection(questionReplyText);
+    if (languageError) {
+      alert(languageError);
+      return;
+    }
     const supabase = getSupabase();
     const { error } = await supabase
       .from("questions")
@@ -1934,7 +1956,21 @@ function DashboardPageContent() {
   return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-4 w-full relative flex min-h-0 flex-1 flex-col">
       <div className="fixed top-32 right-6 z-[100] flex flex-col gap-3 max-w-sm pointer-events-none">
-        {errorMsg && <Toast type="error" message={errorMsg} onClose={() => setErrorMsg("")} />}
+        {errorMsg && (
+          <Toast
+            type="error"
+            message={errorMsg}
+            persist={errorMsg.includes("«")}
+            onClose={() => setErrorMsg("")}
+            footer={
+              errorMsg.includes("«") ? (
+                <Link href="/support" className="font-bold text-white underline underline-offset-2 hover:opacity-80">
+                  Si considerás que esto es un error, contactate con CompraVentaOnline
+                </Link>
+              ) : undefined
+            }
+          />
+        )}
         {successMsg && <Toast type="success" message={successMsg} onClose={() => setSuccessMsg("")} />}
         {profileErrorMsg && <Toast type="error" message={profileErrorMsg} onClose={() => setProfileErrorMsg("")} />}
         {profileSuccessMsg && <Toast type="success" message={profileSuccessMsg} onClose={() => setProfileSuccessMsg("")} />}
@@ -2457,23 +2493,23 @@ function DashboardPageContent() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="flex flex-col gap-2">
                     <label className="text-xs font-bold text-foreground">Nombre del Producto</label>
-                    <input 
-                      type="text" 
+                    <LanguageHighlightField
                       required
                       value={productName}
-                      onChange={(e) => setProductName(e.target.value)}
-                      placeholder="Ej. Miel de Caldén o Amoladora Industrial" 
-                      className="w-full bg-background border border-card-border rounded-xl px-4 py-3 text-xs text-foreground focus:outline-none focus:border-accent-gold"
+                      onChange={setProductName}
+                      terms={listingLanguageTerms}
+                      placeholder="Ej. Miel de Caldén o Amoladora Industrial"
+                      className="w-full bg-background border border-card-border rounded-xl px-4 py-3 text-xs text-foreground"
                     />
                   </div>
                   <div className="flex flex-col gap-2">
                     <label className="text-xs font-bold text-foreground">Marca (opcional)</label>
-                    <input 
-                      type="text" 
+                    <LanguageHighlightField
                       value={brand}
-                      onChange={(e) => setBrand(e.target.value)}
-                      placeholder="Ej. Estancia La Pampa" 
-                      className="w-full bg-background border border-card-border rounded-xl px-4 py-3 text-xs text-foreground focus:outline-none focus:border-accent-gold"
+                      onChange={setBrand}
+                      terms={listingLanguageTerms}
+                      placeholder="Ej. Estancia La Pampa"
+                      className="w-full bg-background border border-card-border rounded-xl px-4 py-3 text-xs text-foreground"
                     />
                   </div>
                 </div>
@@ -2484,6 +2520,7 @@ function DashboardPageContent() {
                     value={description}
                     onChange={setDescription}
                     placeholder="Detalla las características del artículo..."
+                    highlightTerms={listingLanguageTerms}
                   />
                 </div>
 
@@ -3982,11 +4019,13 @@ function DashboardPageContent() {
                           </div>
                         ) : replyingToQuestionId === q.id ? (
                           <div className="flex flex-col gap-2">
-                            <textarea
+                            <LanguageHighlightField
+                              as="textarea"
                               value={questionReplyText}
-                              onChange={(e) => setQuestionReplyText(e.target.value)}
+                              onChange={setQuestionReplyText}
+                              terms={replyLanguageTerms}
                               placeholder="Escribí tu respuesta..."
-                              className="w-full bg-background border border-card-border rounded-lg p-2 text-xs text-foreground focus:outline-none focus:border-accent-gold resize-none h-16"
+                              className="w-full h-16 bg-background border border-card-border rounded-lg p-2 text-xs text-foreground resize-none"
                             />
                             <div className="flex justify-end gap-2">
                               <button

@@ -51,6 +51,28 @@ function isPurchasable(status: string | undefined) {
   return status === "APPROVED" || status === "ACTIVE";
 }
 
+const ROTATE_EVERY_MS = 20 * 60 * 1000;
+
+function mulberry32(seed: number) {
+  return () => {
+    let t = (seed += 0x6d2b79f5);
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function shuffleForTimeWindow<T>(items: T[]): T[] {
+  const seed = Math.floor(Date.now() / ROTATE_EVERY_MS);
+  const random = mulberry32(seed);
+  const next = [...items];
+  for (let i = next.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1));
+    [next[i], next[j]] = [next[j], next[i]];
+  }
+  return next;
+}
+
 // Home and /destacados used to only look at highlighted_products (paid /
 // reward window). Picking FEATURED on publish only sets listings.featured_plan,
 // so those listings never showed. Merge both sources and de-dupe by listing id.
@@ -92,6 +114,6 @@ export async function fetchFeaturedListingCards(
     byListingId.set(listing.id, { id: `plan-${listing.id}`, listings: listing });
   }
 
-  const merged = [...byListingId.values()];
+  const merged = shuffleForTimeWindow([...byListingId.values()]);
   return typeof limit === "number" ? merged.slice(0, limit) : merged;
 }

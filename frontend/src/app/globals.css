@@ -123,6 +123,16 @@ body {
   box-shadow: 0 12px 24px -10px rgba(0, 0, 0, 0.5);
 }
 
+@keyframes featured-marquee {
+  to {
+    transform: translateX(var(--marquee-shift, -50%));
+  }
+}
+
+.featured-marquee {
+  animation: featured-marquee linear infinite;
+}
+
 /* Glow effects */
 .glow-gold {
   box-shadow: 0 0 20px rgba(245, 124, 45, 0.15);

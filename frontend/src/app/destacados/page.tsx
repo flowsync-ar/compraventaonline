@@ -67,17 +67,8 @@ export default async function DestacadosPage() {
           </h1>
         </div>
         <p className="text-text-muted text-xs mt-2 leading-relaxed max-w-2xl">
-          Descubrí los mejores productos y ofertas destacadas por los comercios y vendedores de La Pampa.
+          Avisos en vitrina: aparecen en la portada y acá, con más visibilidad que el resto del catálogo.
         </p>
-      </div>
-
-      {/* Criterio de Rotación Informativo */}
-      <div className="rounded-2xl border border-accent-gold/20 bg-accent-gold/5 p-4 flex gap-3 items-start text-xs text-text-muted leading-relaxed">
-        <span className="text-accent-gold text-lg select-none">🔄</span>
-        <div>
-          <p className="font-bold text-foreground mb-1">Rotación Equitativa para Vendedores</p>
-          Para asegurar que todos nuestros clientes y anunciantes tengan las mismas oportunidades, las publicaciones dentro de un mismo plan destacado se ordenan de manera completamente aleatoria cada vez que se ingresa a la página. Esto garantiza que todos los productos se visualicen por igual sin importar la fecha de contratación del servicio.
-        </div>
       </div>
 
       {highlights.length === 0 ? (

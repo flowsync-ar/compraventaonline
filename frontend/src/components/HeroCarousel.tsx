@@ -123,18 +123,20 @@ export default function HeroCarousel({ slides }: HeroCarouselProps) {
   return (
     <div className="relative w-full">
       <div
-        className="relative h-[260px] sm:h-[340px] md:h-[400px] w-full overflow-hidden cursor-grab active:cursor-grabbing touch-pan-y"
+        className="relative w-full overflow-hidden cursor-grab active:cursor-grabbing touch-pan-y"
         onPointerDown={handlePointerDown}
         onPointerUp={handlePointerUp}
         onPointerLeave={() => setDragging(false)}
       >
-        {activeSlides.map((slide, index) => (
+        {activeSlides.map((slide, index) => {
+          const isActive = index === active;
+          return (
           <div
             key={slide.id}
-            className={`absolute inset-0 transition-opacity duration-700 ease-in-out ${
-              index === active ? "opacity-100 z-10" : "opacity-0 z-0"
+            className={`transition-opacity duration-700 ease-in-out ${
+              isActive ? "relative z-10 opacity-100" : "pointer-events-none absolute inset-0 z-0 opacity-0"
             }`}
-            aria-hidden={index !== active}
+            aria-hidden={!isActive}
           >
             {slide.imageMobile ? (
               <>
@@ -143,16 +145,14 @@ export default function HeroCarousel({ slides }: HeroCarouselProps) {
                   src={slide.imageMobile}
                   alt=""
                   draggable={false}
-                  className="h-full w-full object-cover object-center sm:hidden"
+                  className={`w-full sm:hidden ${isActive ? "h-auto" : "h-full object-cover object-center"}`}
                 />
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={slide.image}
                   alt=""
                   draggable={false}
-                  className={`hidden h-full w-full sm:block ${
-                    slide.imageFit === "contain" ? "sm:object-contain sm:object-top" : "sm:object-cover sm:object-center sm:scale-105"
-                  }`}
+                  className={`hidden w-full sm:block ${isActive ? "h-auto" : "h-full object-cover object-center"}`}
                 />
               </>
             ) : (
@@ -161,11 +161,10 @@ export default function HeroCarousel({ slides }: HeroCarouselProps) {
                 src={slide.image}
                 alt=""
                 draggable={false}
-                className={`h-full w-full object-cover object-center scale-105 ${
-                  slide.imageFit === "contain" ? "sm:object-contain sm:object-top sm:scale-100" : ""
-                }`}
+                className={`w-full ${isActive ? "h-auto" : "h-full object-cover object-center"}`}
               />
             )}
+            {(slide.eyebrow || slide.title || slide.showCta !== false) && (
             <div className="absolute inset-0 mx-auto flex max-w-7xl items-start justify-start p-3 sm:p-4 lg:p-5">
               <div className="max-w-md text-left">
                 {slide.eyebrow && (
@@ -190,8 +189,10 @@ export default function HeroCarousel({ slides }: HeroCarouselProps) {
                 )}
               </div>
             </div>
+            )}
           </div>
-        ))}
+          );
+        })}
 
         <div className="absolute bottom-3 left-1/2 z-20 flex -translate-x-1/2 items-center gap-2">
           {activeSlides.map((slide, index) => (

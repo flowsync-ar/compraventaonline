@@ -105,7 +105,7 @@ export default function SiteChrome({ children }: { children: ReactNode }) {
             la fila 2, debajo del nav — por eso comparten ancho exacto sin
             cálculos manuales, es la misma celda de grid. */}
       <header className={`${isDashboard ? "shrink-0" : "sticky top-0"} z-50 w-full border-b border-card-border bg-background/85 backdrop-blur-md`}>
-        <div className="grid grid-cols-1 xl:grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-4 gap-y-5 sm:gap-y-6 xl:gap-y-4 w-full px-4 sm:px-6 lg:px-8 pt-4 xl:pt-5 pb-4 xl:pb-2">
+        <div className={`grid grid-cols-1 xl:grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-4 w-full px-4 sm:px-6 lg:px-8 pt-1.5 ${isHomePage ? "gap-y-2 sm:gap-y-2 xl:gap-y-1 pb-0" : "gap-y-5 sm:gap-y-6 xl:gap-y-4 pb-4 xl:pb-2"}`}>
 
           {/* Grupo Logo + Sesión/Tema (se disuelve desde xl) */}
           <div className="flex xl:contents items-center justify-between gap-2">
@@ -213,7 +213,7 @@ export default function SiteChrome({ children }: { children: ReactNode }) {
               <HomeSearchBar />
             </div>
 
-            <nav className="hidden md:flex flex-wrap items-center justify-center gap-x-1 gap-y-1 min-w-0">
+            <nav className={`hidden md:flex flex-wrap items-center justify-center gap-x-1 gap-y-1 min-w-0 ${isHomePage ? "[&_a]:pb-0" : ""}`}>
               <Link href="/" className="px-3 py-1.5 rounded-lg text-sm font-semibold transition-all text-foreground/80 hover:text-accent-gold hover:bg-card-border/30">
                 Inicio
               </Link>

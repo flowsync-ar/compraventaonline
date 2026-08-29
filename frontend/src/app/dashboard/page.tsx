@@ -151,6 +151,7 @@ function DashboardPageContent() {
   // Live price/duration for the "Destacar" button label — editable from
   // /admin/configuracion (platform_settings), not hardcoded here.
   const [highlightSettings, setHighlightSettings] = useState({ price: 2000, durationDays: 30 });
+  const [listingIdToHighlight, setListingIdToHighlight] = useState<string | null>(null);
   // Buyer + purchase date for listings that sold out (status SOLD) — shown
   // next to the "Vendido" badge in "Mis Publicaciones".
   const [soldOrders, setSoldOrders] = useState<Record<string, { buyerName: string; paidAt: string }>>({});
@@ -2552,7 +2553,7 @@ function DashboardPageContent() {
                     </p>
                   ) : (
                     <p className="text-[11px] text-text-muted leading-relaxed">
-                      Destacar cuesta ${highlightSettings.price.toLocaleString("es-AR")} por producto. Usá la estrella del listado de artículos para pagarlo.
+                      Destacar cuesta ${highlightSettings.price.toLocaleString("es-AR")} por {highlightSettings.durationDays} días. El aviso entra al carrusel de portada, a Destacados y lleva el badge. Usá la estrella del listado para pagarlo.
                     </p>
                   )}
                 </div>
@@ -3571,7 +3572,7 @@ function DashboardPageContent() {
                                     </span>
                                   ) : (
                                     <button
-                                      onClick={() => handleHighlightListing(listing.id)}
+                                      onClick={() => setListingIdToHighlight(listing.id)}
                                       disabled={loading || highlightingListingId === listing.id}
                                       className="bg-card-bg border border-card-border text-foreground hover:text-accent-gold hover:border-accent-gold/40 h-8 w-8 rounded-lg flex items-center justify-center transition-all cursor-pointer disabled:opacity-50"
                                     >
@@ -3792,7 +3793,7 @@ function DashboardPageContent() {
                                 </span>
                               ) : (
                                 <button
-                                  onClick={() => handleHighlightListing(listing.id)}
+                                  onClick={() => setListingIdToHighlight(listing.id)}
                                   disabled={loading || highlightingListingId === listing.id}
                                   className="bg-card-bg border border-card-border text-foreground hover:text-accent-gold hover:border-accent-gold/40 h-8 w-8 rounded-lg flex items-center justify-center transition-all cursor-pointer disabled:opacity-50"
                                   aria-label={!!sellerProfile?.highlight_free ? "Destacar sin cargo" : `Destacar por $${highlightSettings.price.toLocaleString("es-AR")} (${highlightSettings.durationDays} días)`}
@@ -4585,6 +4586,31 @@ function DashboardPageContent() {
           onCancel={() => setListingIdToDelete(null)}
           isLoading={loading}
           type="danger"
+        />
+
+        <ConfirmModal
+          isOpen={listingIdToHighlight !== null}
+          title={
+            listingIdToHighlight
+              ? `¿Destacar “${myListings.find((l) => l.id === listingIdToHighlight)?.products?.name ?? "este aviso"}”?`
+              : "¿Destacar este aviso?"
+          }
+          description={
+            !!sellerProfile?.highlight_free
+              ? "Va a aparecer en el carrusel de portada, en Destacados y con el badge en la ficha. En tu cuenta el destacado no tiene cargo."
+              : `Va a aparecer en el carrusel de portada, en Destacados y con el badge en la ficha. $${highlightSettings.price.toLocaleString("es-AR")} por ${highlightSettings.durationDays} días.`
+          }
+          confirmText={!!sellerProfile?.highlight_free ? "Destacar ahora" : "Ir a pagar"}
+          cancelText="Cancelar"
+          onConfirm={() => {
+            if (listingIdToHighlight) {
+              const id = listingIdToHighlight;
+              setListingIdToHighlight(null);
+              handleHighlightListing(id);
+            }
+          }}
+          onCancel={() => setListingIdToHighlight(null)}
+          type="info"
         />
 
         <ConfirmModal

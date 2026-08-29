@@ -77,7 +77,7 @@ export default async function HomePage() {
   return (
     <div className="flex flex-col gap-3 pb-16">
 
-      <section className="relative">
+      <section className="relative bg-white">
         <h1 className="sr-only">CompraVentaOnline — marketplace de La Pampa</h1>
         <HeroCarousel slides={heroSlides} />
       </section>

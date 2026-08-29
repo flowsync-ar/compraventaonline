@@ -39,7 +39,7 @@ export default function AdminConsultasPage() {
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="font-heading text-2xl font-extrabold text-foreground">Consultas</h1>
-        <p className="text-sm text-text-muted mt-1">Mensajes del formulario de Ayuda / Soporte.</p>
+        <p className="text-sm text-text-muted mt-1">Mensajes de Ayuda / Soporte y de comercios que piden contacto.</p>
       </div>
 
       <div className="rounded-2xl glass-panel p-6 overflow-x-auto">

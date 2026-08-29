@@ -276,6 +276,9 @@ export default function SiteChrome({ children }: { children: ReactNode }) {
               <Link href="/envios" className="hover:text-accent-gold transition-colors">
                 Envíos & Logística
               </Link>
+              <Link href="/comercios" className="hover:text-accent-gold transition-colors">
+                Comercios
+              </Link>
             </div>
 
           </div>

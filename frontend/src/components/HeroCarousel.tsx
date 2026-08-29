@@ -121,7 +121,7 @@ export default function HeroCarousel({ slides }: HeroCarouselProps) {
   };
 
   return (
-    <div className="relative w-full">
+    <div className="relative mt-2.5 w-full">
       <div
         className="relative w-full overflow-hidden cursor-grab active:cursor-grabbing touch-pan-y"
         onPointerDown={handlePointerDown}

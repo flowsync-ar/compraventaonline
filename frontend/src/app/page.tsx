@@ -1,22 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import Link from "next/link";
-import Image from "next/image";
 import HeroCarousel, { type HeroSlide } from "@/components/HeroCarousel";
-import FavoriteButton from "@/components/FavoriteButton";
+import FeaturedListingsCarousel from "@/components/FeaturedListingsCarousel";
 import { fetchFeaturedListingCards, type FeaturedListingCard } from "@/lib/featuredListings";
-import { stripRichText } from "@/lib/richText";
-
-function tierEmoji(tier: string): string {
-  switch (tier.toUpperCase()) {
-    case "PREMIUM": return "💎";
-    case "GOLD":
-    case "ORO": return "🥇";
-    case "PLATA":
-    case "SILVER": return "🥈";
-    default: return "🥉";
-  }
-}
 
 async function getHeroSlides(): Promise<HeroSlide[]> {
   try {
@@ -51,11 +38,6 @@ async function getHeroSlides(): Promise<HeroSlide[]> {
 
 const HOME_FEATURED_LIMIT = 8;
 
-// Sellers with at least one PAID order — used to avoid showing the default
-// score/tier (DB default: score 80, tier BRONCE) as if it were an earned
-// reputation for sellers who never actually sold anything.
-// Uses the admin client: `orders` RLS only lets the buyer/seller read their
-// own rows, but this page is public and needs the full picture.
 async function getSellersWithSales(): Promise<Set<string>> {
   try {
     const supabase = createAdminClient();
@@ -93,39 +75,21 @@ export default async function HomePage() {
   ]);
 
   return (
-    <div className="flex flex-col gap-10 pb-16">
+    <div className="flex flex-col gap-3 pb-16">
 
-      {/* 1. Carousel + Hero Search */}
       <section className="relative">
+        <h1 className="sr-only">CompraVentaOnline — marketplace de La Pampa</h1>
         <HeroCarousel slides={heroSlides} />
-
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 text-center relative z-10 -mt-2 pt-2 pb-2 sm:pb-3">
-
-          <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-accent-gold/10 px-3 py-1 text-xs font-semibold text-accent-gold border border-accent-gold/20 mb-2 glow-gold mt-3">
-            El Primer Marketplace 100% Pampeano
-          </span>
-
-          <h1 className="font-heading text-3xl font-extrabold tracking-tight sm:text-5xl text-foreground max-w-3xl mx-auto leading-[1.1]">
-            Encontrá lo que buscas en <span className="bg-gradient-to-r from-accent-gold to-accent-blue bg-clip-text text-transparent">La Pampa</span>
-          </h1>
-
-          <p className="mt-4 text-sm sm:text-base text-text-muted max-w-xl mx-auto">
-            Comprá y vendé de forma segura y directa. Conectamos usuarios particulares y comercios de toda la provincia.
-          </p>
-
-        </div>
       </section>
 
-      {/* 2. Highlighted Listings Grid */}
-      <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 w-full -mt-2">
-        <div className="flex items-end justify-between border-b border-card-border pb-5 mb-8">
+      <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 w-full">
+        <div className="flex items-center justify-between pb-2 mb-3">
           <div>
-            <h2 className="font-heading text-2xl font-bold tracking-tight text-foreground">Publicaciones Destacadas</h2>
-            <p className="text-sm text-text-muted mt-1">Ofertas destacadas con excelente reputación de vendedor.</p>
+            <h2 className="font-heading text-xl font-bold tracking-tight text-foreground">Publicaciones Destacadas</h2>
           </div>
           {highlights.length > 0 && (
             <Link href="/destacados" className="text-xs font-bold text-accent-gold hover:text-accent-gold-hover hover:underline transition-all">
-              Ver todas las publicaciones →
+              Ver todas →
             </Link>
           )}
         </div>
@@ -137,102 +101,10 @@ export default async function HomePage() {
             <p className="text-text-muted text-xs mt-1">Sé el primero en publicar un artículo en La Pampa.</p>
           </div>
         ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {highlights.map((highlight) => {
-            const listing = highlight.listings;
-            if (!listing) return null;
-            const product = listing.products;
-            const seller = listing.sellers;
-            const image = product?.images?.[0] ?? "/sinimagen.webp";
-            const descriptionPreview = product?.description ? stripRichText(product.description) : "";
-            return (
-              <Link
-                key={highlight.id}
-                href={`/listings/${listing.id}`}
-                prefetch={false}
-                className="group flex flex-col rounded-2xl glass-card overflow-hidden relative cursor-pointer"
-              >
-                <FavoriteButton listingId={listing.id} />
-                {/* Badge Plan */}
-                {listing.featured_plan !== "FREE" && (
-                  <span className={`absolute top-3 left-3 z-10 rounded-lg px-2 py-0.5 text-[10px] font-extrabold tracking-wider text-white shadow-md uppercase ${
-                    listing.featured_plan === "PREMIUM" ? "bg-accent-gold" : "bg-accent-blue"
-                  }`}>
-                    {listing.featured_plan === "PREMIUM" ? "💎 PREMIUM" : "⚡ DESTACADO"}
-                  </span>
-                )}
-
-                {/* Image Container */}
-                <div className="h-48 w-full bg-card-bg overflow-hidden relative">
-                  <Image
-                    src={image}
-                    alt={product?.name ?? "Producto"}
-                    fill
-                    sizes="(max-width: 640px) 90vw, (max-width: 1024px) 45vw, 23vw"
-                    className="object-contain transition-transform duration-500 group-hover:scale-105"
-                  />
-                </div>
-
-                {/* Card Body */}
-                <div className="p-5 flex-1 flex flex-col gap-3">
-                  <div className="flex items-center justify-between text-[10px] font-bold text-text-muted uppercase">
-                    <span>{product?.categories?.name ?? "Sin categoría"}</span>
-                    <span className={`px-1.5 py-0.5 rounded ${listing.condition === "NEW" ? "bg-accent-green/10 text-accent-green" : "bg-text-muted/10 text-text-muted"}`}>
-                      {listing.condition === "NEW" ? "NUEVO" : "USADO"}
-                    </span>
-                  </div>
-
-                  <h3 className="font-heading font-bold text-sm text-foreground group-hover:text-accent-gold transition-colors line-clamp-1">
-                    {product?.name ?? "Sin nombre"}
-                  </h3>
-
-                  {descriptionPreview && (
-                    <p className="text-xs text-text-muted line-clamp-2 -mt-1 leading-relaxed">
-                      {descriptionPreview}
-                    </p>
-                  )}
-
-                  <div className="flex items-baseline gap-1 mt-auto">
-                    <span className="font-heading text-lg font-extrabold text-foreground">
-                      {listing.currencies?.symbol ?? "$"}
-                    </span>
-                    <span className="font-heading text-lg font-extrabold text-foreground">
-                      {listing.price.toLocaleString("es-AR", { minimumFractionDigits: 2 })}
-                    </span>
-                  </div>
-
-                  {/* Seller Bar */}
-                  <div className="border-t border-card-border/50 pt-3 mt-1 flex items-center justify-between">
-                    <div className="flex flex-col">
-                      <span className="text-[10px] font-bold text-foreground leading-none">
-                        {seller?.name ?? "Vendedor"}
-                      </span>
-                      {seller?.id && sellersWithSales.has(seller.id) ? (
-                        <span className="text-[8px] text-text-muted mt-0.5 uppercase">
-                          Reputación: {seller.tier}
-                        </span>
-                      ) : (
-                        <span className="text-[8px] text-text-muted mt-0.5 uppercase">
-                          🌱 Vendedor nuevo
-                        </span>
-                      )}
-                    </div>
-                    {seller?.id && sellersWithSales.has(seller.id) ? (
-                      <div className="flex items-center gap-0.5 text-xs text-accent-gold font-bold">
-                        <span>{tierEmoji(seller.tier)}</span>
-                        <span className="text-[10px]">{seller.score} pts</span>
-                      </div>
-                    ) : (
-                      <span className="text-[10px] font-semibold text-text-muted italic">Sin ventas aún</span>
-                    )}
-                  </div>
-
-                </div>
-
-              </Link>
-            );
-          })}
-        </div>
+          <FeaturedListingsCarousel
+            items={highlights}
+            sellerIdsWithSales={[...sellersWithSales]}
+          />
         )}
       </section>
 

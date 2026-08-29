@@ -1,31 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import Link from "next/link";
-
-type HighlightRow = {
-  id: string;
-  listings: {
-    id: string;
-    price: number;
-    condition: string;
-    featured_plan: string;
-    status: string;
-    products: {
-      name: string;
-      brand: string;
-      description: string;
-      images: string[] | null;
-      categories: { name: string } | null;
-    } | null;
-    sellers: {
-      id: string;
-      name: string;
-      score: number;
-      tier: string;
-    } | null;
-    currencies: { symbol: string } | null;
-  } | null;
-};
+import { fetchFeaturedListingCards, type FeaturedListingCard } from "@/lib/featuredListings";
+import { stripRichText } from "@/lib/richText";
 
 function tierEmoji(tier: string): string {
   switch (tier.toUpperCase()) {
@@ -38,64 +15,10 @@ function tierEmoji(tier: string): string {
   }
 }
 
-async function getHighlightedListings(): Promise<HighlightRow[]> {
+async function getHighlightedListings(): Promise<FeaturedListingCard[]> {
   try {
     const supabase = await createClient();
-    const now = new Date().toISOString();
-
-    const { data, error } = await supabase
-      .from("highlighted_products")
-      .select(`
-        id,
-        listings (
-          id,
-          price,
-          condition,
-          featured_plan,
-          status,
-          products (
-            name,
-            brand,
-            description,
-            images,
-            categories ( name )
-          ),
-          sellers (
-            id,
-            name,
-            score,
-            tier
-          ),
-          currencies ( symbol )
-        )
-      `)
-      .gt("end_date", now);
-
-    if (error) {
-      console.error("[destacados] Error fetching highlights:", error.message);
-      return [];
-    }
-    if (!data) return [];
-
-    // highlighted_products has no idea if the underlying listing sold out
-    // or got paused/removed since it was featured — filter those out here,
-    // same purchasable set as PURCHASABLE_STATUSES in api/orders/route.ts.
-    const purchasable = (data as unknown as HighlightRow[]).filter(
-      (h) => h.listings?.status === "APPROVED" || h.listings?.status === "ACTIVE"
-    );
-
-    // Sort: PREMIUM first, then FEATURED. The plan lives on
-    // listings.featured_plan, not on highlighted_products (that table only
-    // tracks the highlight's validity window).
-    const sorted = purchasable.sort((a, b) => {
-      const aPremium = a.listings?.featured_plan === "PREMIUM";
-      const bPremium = b.listings?.featured_plan === "PREMIUM";
-      if (aPremium && !bPremium) return -1;
-      if (!aPremium && bPremium) return 1;
-      return 0;
-    });
-
-    return sorted;
+    return await fetchFeaturedListingCards(supabase);
   } catch (err) {
     console.error("[destacados] Unexpected error fetching highlights:", err);
     return [];
@@ -181,6 +104,7 @@ export default async function DestacadosPage() {
             const product = item.products;
             const seller = item.sellers;
             const image = product?.images?.[0] ?? "/sinimagen.webp";
+            const descriptionPreview = product?.description ? stripRichText(product.description) : "";
 
             return (
               <Link
@@ -226,9 +150,11 @@ export default async function DestacadosPage() {
                     <h3 className="font-heading text-sm font-bold text-foreground group-hover:text-accent-gold transition-colors line-clamp-2">
                       {product?.name ?? "Sin nombre"}
                     </h3>
-                    <p className="text-text-muted text-[11px] line-clamp-3 leading-relaxed">
-                      {product?.description}
-                    </p>
+                    {descriptionPreview && (
+                      <p className="text-text-muted text-[11px] line-clamp-3 leading-relaxed">
+                        {descriptionPreview}
+                      </p>
+                    )}
                   </div>
 
                   {/* Seller & Reputation details */}

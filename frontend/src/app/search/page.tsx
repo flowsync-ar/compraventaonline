@@ -7,6 +7,7 @@ import FavoriteButton from "../../components/FavoriteButton";
 import FiltersAccordion from "../../components/FiltersAccordion";
 import { LA_PAMPA_CITIES } from "@/lib/constants/laPampaCities";
 import { getCachedCategories, buildChildrenMap } from "@/lib/categories";
+import { stripRichText } from "@/lib/richText";
 
 // Builds the numbered page list with "…" gaps, e.g. for current=10,
 // total=42: [1, "…", 5,6,7,8,9,10,11,12,13,14,15, "…", 42]. First/last
@@ -448,6 +449,7 @@ export default async function SearchPage({
               {listings.map((listing) => {
                 const product = listing.products;
                 const image = product?.images?.[0] ?? "/sinimagen.webp";
+                const descriptionPreview = product?.description ? stripRichText(product.description) : "";
                 return (
                   <Link key={listing.id} href={`/listings/${listing.id}`} prefetch={false} className="group flex flex-col rounded-2xl glass-card overflow-hidden relative cursor-pointer">
                     {listing.featured_plan !== "FREE" && (
@@ -476,9 +478,11 @@ export default async function SearchPage({
                       <h3 className="font-heading font-bold text-sm text-foreground group-hover:text-accent-gold transition-colors line-clamp-1">
                         {product?.name ?? "Sin nombre"}
                       </h3>
-                      <p className="text-xs text-text-muted line-clamp-2 -mt-1 leading-relaxed">
-                        {product?.description}
-                      </p>
+                      {descriptionPreview && (
+                        <p className="text-xs text-text-muted line-clamp-2 -mt-1 leading-relaxed">
+                          {descriptionPreview}
+                        </p>
+                      )}
 
                       {/* Quién vendE queda para el detalle de la
                           publicación — esta tarjeta es solo un vistazo

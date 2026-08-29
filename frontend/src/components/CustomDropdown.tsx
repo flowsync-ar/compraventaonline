@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, type CSSProperties } from "react";
+import { createPortal } from "react-dom";
 
 interface DropdownOption {
   name: string;
@@ -20,6 +21,10 @@ interface Props {
   name: string;
   placeholder?: string;
   showSearch?: boolean;
+  // When the user types in the search box, filter this list instead of
+  // `options`. Used to keep the idle menu short (e.g. root categories)
+  // while still matching nested items (subcategories of subcategories).
+  searchOptions?: DropdownOption[];
   onChange?: (value: string) => void;
   // Overrides the trigger button's classes entirely — for contexts like a
   // seamless pill segment where the boxed default (bg/border/rounded) would
@@ -29,6 +34,25 @@ interface Props {
   // Useful when the trigger sits in a narrow segment but the option list
   // (e.g. long category names) needs more room to stay readable.
   panelWidthClassName?: string;
+  // Open the panel on first mount (e.g. after "otra categoría" so the
+  // seller lands on the root category picker without an extra click).
+  openOnMount?: boolean;
+}
+
+function normalizeForSearch(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function optionMatchesQuery(opt: DropdownOption, query: string): boolean {
+  const tokens = normalizeForSearch(query).split(/[^a-z0-9]+/).filter(Boolean);
+  if (tokens.length === 0) return true;
+  const words = normalizeForSearch([opt.name, opt.value, opt.groupLabel].filter(Boolean).join(" "))
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean);
+  return tokens.every((token) => words.some((word) => word.startsWith(token)));
 }
 
 const DEFAULT_TRIGGER_CLASSNAME =
@@ -40,30 +64,75 @@ export default function CustomDropdown({
   name,
   placeholder = "Buscar...",
   showSearch = false,
+  searchOptions,
   onChange,
   triggerClassName,
   panelWidthClassName = "w-full",
+  openOnMount = false,
 }: Props) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const [selected, setSelected] = useState<DropdownOption>(
-    options.find((o) => o.value === defaultValue) || options[0] || { name: "", value: "" }
-  );
+  const [panelStyle, setPanelStyle] = useState<CSSProperties>({});
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const [selected, setSelected] = useState<DropdownOption>(() => {
+    const pool = searchOptions ? [...options, ...searchOptions] : options;
+    return pool.find((o) => o.value === defaultValue) || options[0] || { name: "", value: "" };
+  });
 
-  // Sync selection if defaultValue or options change
+  // Sync selection if defaultValue or options change. searchOptions is
+  // included so a nested pick (not in the idle root list) still restores
+  // from a URL param like ?category=vinos-y-espumantes.
   useEffect(() => {
-    const matched = options.find((o) => o.value === defaultValue);
+    const pool = searchOptions ? [...options, ...searchOptions] : options;
+    const matched = pool.find((o) => o.value === defaultValue);
     if (matched) {
       setSelected(matched); // eslint-disable-line react-hooks/set-state-in-effect
     } else if (options[0]) {
       setSelected(options[0]);
     }
-  }, [defaultValue, options]);
+  }, [defaultValue, options, searchOptions]);
 
-  const filtered = options.filter((opt) => {
-    if (!showSearch) return true;
-    return opt.name.toLowerCase().includes(search.toLowerCase()) || 
-           opt.value.toLowerCase().includes(search.toLowerCase());
+  useEffect(() => {
+    if (!openOnMount) return;
+    setIsOpen(true);
+    setSearch("");
+    triggerRef.current?.focus();
+  }, [openOnMount]);
+
+  useLayoutEffect(() => {
+    if (!isOpen) return;
+    const place = () => {
+      const el = triggerRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - r.bottom;
+      const openUp = spaceBelow < 280 && r.top > spaceBelow;
+      const wide = panelWidthClassName.includes("w-max");
+      setPanelStyle({
+        position: "fixed",
+        left: r.left,
+        top: openUp ? undefined : r.bottom + 8,
+        bottom: openUp ? window.innerHeight - r.top + 8 : undefined,
+        zIndex: 80,
+        width: wide ? undefined : r.width,
+        minWidth: r.width,
+        maxWidth: panelWidthClassName.includes("max-w-xs") ? 320 : undefined,
+      });
+    };
+    place();
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    return () => {
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
+    };
+  }, [isOpen, panelWidthClassName]);
+
+  const hasQuery = normalizeForSearch(search).length > 0;
+  const listForSearch = showSearch && hasQuery && searchOptions ? searchOptions : options;
+  const filtered = listForSearch.filter((opt) => {
+    if (!showSearch || !hasQuery) return true;
+    return optionMatchesQuery(opt, search);
   });
 
   return (
@@ -74,6 +143,7 @@ export default function CustomDropdown({
       {/* Trigger Button */}
       <button
         type="button"
+        ref={triggerRef}
         onClick={() => {
           // Clear any leftover search text from a previous open/close cycle
           // that ended without picking an option — otherwise it silently
@@ -90,12 +160,13 @@ export default function CustomDropdown({
       </button>
 
       {/* Dropdown panel */}
-      {isOpen && (
+      {isOpen &&
+        createPortal(
         <>
           {/* Backdrop to close click outside */}
           <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
           
-          <div className={`absolute left-0 mt-2 ${panelWidthClassName} rounded-2xl bg-card-bg-solid border border-card-border p-3 shadow-2xl z-50 flex flex-col gap-2 animate-in fade-in slide-in-from-top-2 duration-200`}>
+          <div style={panelStyle} className="rounded-2xl bg-card-bg-solid border border-card-border p-3 shadow-2xl flex flex-col gap-2 animate-in fade-in slide-in-from-top-2 duration-200">
             {/* Search Input inside Dropdown */}
             {showSearch && (
               <div className="relative">
@@ -159,7 +230,8 @@ export default function CustomDropdown({
               )}
             </div>
           </div>
-        </>
+        </>,
+        document.body
       )}
     </div>
   );

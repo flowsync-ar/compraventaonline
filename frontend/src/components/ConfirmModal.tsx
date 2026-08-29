@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { createPortal } from "react-dom";
 
 interface ConfirmModalProps {
   isOpen: boolean;
@@ -25,7 +26,7 @@ export default function ConfirmModal({
   isLoading = false,
   type = "info",
 }: ConfirmModalProps) {
-  if (!isOpen) return null;
+  if (!isOpen || typeof document === "undefined") return null;
 
   // Icono y estilos de botón según el tipo
   let icon = (
@@ -51,9 +52,9 @@ export default function ConfirmModal({
     confirmBtnClass = "rounded-xl bg-yellow-500 hover:bg-yellow-600 px-4 py-2 text-xs font-bold text-white shadow-md transition-all disabled:opacity-50 cursor-pointer";
   }
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div className="w-full max-w-md rounded-2xl glass-panel border border-card-border p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+  return createPortal(
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="w-full max-w-md rounded-2xl glass-panel border border-card-border p-6 shadow-2xl">
         <div className="flex items-start gap-4">
           <div className="p-2 rounded-xl bg-card-bg border border-card-border flex items-center justify-center shrink-0">
             {icon}
@@ -85,6 +86,7 @@ export default function ConfirmModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

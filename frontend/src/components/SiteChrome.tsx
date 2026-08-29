@@ -17,6 +17,7 @@ export default function SiteChrome({ children }: { children: ReactNode }) {
   const router = useRouter()
   const isAdmin = pathname?.startsWith("/admin")
   const isMaintenance = pathname === "/mantenimiento"
+  const isDashboard = !!pathname?.startsWith("/dashboard")
   const isHomePage = pathname === "/"
   // "/" only matches the home page itself — every other route starts with
   // "/" too, so a plain startsWith would light up "Inicio" everywhere.
@@ -87,7 +88,7 @@ export default function SiteChrome({ children }: { children: ReactNode }) {
   }
 
   return (
-    <>
+    <div className={isDashboard ? "flex h-dvh flex-col overflow-hidden" : ""}>
       {/* Navigation Header */}
       {/* One grid, two arrangements — no duplicated logo/session/search:
           - <lg (celulares y tablets chicas): 1 columna, todo apilado. El
@@ -103,7 +104,7 @@ export default function SiteChrome({ children }: { children: ReactNode }) {
             de la fila 1; el buscador toma la MISMA columna central pero en
             la fila 2, debajo del nav — por eso comparten ancho exacto sin
             cálculos manuales, es la misma celda de grid. */}
-      <header className="sticky top-0 z-50 w-full border-b border-card-border bg-background/85 backdrop-blur-md">
+      <header className={`${isDashboard ? "shrink-0" : "sticky top-0"} z-50 w-full border-b border-card-border bg-background/85 backdrop-blur-md`}>
         <div className="grid grid-cols-1 xl:grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-4 gap-y-5 sm:gap-y-6 xl:gap-y-4 w-full px-4 sm:px-6 lg:px-8 pt-4 xl:pt-5 pb-4 xl:pb-2">
 
           {/* Grupo Logo + Sesión/Tema (se disuelve desde xl) */}
@@ -241,11 +242,14 @@ export default function SiteChrome({ children }: { children: ReactNode }) {
       </header>
 
       {/* Main Workspace */}
-      <main className="flex-1">
+      <main className={isDashboard ? "flex min-h-0 flex-1 flex-col overflow-hidden" : "flex-1"}>
         {children}
       </main>
 
-      {/* Premium Footer */}
+      {/* Premium Footer — hidden on the seller dashboard so the publish
+          form can sit in a viewport-height frame instead of scrolling
+          the whole marketplace chrome. */}
+      {!isDashboard && (
       <footer className="border-t border-card-border bg-background py-8">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col items-center justify-between gap-6 sm:flex-row">
@@ -282,6 +286,7 @@ export default function SiteChrome({ children }: { children: ReactNode }) {
           </div>
         </div>
       </footer>
-    </>
+      )}
+    </div>
   )
 }

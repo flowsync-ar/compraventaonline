@@ -10,6 +10,7 @@ import { createClient } from "@/lib/supabase/client";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getAncestors, type CategoryNode } from "@/lib/categories";
 import { getOrCreateVisitorId } from "@/lib/visitorId";
+import RichTextDisplay from "@/components/RichTextDisplay";
 
 interface Listing {
   id: string;
@@ -800,7 +801,9 @@ export default function ListingDetailPage() {
 
             {activeTab === "desc" ? (
               <div className="text-xs text-foreground/90 leading-relaxed space-y-4">
-                <p className="whitespace-pre-line">{product?.description}</p>
+                {product?.description ? (
+                  <RichTextDisplay html={product.description} />
+                ) : null}
                 <div className="border-t border-card-border/50 pt-4 mt-6 grid grid-cols-2 gap-4">
                   <div>
                     <span className="text-[10px] text-text-muted block uppercase">Marca</span>

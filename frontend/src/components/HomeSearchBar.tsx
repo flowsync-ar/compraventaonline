@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { LA_PAMPA_CITIES } from "@/lib/constants/laPampaCities";
@@ -10,8 +10,10 @@ const DROPDOWN_TRIGGER_CLASSNAME =
   "w-full bg-transparent text-sm font-semibold text-foreground text-left outline-none cursor-pointer select-none flex items-center justify-between gap-1";
 
 interface Category {
+  id: string;
   name: string;
   slug: string;
+  parent_id: string | null;
 }
 
 // Lives in the header (SiteChrome, a client component rendered on every
@@ -29,8 +31,7 @@ export default function HomeSearchBar() {
     const supabase = createClient();
     supabase
       .from("categories")
-      .select("name, slug")
-      .is("parent_id", null)
+      .select("id, name, slug, parent_id")
       .order("name", { ascending: true })
       .then(({ data, error }) => {
         if (error) {
@@ -40,6 +41,33 @@ export default function HomeSearchBar() {
         setCategories(data ?? []);
       });
   }, []);
+
+  const rootOptions = useMemo(
+    () => [
+      { name: "Todas las categorías", value: "" },
+      ...categories.filter((c) => !c.parent_id).map((c) => ({ name: c.name, value: c.slug })),
+    ],
+    [categories]
+  );
+
+  const categorySearchOptions = useMemo(() => {
+    const byId = new Map(categories.map((c) => [c.id, c]));
+    return categories.map((c) => {
+      const parents: string[] = [];
+      let current = c.parent_id ? byId.get(c.parent_id) : undefined;
+      const seen = new Set<string>();
+      while (current && !seen.has(current.id)) {
+        seen.add(current.id);
+        parents.unshift(current.name);
+        current = current.parent_id ? byId.get(current.parent_id) : undefined;
+      }
+      return {
+        name: c.name,
+        value: c.slug,
+        groupLabel: parents.length > 0 ? parents.join(" › ") : undefined,
+      };
+    });
+  }, [categories]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,10 +115,8 @@ export default function HomeSearchBar() {
             placeholder="Buscar categoría..."
             triggerClassName={DROPDOWN_TRIGGER_CLASSNAME}
             panelWidthClassName="w-max min-w-full max-w-xs"
-            options={[
-              { name: "Todas las categorías", value: "" },
-              ...categories.map((c) => ({ name: c.name, value: c.slug })),
-            ]}
+            options={rootOptions}
+            searchOptions={categorySearchOptions}
           />
         </div>
 

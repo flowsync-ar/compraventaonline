@@ -4,31 +4,8 @@ import Link from "next/link";
 import Image from "next/image";
 import HeroCarousel, { type HeroSlide } from "@/components/HeroCarousel";
 import FavoriteButton from "@/components/FavoriteButton";
-
-type HighlightRow = {
-  id: string;
-  listings: {
-    id: string;
-    price: number;
-    condition: string;
-    featured_plan: string;
-    status: string;
-    products: {
-      name: string;
-      brand: string;
-      description: string;
-      images: string[] | null;
-      categories: { name: string } | null;
-    } | null;
-    sellers: {
-      id: string;
-      name: string;
-      score: number;
-      tier: string;
-    } | null;
-    currencies: { symbol: string } | null;
-  } | null;
-};
+import { fetchFeaturedListingCards, type FeaturedListingCard } from "@/lib/featuredListings";
+import { stripRichText } from "@/lib/richText";
 
 function tierEmoji(tier: string): string {
   switch (tier.toUpperCase()) {
@@ -98,70 +75,12 @@ async function getSellersWithSales(): Promise<Set<string>> {
   }
 }
 
-async function getFeaturedListings(): Promise<HighlightRow[]> {
+async function getFeaturedListings(): Promise<FeaturedListingCard[]> {
   try {
     const supabase = await createClient();
-    const now = new Date().toISOString();
-
-    // Same source of truth as /destacados: highlighted_products with a
-    // still-valid end_date. Supabase can't .limit() correctly on a table
-    // with a nested relation + a JS-side sort, so we fetch all active
-    // highlights and slice after sorting (mirrors /destacados' approach).
-    const { data, error } = await supabase
-      .from("highlighted_products")
-      .select(`
-        id,
-        listings (
-          id,
-          price,
-          condition,
-          featured_plan,
-          status,
-          products (
-            name,
-            brand,
-            description,
-            images,
-            categories ( name )
-          ),
-          sellers (
-            id,
-            name,
-            score,
-            tier
-          ),
-          currencies ( symbol )
-        )
-      `)
-      .gt("end_date", now);
-
-    if (error) {
-      console.error("[home] Error fetching highlighted_products:", error.message);
-      return [];
-    }
-    if (!data) return [];
-
-    // highlighted_products has no idea if the underlying listing sold out
-    // or got paused/removed since it was featured — filter those out here,
-    // same purchasable set as PURCHASABLE_STATUSES in api/orders/route.ts.
-    const purchasable = (data as unknown as HighlightRow[]).filter(
-      (h) => h.listings?.status === "APPROVED" || h.listings?.status === "ACTIVE"
-    );
-
-    // Sort: PREMIUM first, then FEATURED/DESTACADO. The plan lives on
-    // listings.featured_plan, not on highlighted_products (that table only
-    // tracks the highlight's validity window — see /destacados).
-    const sorted = purchasable.sort((a, b) => {
-      const aPremium = a.listings?.featured_plan === "PREMIUM";
-      const bPremium = b.listings?.featured_plan === "PREMIUM";
-      if (aPremium && !bPremium) return -1;
-      if (!aPremium && bPremium) return 1;
-      return 0;
-    });
-
-    return sorted.slice(0, HOME_FEATURED_LIMIT);
+    return await fetchFeaturedListingCards(supabase, HOME_FEATURED_LIMIT);
   } catch (err) {
-    console.error("[home] Unexpected error fetching highlighted_products:", err);
+    console.error("[home] Unexpected error fetching featured listings:", err);
     return [];
   }
 }
@@ -225,6 +144,7 @@ export default async function HomePage() {
             const product = listing.products;
             const seller = listing.sellers;
             const image = product?.images?.[0] ?? "/sinimagen.webp";
+            const descriptionPreview = product?.description ? stripRichText(product.description) : "";
             return (
               <Link
                 key={highlight.id}
@@ -266,9 +186,11 @@ export default async function HomePage() {
                     {product?.name ?? "Sin nombre"}
                   </h3>
 
-                  <p className="text-xs text-text-muted line-clamp-2 -mt-1 leading-relaxed">
-                    {product?.description}
-                  </p>
+                  {descriptionPreview && (
+                    <p className="text-xs text-text-muted line-clamp-2 -mt-1 leading-relaxed">
+                      {descriptionPreview}
+                    </p>
+                  )}
 
                   <div className="flex items-baseline gap-1 mt-auto">
                     <span className="font-heading text-lg font-extrabold text-foreground">

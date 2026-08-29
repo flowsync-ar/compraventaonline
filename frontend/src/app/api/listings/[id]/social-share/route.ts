@@ -5,6 +5,7 @@ import sharp from "sharp"
 import { createClient as createServerClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { requireSeller } from "@/lib/supabase/seller-guard"
+import { stripRichText } from "@/lib/richText"
 
 const VALID_PLATFORMS = ["INSTAGRAM", "FACEBOOK", "TIKTOK"] as const
 type Platform = (typeof VALID_PLATFORMS)[number]
@@ -132,7 +133,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     origin: request.nextUrl.origin,
     listingId,
     productName: product?.name ?? "Mi publicación",
-    description: product?.description ?? null,
+    description: product?.description ? stripRichText(product.description) : null,
   })
 
   return NextResponse.json({

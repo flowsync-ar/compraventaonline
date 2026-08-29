@@ -5,7 +5,41 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import SellerAvatar from "./SellerAvatar"
+import ConfirmModal from "./ConfirmModal"
 import type { SellerRow, QuestionWithBuyer, AnsweredQuestionForBuyer } from "@/lib/supabase/types"
+import {
+  type NotifKind,
+  type NotifTray,
+  loadNotifTray,
+  saveNotifTray,
+  emptyNotifTray,
+  isClosed,
+  isDeleted,
+  isOutOfInbox,
+  closeNotif,
+  restoreNotif,
+  deleteNotif,
+  emptyClosed,
+  closedCount,
+} from "@/lib/notificationTray"
+
+function NotifCloseButton({ onClick, label = "Cerrar notificación" }: { onClick: () => void; label?: string }) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        onClick()
+      }}
+      className="shrink-0 h-5 w-5 rounded-md text-text-muted hover:text-foreground hover:bg-card-border/40 text-[11px] font-bold leading-none cursor-pointer"
+      title={label}
+      aria-label={label}
+    >
+      ✕
+    </button>
+  )
+}
 
 interface SaleNotification {
   id: string
@@ -43,6 +77,7 @@ export default function HeaderSessionBar() {
   // 2) "answeredNotifications": questions THIS user asked elsewhere that just
   //    got answered (they read). Same bell, same panel, different sections.
   const [showNotifications, setShowNotifications] = useState(false)
+  const [notifTab, setNotifTab] = useState<"inbox" | "closed">("inbox")
   const [notifications, setNotifications] = useState<QuestionWithBuyer[]>([])
   const [answeredNotifications, setAnsweredNotifications] = useState<AnsweredQuestionForBuyer[]>([])
   const [unreadReceivedCount, setUnreadReceivedCount] = useState(0)
@@ -54,6 +89,8 @@ export default function HeaderSessionBar() {
   // dashboard section already uses; no separate read-tracking column.
   const [salesNotifications, setSalesNotifications] = useState<SaleNotification[]>([])
   const [unreadSalesCount, setUnreadSalesCount] = useState(0)
+  const [notifTray, setNotifTray] = useState<NotifTray>(emptyNotifTray)
+  const [confirmEmptyClosed, setConfirmEmptyClosed] = useState(false)
   const unreadCount = unreadReceivedCount + unreadAnsweredCount + unreadSalesCount
   const [replyingToId, setReplyingToId] = useState<string | null>(null)
   const [replyText, setReplyText] = useState("")
@@ -82,23 +119,24 @@ export default function HeaderSessionBar() {
     return () => document.removeEventListener("mousedown", handleClickOutside)
   }, [])
 
-  // Load cart from localStorage (cart is not auth-gated)
+  // Load cart from localStorage (cart is not auth-gated). Older builds
+  // wrote a fake demo cart (miel + salame, ids l1/l2) whenever storage
+  // was empty — strip those leftovers so a real session starts empty.
   const loadCart = () => {
     const saved = localStorage.getItem("cart")
-    if (saved) {
-      try {
-        setCartItems(JSON.parse(saved))
-      } catch {
-        // ignore malformed cart
+    if (!saved) {
+      setCartItems([])
+      return
+    }
+    try {
+      const parsed = JSON.parse(saved) as { id?: string }[]
+      const real = parsed.filter((item) => item.id !== "l1" && item.id !== "l2")
+      if (real.length !== parsed.length) {
+        localStorage.setItem("cart", JSON.stringify(real))
       }
-    } else {
-      // Default demo cart
-      const defaultCart = [
-        { id: "l1", name: "Miel de Caldén Orgánica", price: 15000, quantity: 1, currencySymbol: "$" },
-        { id: "l2", name: "Salame Casero de Campo", price: 8500, quantity: 2, currencySymbol: "$" },
-      ]
-      localStorage.setItem("cart", JSON.stringify(defaultCart))
-      setCartItems(defaultCart)
+      setCartItems(real as typeof cartItems)
+    } catch {
+      setCartItems([])
     }
   }
 
@@ -121,6 +159,38 @@ export default function HeaderSessionBar() {
       return
     }
     setProfile(data)
+  }
+
+  const persistTray = (updater: (prev: NotifTray) => NotifTray) => {
+    setNotifTray((prev) => {
+      const next = updater(prev)
+      if (profile) saveNotifTray(profile.id, next)
+      return next
+    })
+  }
+
+  const handleCloseNotif = (kind: NotifKind, id: string) => {
+    persistTray((prev) => closeNotif(prev, kind, id))
+    if (kind === "sale") setUnreadSalesCount((c) => Math.max(0, c - 1))
+    if (kind === "answered") setUnreadAnsweredCount((c) => Math.max(0, c - 1))
+    if (kind === "question") {
+      const q = notifications.find((n) => n.id === id)
+      if (q && !q.is_read_by_seller) setUnreadReceivedCount((c) => Math.max(0, c - 1))
+    }
+  }
+
+  const handleRestoreNotif = (kind: NotifKind, id: string) => {
+    persistTray((prev) => restoreNotif(prev, kind, id))
+    if (kind === "sale") setUnreadSalesCount((c) => c + 1)
+    if (kind === "answered") setUnreadAnsweredCount((c) => c + 1)
+    if (kind === "question") {
+      const q = notifications.find((n) => n.id === id)
+      if (q && !q.is_read_by_seller) setUnreadReceivedCount((c) => c + 1)
+    }
+  }
+
+  const handleDeleteClosed = (kind: NotifKind, id: string) => {
+    persistTray((prev) => deleteNotif(prev, kind, id))
   }
 
   // Auth state — subscribe to Supabase session changes
@@ -173,6 +243,14 @@ export default function HeaderSessionBar() {
     window.addEventListener("profile-updated", handleProfileUpdated)
     return () => window.removeEventListener("profile-updated", handleProfileUpdated)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!profile) {
+      setNotifTray(emptyNotifTray())
+      return
+    }
+    setNotifTray(loadNotifTray(profile.id))
+  }, [profile?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load notifications when the panel opens
   useEffect(() => {
@@ -261,6 +339,8 @@ export default function HeaderSessionBar() {
     }
 
     const checkUnread = async () => {
+      const tray = loadNotifTray(profile.id)
+
       const { data: listingIds } = await getSupabase()
         .from("listings")
         .select("id")
@@ -269,31 +349,37 @@ export default function HeaderSessionBar() {
       if (!listingIds?.length) {
         setUnreadReceivedCount(0)
       } else {
-        const { count } = await getSupabase()
+        const { data: unreadQs } = await getSupabase()
           .from("questions")
-          .select("id", { count: "exact", head: true })
+          .select("id")
           .in("listing_id", listingIds.map((l) => l.id))
           .eq("is_read_by_seller", false)
 
-        setUnreadReceivedCount(count ?? 0)
+        setUnreadReceivedCount(
+          (unreadQs ?? []).filter((q) => !isOutOfInbox(tray, "question", q.id)).length
+        )
       }
 
-      const { count: answeredCount } = await getSupabase()
+      const { data: answeredRows } = await getSupabase()
         .from("questions")
-        .select("id", { count: "exact", head: true })
+        .select("id")
         .eq("buyer_id", profile.id)
         .eq("is_read_by_buyer", false)
         .not("answer", "is", null)
 
-      setUnreadAnsweredCount(answeredCount ?? 0)
+      setUnreadAnsweredCount(
+        (answeredRows ?? []).filter((q) => !isOutOfInbox(tray, "answered", q.id)).length
+      )
 
-      const { count: salesCount } = await getSupabase()
+      const { data: saleRows } = await getSupabase()
         .from("orders")
-        .select("id", { count: "exact", head: true })
+        .select("id")
         .eq("seller_id", profile.id)
         .eq("status", "PENDING")
 
-      setUnreadSalesCount(salesCount ?? 0)
+      setUnreadSalesCount(
+        (saleRows ?? []).filter((s) => !isOutOfInbox(tray, "sale", s.id)).length
+      )
     }
 
     checkUnread()
@@ -480,6 +566,14 @@ export default function HeaderSessionBar() {
 
   const totalItems = cartItems.reduce((acc, item) => acc + item.quantity, 0)
   const totalPrice = cartItems.reduce((acc, item) => acc + item.price * item.quantity, 0)
+
+  const inboxSales = salesNotifications.filter((s) => !isOutOfInbox(notifTray, "sale", s.id))
+  const inboxAnswered = answeredNotifications.filter((n) => !isOutOfInbox(notifTray, "answered", n.id))
+  const inboxQuestions = notifications.filter((n) => !isOutOfInbox(notifTray, "question", n.id))
+  const closedSales = salesNotifications.filter((s) => isClosed(notifTray, "sale", s.id))
+  const closedAnswered = answeredNotifications.filter((n) => isClosed(notifTray, "answered", n.id))
+  const closedQuestions = notifications.filter((n) => isClosed(notifTray, "question", n.id))
+  const closedTotal = closedSales.length + closedAnswered.length + closedQuestions.length
 
   if (!mounted) {
     // SSR placeholder to avoid layout shifts
@@ -732,6 +826,7 @@ export default function HeaderSessionBar() {
             <button
               onClick={() => {
                 setShowNotifications(!showNotifications)
+                setNotifTab("inbox")
                 setShowCart(false)
                 setShowUserMenu(false)
               }}
@@ -750,39 +845,70 @@ export default function HeaderSessionBar() {
             </button>
 
             {showNotifications && (
-              <div className="fixed md:absolute right-4 left-4 md:right-0 md:left-auto top-[125px] md:top-auto md:mt-3 w-auto md:w-96 rounded-2xl bg-card-bg-solid border border-card-border p-4 shadow-2xl z-50 flex flex-col gap-3 max-h-[70vh] overflow-y-auto animate-in fade-in slide-in-from-top-2 duration-200">
-                {salesNotifications.length > 0 && (
+              <div className="fixed md:absolute right-4 left-4 md:right-0 md:left-auto top-[125px] md:top-auto md:mt-3 w-auto md:w-96 rounded-2xl bg-card-bg-solid border border-card-border p-4 shadow-2xl z-50 flex flex-col gap-3 max-h-[70vh] animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="flex shrink-0 border-b border-card-border">
+                  <button
+                    type="button"
+                    onClick={() => setNotifTab("inbox")}
+                    className={`flex-1 pb-2.5 text-[11px] font-extrabold uppercase tracking-wider cursor-pointer border-b-2 transition-colors ${
+                      notifTab === "inbox"
+                        ? "border-accent-gold text-foreground"
+                        : "border-transparent text-text-muted hover:text-foreground"
+                    }`}
+                  >
+                    Nuevas{unreadCount > 0 ? ` (${unreadCount})` : ""}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNotifTab("closed")}
+                    className={`flex-1 pb-2.5 text-[11px] font-extrabold uppercase tracking-wider cursor-pointer border-b-2 transition-colors ${
+                      notifTab === "closed"
+                        ? "border-accent-gold text-foreground"
+                        : "border-transparent text-text-muted hover:text-foreground"
+                    }`}
+                  >
+                    Cerradas{closedCount(notifTray) > 0 ? ` (${closedCount(notifTray)})` : ""}
+                  </button>
+                </div>
+
+                <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
+                {notifTab === "inbox" && inboxSales.length > 0 && (
                   <>
                     <div className="flex justify-between items-center border-b border-card-border/30 pb-2">
                       <span className="text-xs font-heading font-extrabold text-foreground uppercase tracking-wider">💰 Ventas Nuevas</span>
                     </div>
 
                     <div className="flex flex-col gap-3 pr-1">
-                      {salesNotifications.map((sale) => (
-                        <Link
+                      {inboxSales.map((sale) => (
+                        <div
                           key={sale.id}
-                          href="/ventas"
-                          onClick={() => setShowNotifications(false)}
-                          className="p-3 rounded-xl border bg-accent-gold/5 border-accent-gold/20 flex flex-col gap-1 text-xs hover:border-accent-gold/40 transition-colors"
+                          className="p-3 rounded-xl border bg-accent-gold/5 border-accent-gold/20 flex flex-col gap-1 text-xs"
                         >
-                          <div className="flex justify-between items-start gap-3">
-                            <span className="font-bold text-foreground line-clamp-1">
+                          <div className="flex justify-between items-start gap-2">
+                            <Link
+                              href="/ventas"
+                              onClick={() => setShowNotifications(false)}
+                              className="font-bold text-foreground line-clamp-1 hover:text-accent-gold"
+                            >
                               {sale.listings?.products?.name ?? "Publicación"}
-                            </span>
-                            <span className="text-[9px] text-text-muted shrink-0">
-                              {new Date(sale.created_at).toLocaleDateString("es-AR")}
-                            </span>
+                            </Link>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <span className="text-[9px] text-text-muted">
+                                {new Date(sale.created_at).toLocaleDateString("es-AR")}
+                              </span>
+                              <NotifCloseButton onClick={() => handleCloseNotif("sale", sale.id)} />
+                            </div>
                           </div>
                           <p className="text-text-muted">
                             Comprador: <span className="font-bold text-foreground/80">{sale.buyer?.name ?? "—"}</span> · ${Number(sale.amount).toLocaleString("es-AR")}
                           </p>
-                        </Link>
+                        </div>
                       ))}
                     </div>
                   </>
                 )}
 
-                {answeredNotifications.length > 0 && (
+                {notifTab === "inbox" && inboxAnswered.length > 0 && (
                   <>
                     <div className="flex justify-between items-center border-b border-card-border/30 pb-2">
                       <span className="text-xs font-heading font-extrabold text-foreground uppercase tracking-wider">Te Respondieron</span>
@@ -795,7 +921,7 @@ export default function HeaderSessionBar() {
                     </div>
 
                     <div className="flex flex-col gap-3 pr-1">
-                      {answeredNotifications.map((n) => (
+                      {inboxAnswered.map((n) => (
                         <div
                           key={n.id}
                           className="p-3 rounded-xl border bg-accent-green/5 border-accent-green/20 flex flex-col gap-2 text-xs"
@@ -808,9 +934,12 @@ export default function HeaderSessionBar() {
                             >
                               {n.listing?.product?.name ?? "Publicación"}
                             </Link>
-                            <span className="text-[9px] text-text-muted shrink-0">
-                              {new Date(n.updated_at).toLocaleDateString("es-AR")}
-                            </span>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <span className="text-[9px] text-text-muted">
+                                {new Date(n.updated_at).toLocaleDateString("es-AR")}
+                              </span>
+                              <NotifCloseButton onClick={() => handleCloseNotif("answered", n.id)} />
+                            </div>
                           </div>
                           <p className="text-text-muted italic line-clamp-1">Tu consulta: &quot;{n.question}&quot;</p>
                           <div className="bg-background/40 p-2.5 rounded-lg border border-card-border/40">
@@ -863,6 +992,8 @@ export default function HeaderSessionBar() {
                   </>
                 )}
 
+                {notifTab === "inbox" && (
+                <>
                 <div className="flex justify-between items-center border-b border-card-border/30 pb-2">
                   <span className="text-xs font-heading font-extrabold text-foreground uppercase tracking-wider">Preguntas Recibidas</span>
                   {unreadReceivedCount > 0 && (
@@ -876,10 +1007,10 @@ export default function HeaderSessionBar() {
                 </div>
 
                 <div className="flex flex-col gap-3 pr-1">
-                  {notifications.length === 0 ? (
+                  {inboxQuestions.length === 0 ? (
                     <p className="text-xs text-text-muted text-center py-6">No tenés ninguna consulta por el momento.</p>
                   ) : (
-                    notifications.map((n) => (
+                    inboxQuestions.map((n) => (
                       <div
                         key={n.id}
                         className={`p-3 rounded-xl border flex flex-col gap-2 text-xs transition-colors ${
@@ -897,9 +1028,12 @@ export default function HeaderSessionBar() {
                               {n.listing?.product?.name ?? "Publicación"}
                             </Link>
                           </div>
-                          <span className="text-[9px] text-text-muted shrink-0">
-                            {new Date(n.created_at).toLocaleDateString("es-AR")}
-                          </span>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <span className="text-[9px] text-text-muted">
+                              {new Date(n.created_at).toLocaleDateString("es-AR")}
+                            </span>
+                            <NotifCloseButton onClick={() => handleCloseNotif("question", n.id)} />
+                          </div>
                         </div>
 
                         <div className="bg-background/40 p-2.5 rounded-lg border border-card-border/40">
@@ -966,6 +1100,65 @@ export default function HeaderSessionBar() {
                     ))
                   )}
                 </div>
+                </>
+                )}
+
+                {notifTab === "closed" && (
+                  <div className="flex flex-col gap-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] text-text-muted">
+                        {closedTotal === 0
+                          ? "No hay notificaciones cerradas."
+                          : "Si cerraste una por error, restaurála. Vaciar no se puede deshacer."}
+                      </span>
+                      {closedTotal > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setConfirmEmptyClosed(true)}
+                          className="text-[10px] font-bold text-red-500 hover:underline cursor-pointer shrink-0"
+                        >
+                          Vaciar
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      {closedSales.map((sale) => (
+                        <div key={sale.id} className="p-2.5 rounded-xl border border-card-border/50 bg-card-bg/40 flex flex-col gap-1 text-xs opacity-80">
+                          <div className="flex justify-between items-start gap-2">
+                            <span className="font-bold text-foreground line-clamp-1">{sale.listings?.products?.name ?? "Venta"}</span>
+                            <NotifCloseButton label="Borrar de forma permanente" onClick={() => handleDeleteClosed("sale", sale.id)} />
+                          </div>
+                          <button type="button" onClick={() => handleRestoreNotif("sale", sale.id)} className="self-start text-[10px] font-bold text-accent-gold hover:underline cursor-pointer">
+                            Restaurar
+                          </button>
+                        </div>
+                      ))}
+                      {closedAnswered.map((n) => (
+                        <div key={n.id} className="p-2.5 rounded-xl border border-card-border/50 bg-card-bg/40 flex flex-col gap-1 text-xs opacity-80">
+                          <div className="flex justify-between items-start gap-2">
+                            <span className="font-bold text-foreground line-clamp-1">{n.listing?.product?.name ?? "Respuesta"}</span>
+                            <NotifCloseButton label="Borrar de forma permanente" onClick={() => handleDeleteClosed("answered", n.id)} />
+                          </div>
+                          <button type="button" onClick={() => handleRestoreNotif("answered", n.id)} className="self-start text-[10px] font-bold text-accent-gold hover:underline cursor-pointer">
+                            Restaurar
+                          </button>
+                        </div>
+                      ))}
+                      {closedQuestions.map((n) => (
+                        <div key={n.id} className="p-2.5 rounded-xl border border-card-border/50 bg-card-bg/40 flex flex-col gap-1 text-xs opacity-80">
+                          <div className="flex justify-between items-start gap-2">
+                            <span className="font-bold text-foreground line-clamp-1">{n.listing?.product?.name ?? "Consulta"}</span>
+                            <NotifCloseButton label="Borrar de forma permanente" onClick={() => handleDeleteClosed("question", n.id)} />
+                          </div>
+                          <button type="button" onClick={() => handleRestoreNotif("question", n.id)} className="self-start text-[10px] font-bold text-accent-gold hover:underline cursor-pointer">
+                            Restaurar
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                </div>
               </div>
             )}
           </div>
@@ -981,6 +1174,20 @@ export default function HeaderSessionBar() {
           INGRESAR
         </Link>
       )}
+
+      <ConfirmModal
+        isOpen={confirmEmptyClosed}
+        type="danger"
+        title="Vaciar notificaciones cerradas"
+        description="Se van a eliminar todas las notificaciones cerradas. No se pueden recuperar. Las ventas y las preguntas en tus publicaciones no se tocan."
+        confirmText="Vaciar"
+        cancelText="Cancelar"
+        onCancel={() => setConfirmEmptyClosed(false)}
+        onConfirm={() => {
+          persistTray((prev) => emptyClosed(prev))
+          setConfirmEmptyClosed(false)
+        }}
+      />
     </div>
   )
 }

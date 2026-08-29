@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import ConfirmModal from "@/components/ConfirmModal"
+import RichTextDisplay from "@/components/RichTextDisplay"
 
 interface ListingDetail {
   id: string
@@ -177,7 +178,7 @@ export default function ListingDetailModal({ listingId, onClose }: { listingId: 
             </div>
 
             {listing.products?.description && (
-              <p className="text-sm text-foreground/90 leading-relaxed">{listing.products.description}</p>
+              <RichTextDisplay html={listing.products.description} className="text-sm text-foreground/90 leading-relaxed" />
             )}
 
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm text-text-muted">

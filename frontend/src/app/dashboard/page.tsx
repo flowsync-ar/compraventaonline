@@ -13,6 +13,14 @@ import { createClient } from "@/lib/supabase/client";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { QuestionWithBuyer } from "@/lib/supabase/types";
 import { imageToWebp, imagesToWebp } from "@/lib/imageToWebp";
+import dynamic from "next/dynamic";
+import { isRichHtmlEmpty, sanitizeRichHtml } from "@/lib/richText";
+import { canFeatureForFree } from "@/lib/freeHighlight";
+
+const RichTextEditor = dynamic(() => import("@/components/RichTextEditor"), {
+  ssr: false,
+  loading: () => <div className="w-full min-h-32 rounded-xl border border-card-border bg-background" />,
+});
 
 interface Listing {
   id: string;
@@ -142,7 +150,7 @@ function DashboardPageContent() {
   const [highlightingListingId, setHighlightingListingId] = useState<string | null>(null);
   // Live price/duration for the "Destacar" button label — editable from
   // /admin/configuracion (platform_settings), not hardcoded here.
-  const [highlightSettings, setHighlightSettings] = useState({ price: 10000, durationDays: 30 });
+  const [highlightSettings, setHighlightSettings] = useState({ price: 2000, durationDays: 30 });
   // Buyer + purchase date for listings that sold out (status SOLD) — shown
   // next to the "Vendido" badge in "Mis Publicaciones".
   const [soldOrders, setSoldOrders] = useState<Record<string, { buyerName: string; paidAt: string }>>({});
@@ -173,6 +181,9 @@ function DashboardPageContent() {
   // edit) — confirms what got published and asks whether to keep
   // publishing more or go see the result in "Mis Publicaciones".
   const [publishSuccessInfo, setPublishSuccessInfo] = useState<{ name: string; price: number; symbol: string } | null>(null);
+  const [categoryPickerEpoch, setCategoryPickerEpoch] = useState(0);
+  const [focusCategoryPicker, setFocusCategoryPicker] = useState(false);
+  const publishFormScrollRef = useRef<HTMLDivElement>(null);
 
   // Consultas — same data/answer/hide logic as the header bell dropdown
   // (HeaderSessionBar.tsx), but rendered as a full tab so a seller can
@@ -982,6 +993,7 @@ function DashboardPageContent() {
       const supabase = getSupabase();
       const defaultImage = "/sinimagen.webp";
       const imageList = productImages.length > 0 ? productImages : [defaultImage];
+      const descriptionHtml = isRichHtmlEmpty(description) ? "" : sanitizeRichHtml(description);
 
       if (selectedListingToEdit) {
         // Mode: EDIT — update product + listing via Supabase
@@ -993,7 +1005,7 @@ function DashboardPageContent() {
             .update({
               name: productName,
               brand,
-              description,
+              description: descriptionHtml,
               category_id: categoryId || null,
               images: imageList,
               attributes: productAttributes,
@@ -1009,7 +1021,11 @@ function DashboardPageContent() {
             price: parseFloat(price),
             stock: parseInt(stock),
             condition,
-            featured_plan: featuredPlan,
+            featured_plan: canFeatureForFree(userEmail)
+              ? (featuredPlan === "FEATURED" ? "FEATURED" : "FREE")
+              : (selectedListingToEdit?.featured_plan === "FEATURED" || selectedListingToEdit?.featured_plan === "PREMIUM"
+                ? "FEATURED"
+                : "FREE"),
             currency_id: currencyId || null,
             image_url: imageList[0] ?? null,
             status,
@@ -1044,7 +1060,7 @@ function DashboardPageContent() {
           .insert({
             name: productName,
             brand,
-            description,
+            description: descriptionHtml,
             category_id: categoryId || null,
             images: imageList,
             attributes: productAttributes,
@@ -1065,7 +1081,7 @@ function DashboardPageContent() {
             price: parseFloat(price),
             condition,
             stock: parseInt(stock),
-            featured_plan: featuredPlan,
+            featured_plan: canFeatureForFree(userEmail) && featuredPlan === "FEATURED" ? "FEATURED" : "FREE",
             currency_id: currencyId || null,
             image_url: imageList[0] ?? null,
             status: "APPROVED",
@@ -1093,7 +1109,8 @@ function DashboardPageContent() {
           handleGenerateSocialShareAssets(listingData.id, shareToSocial);
         }
 
-        // Reset form
+        // Reset product fields but keep category (+ its specific attributes)
+        // until the seller says whether the next listing is the same rama.
         setProductName("");
         setBrand("");
         setDescription("");
@@ -1101,9 +1118,7 @@ function DashboardPageContent() {
         setStock("1");
         setProductImages([]);
         setSelectedImages([]);
-        setCategoryId("");
         setFeaturedPlan("FREE");
-        setDynamicAttributes({});
         setShareToSocial([]);
         setShareConsent(false);
       }
@@ -1410,12 +1425,42 @@ function DashboardPageContent() {
     setHighlightingListingId(listingId);
     setErrorMsg("");
     try {
+      if (canFeatureForFree(userEmail)) {
+        const res = await fetch("/api/highlights/apply-free", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ listingId }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || "No se pudo destacar la publicación");
+        }
+        setMyListings((prev) =>
+          prev.map((listing) =>
+            listing.id === listingId ? { ...listing, featured_plan: "FEATURED" } : listing
+          )
+        );
+        setSuccessMsg("Publicación destacada.");
+        setHighlightingListingId(null);
+        return;
+      }
+
       const res = await fetch("/api/highlights/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ listingId }),
       });
       const data = await res.json();
+      if (data.applied) {
+        setMyListings((prev) =>
+          prev.map((listing) =>
+            listing.id === listingId ? { ...listing, featured_plan: "FEATURED" } : listing
+          )
+        );
+        setSuccessMsg("Publicación destacada.");
+        setHighlightingListingId(null);
+        return;
+      }
       if (!res.ok || !data.url) {
         throw new Error(data.error || "No se pudo iniciar el pago");
       }
@@ -1776,7 +1821,7 @@ function DashboardPageContent() {
     setCondition(listing.condition);
     setStock(listing.stock.toString());
     setCategoryId(product?.category_id ?? "");
-    setFeaturedPlan(listing.featured_plan ?? "FREE");
+    setFeaturedPlan(listing.featured_plan === "FEATURED" || listing.featured_plan === "PREMIUM" ? "FEATURED" : "FREE");
     setCurrencyId(listing.currency_id ?? "");
     setStatus(listing.status);
 
@@ -1886,7 +1931,7 @@ function DashboardPageContent() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-10 w-full relative">
+    <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-4 w-full relative flex min-h-0 flex-1 flex-col">
       <div className="fixed top-32 right-6 z-[100] flex flex-col gap-3 max-w-sm pointer-events-none">
         {errorMsg && <Toast type="error" message={errorMsg} onClose={() => setErrorMsg("")} />}
         {successMsg && <Toast type="success" message={successMsg} onClose={() => setSuccessMsg("")} />}
@@ -1981,11 +2026,8 @@ function DashboardPageContent() {
       )}
 
       {/* Modal post-publicación (solo al CREAR, no al editar): confirma
-          qué se publicó y a cuánto, y pregunta si el vendedor quiere
-          seguir cargando publicaciones o ya terminó por ahora. El
-          formulario ya quedó reseteado en handlePublish, así que "Sí"
-          solo cierra el modal; "No" además lo manda a ver sus
-          publicaciones activas. */}
+          qué se publicó y pregunta si el próximo es de la misma
+          categoría (deja la rama elegida) u otra (limpia y abre el combo). */}
       {publishSuccessInfo && (
         <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-card-bg-solid border border-card-border rounded-3xl w-full max-w-sm flex flex-col items-center text-center shadow-2xl p-6 gap-4 animate-in fade-in zoom-in-95 duration-200">
@@ -2002,25 +2044,48 @@ function DashboardPageContent() {
               </p>
             </div>
 
-            <p className="text-xs text-text-muted">¿Querés publicar otro producto?</p>
+            <p className="text-xs text-text-muted">¿Querés publicar otro producto de la misma categoría?</p>
 
-            <div className="grid grid-cols-2 gap-2 w-full mt-1">
+            <div className="flex flex-col gap-2 w-full mt-1">
               <button
                 type="button"
                 onClick={() => {
                   setPublishSuccessInfo(null);
-                  setActiveTab("inventory");
+                  setFocusCategoryPicker(false);
+                  publishFormScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+                  window.scrollTo({ top: 0, behavior: "smooth" });
                 }}
-                className="rounded-xl border border-card-border py-2.5 text-xs font-bold text-foreground hover:border-accent-gold hover:text-accent-gold transition-all cursor-pointer"
+                className="rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover py-2.5 text-xs font-extrabold text-white shadow-md hover:opacity-95 transition-all cursor-pointer"
               >
-                No, ver mis publicaciones
+                Sí, misma categoría
               </button>
               <button
                 type="button"
-                onClick={() => setPublishSuccessInfo(null)}
-                className="rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover py-2.5 text-xs font-extrabold text-white shadow-md hover:opacity-95 transition-all cursor-pointer"
+                onClick={() => {
+                  setCategoryId("");
+                  setDynamicAttributes({});
+                  setCategoryPickerEpoch((n) => n + 1);
+                  setFocusCategoryPicker(true);
+                  setPublishSuccessInfo(null);
+                  publishFormScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+                  window.scrollTo({ top: 0, behavior: "smooth" });
+                }}
+                className="rounded-xl border border-card-border py-2.5 text-xs font-bold text-foreground hover:border-accent-gold hover:text-accent-gold transition-all cursor-pointer"
               >
-                Sí, publicar otro
+                No, otra categoría
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPublishSuccessInfo(null);
+                  setCategoryId("");
+                  setDynamicAttributes({});
+                  setFocusCategoryPicker(false);
+                  setActiveTab("inventory");
+                }}
+                className="rounded-xl py-2 text-[11px] font-bold text-text-muted hover:text-foreground transition-all cursor-pointer"
+              >
+                No, ver mis publicaciones
               </button>
             </div>
           </div>
@@ -2035,13 +2100,19 @@ function DashboardPageContent() {
           </div>
         </div>
       )}
-      <div className="flex flex-col gap-5 border-b border-card-border pb-6 mb-8">
+      <div className="flex shrink-0 flex-col gap-3 border-b border-card-border pb-3 mb-3">
+        {activeTab !== "publish" ? (
         <div>
           <h1 className="font-heading text-3xl font-extrabold text-foreground">Panel de Vendedor</h1>
           <p className="text-text-muted text-sm mt-1">
             Gestioná tus publicaciones, controlá tu stock y consultá tus métricas comerciales.
           </p>
         </div>
+        ) : (
+          <h1 className="font-heading text-lg font-extrabold text-foreground">
+            {selectedListingToEdit ? "Editar publicación" : "Publicar artículo"}
+          </h1>
+        )}
 
         {/* Navigation Tabs — own full-width row, not squeezed next to the
             title anymore (that's what was forcing "Mis Datos" onto a
@@ -2178,7 +2249,7 @@ function DashboardPageContent() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-8">
+      <div className={`grid min-h-0 flex-1 grid-cols-1 gap-8 ${activeTab === "publish" ? "overflow-hidden" : "overflow-y-auto"}`}>
         
         {/* TAB 1: Summary */}
         {activeTab === "summary" && (
@@ -2258,14 +2329,14 @@ function DashboardPageContent() {
           // formulario de un solo producto — pero la subida masiva
           // necesita todo el ancho disponible para que la tabla de
           // revisión no quede apretada con 8 columnas.
-          <div className={`${publishMode === "bulk" ? "max-w-none" : "max-w-3xl"} mx-auto w-full rounded-2xl glass-panel p-8`}>
-            <h2 className="font-heading text-lg font-bold text-foreground mb-4">
+          <div className={`${publishMode === "bulk" ? "max-w-none" : "max-w-3xl"} mx-auto flex h-full min-h-0 w-full flex-col overflow-hidden rounded-2xl glass-panel`}>
+            <h2 className="font-heading shrink-0 px-5 pt-5 mb-4 text-base font-bold text-foreground md:px-6">
               {selectedListingToEdit ? "Editar Publicación" : "Publicación de Artículos"}
             </h2>
             
             {/* Mode selector */}
             {!selectedListingToEdit && (
-              <div className="flex border-b border-card-border mb-6">
+              <div className="mx-5 mb-3 flex shrink-0 border-b border-card-border md:mx-6">
                 <button
                   onClick={() => {
                     setPublishMode("direct");
@@ -2296,16 +2367,18 @@ function DashboardPageContent() {
             )}
 
             {publishMode === "direct" ? (
-              <form onSubmit={handlePublish} className="flex flex-col gap-6">
+              <form onSubmit={handlePublish} className="flex min-h-0 flex-1 flex-col">
+                <div ref={publishFormScrollRef} className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-5 py-4 md:px-6">
                 
                 {/* 1. Categoría primero — Categoría + Subcategoría en cascada:
                     elegir una categoría con hijos (p.ej. "Computación")
                     muestra un segundo dropdown para elegir entre sus
                     subcategorías (Notebooks, Monitores, etc). */}
                 <CategorySubcategoryPicker
-                  key={selectedListingToEdit?.id ?? "new"}
+                  key={`${selectedListingToEdit?.id ?? "new"}-${categoryPickerEpoch}`}
                   categories={categories}
                   value={categoryId}
+                  autoOpenRoot={focusCategoryPicker}
                   onChange={(val) => {
                     setCategoryId(val);
                     setDynamicAttributes({});
@@ -2407,12 +2480,10 @@ function DashboardPageContent() {
 
                 <div className="flex flex-col gap-2">
                   <label className="text-xs font-bold text-foreground">Descripción Técnica (opcional)</label>
-                  <textarea
-                    rows={4}
+                  <RichTextEditor
                     value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    placeholder="Detalla las características del artículo..." 
-                    className="w-full bg-background border border-card-border rounded-xl px-4 py-3 text-xs text-foreground focus:outline-none focus:border-accent-gold resize-none"
+                    onChange={setDescription}
+                    placeholder="Detalla las características del artículo..."
                   />
                 </div>
 
@@ -2466,16 +2537,25 @@ function DashboardPageContent() {
 
                 <div className="flex flex-col gap-2">
                   <label className="text-xs font-bold text-foreground">Plan de Destacado (Monetización)</label>
-                  <CustomDropdown
-                    name="featuredPlan"
-                    defaultValue={featuredPlan}
-                    onChange={setFeaturedPlan}
-                    options={[
-                      { name: "Plan Gratuito (FREE)", value: "FREE" },
-                      { name: "Plan Destacado (FEATURED)", value: "FEATURED" },
-                      { name: "Plan Premium (PREMIUM)", value: "PREMIUM" },
-                    ]}
-                  />
+                  {canFeatureForFree(userEmail) ? (
+                    <CustomDropdown
+                      name="featuredPlan"
+                      defaultValue={featuredPlan}
+                      onChange={setFeaturedPlan}
+                      options={[
+                        { name: "Plan Gratuito (FREE)", value: "FREE" },
+                        { name: "Plan Destacado (FEATURED)", value: "FEATURED" },
+                      ]}
+                    />
+                  ) : featuredPlan === "FEATURED" || featuredPlan === "PREMIUM" ? (
+                    <p className="text-xs text-accent-gold font-semibold">
+                      Esta publicación ya está destacada.
+                    </p>
+                  ) : (
+                    <p className="text-[11px] text-text-muted leading-relaxed">
+                      Destacar cuesta ${highlightSettings.price.toLocaleString("es-AR")} por producto. Usá la estrella del listado de artículos para pagarlo.
+                    </p>
+                  )}
                 </div>
 
                 {selectedListingToEdit && (
@@ -2687,7 +2767,9 @@ function DashboardPageContent() {
                   </div>
                 )}
 
-                <div className="flex flex-col sm:flex-row gap-4 mt-4">
+                </div>
+
+                <div className="flex shrink-0 flex-col gap-3 border-t border-card-border bg-card-bg-solid/80 px-5 py-3 sm:flex-row sm:gap-4 md:px-6">
                   {selectedListingToEdit && (
                     <button
                       type="button"
@@ -2707,7 +2789,7 @@ function DashboardPageContent() {
                         setStatus("APPROVED");
                         setActiveTab("inventory");
                       }}
-                      className="flex-1 rounded-xl border border-card-border hover:bg-card-bg/25 py-4 text-xs font-bold text-foreground transition-all cursor-pointer text-center"
+                    className="flex-1 rounded-xl border border-card-border hover:bg-card-bg/25 py-3 text-xs font-bold text-foreground transition-all cursor-pointer text-center"
                     >
                       Cancelar Edición
                     </button>
@@ -2715,7 +2797,7 @@ function DashboardPageContent() {
                   <button
                     type="submit"
                     disabled={loading || isUploadingImages}
-                    className="flex-1 rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover py-4 text-xs font-extrabold text-white shadow-md hover:opacity-95 transition-all disabled:opacity-50 cursor-pointer"
+                    className="flex-1 rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover py-3 text-xs font-extrabold text-white shadow-md hover:opacity-95 transition-all disabled:opacity-50 cursor-pointer"
                   >
                     {isUploadingImages
                       ? "Subiendo imágenes..."
@@ -2728,7 +2810,7 @@ function DashboardPageContent() {
               </form>
             ) : !bulkPreviewRows ? (
               // Paso 1: elegir el archivo
-              <div className="flex flex-col gap-6">
+              <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-5 pb-6 md:px-6">
                 <div className="bg-card-bg border border-card-border p-4 rounded-xl text-xs text-text-muted flex flex-col gap-2">
                   <h4 className="font-bold text-foreground">Instrucciones de Subida Masiva:</h4>
                   <p>1. Descargá nuestra plantilla Excel e ingresá los detalles de tus productos.</p>
@@ -2813,7 +2895,7 @@ function DashboardPageContent() {
               // Paso 2: revisión en tabla — la categoría y las fotos se
               // asignan por acción masiva (seleccionar filas + aplicar),
               // o abriendo el detalle de una sola fila con el botón ▼.
-              <div className="flex flex-col gap-6">
+              <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-5 pb-6 md:px-6">
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <h4 className="font-bold text-sm text-foreground">Revisá antes de publicar</h4>
@@ -3330,9 +3412,16 @@ function DashboardPageContent() {
                             </Link>
                           </td>
                           <td className="py-4 pr-4 font-bold text-foreground">
-                            <Link href={`/listings/${listing.id}`} className="hover:text-accent-gold transition-colors">
-                              {listing.products?.name ?? "Sin nombre"}
-                            </Link>
+                            <div className="flex items-center gap-2 min-w-0">
+                              <Link href={`/listings/${listing.id}`} className="hover:text-accent-gold transition-colors truncate">
+                                {listing.products?.name ?? "Sin nombre"}
+                              </Link>
+                              {(listing.featured_plan === "FEATURED" || listing.featured_plan === "PREMIUM") && (
+                                <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-extrabold tracking-wider bg-accent-blue/10 text-accent-blue border border-accent-blue/20">
+                                  ⚡ DESTACADO
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td className="py-4 px-4 text-text-muted">{listing.products?.brand ?? "-"}</td>
                           <td className="py-4 px-4 text-center">
@@ -3462,7 +3551,7 @@ function DashboardPageContent() {
                                 </span>
                               </div>
 
-                              {/* Botón Destacar — solo para publicaciones activas sin destacado vigente */}
+                              {/* Destacar: plan FEATURED o ventana paga vigente */}
                               {(listing.status === "APPROVED" || listing.status === "ACTIVE") && (
                                 <div className="relative group">
                                   {highlightedUntil[listing.id] ? (
@@ -3471,6 +3560,15 @@ function DashboardPageContent() {
                                       title={`Destacado hasta ${new Date(highlightedUntil[listing.id]).toLocaleDateString("es-AR")}`}
                                     >
                                       ⭐ hasta {new Date(highlightedUntil[listing.id]).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })}
+                                    </span>
+                                  ) : listing.featured_plan === "FEATURED" || listing.featured_plan === "PREMIUM" ? (
+                                    <span
+                                      className="bg-card-bg border border-card-border h-8 w-8 rounded-lg flex items-center justify-center text-accent-gold"
+                                      title="Ya está destacada"
+                                    >
+                                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
+                                        <path fillRule="evenodd" d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.006 5.404.434c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.321 21.38c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.434 2.082-5.005Z" clipRule="evenodd" />
+                                      </svg>
                                     </span>
                                   ) : (
                                     <button
@@ -3481,12 +3579,18 @@ function DashboardPageContent() {
                                       {highlightingListingId === listing.id ? (
                                         <span className="w-3.5 h-3.5 border-2 border-accent-gold border-t-transparent rounded-full animate-spin" />
                                       ) : (
-                                        <span className="text-sm">⭐</span>
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-4 h-4 opacity-40">
+                                          <path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 0 1 1.04 0l2.125 5.111a.563.563 0 0 0 .475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 0 0-.182.557l1.285 5.385a.562.562 0 0 1-.84.61l-4.725-2.885a.562.562 0 0 0-.586 0L6.982 20.54a.562.562 0 0 1-.84-.61l1.285-5.386a.562.562 0 0 0-.182-.557l-4.204-3.602a.562.562 0 0 1 .321-.988l5.518-.442a.563.563 0 0 0 .475-.345L11.48 3.5Z" />
+                                        </svg>
                                       )}
                                     </button>
                                   )}
                                   <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max rounded bg-card-bg-solid border border-card-border px-2 py-1 text-[10px] font-bold text-foreground opacity-0 transition-opacity group-hover:opacity-100 shadow-xl z-30">
-                                    {highlightedUntil[listing.id] ? "Ya está destacada" : `Destacar por $${highlightSettings.price.toLocaleString("es-AR")} (${highlightSettings.durationDays} días)`}
+                                    {highlightedUntil[listing.id] || listing.featured_plan === "FEATURED" || listing.featured_plan === "PREMIUM"
+                                      ? "Ya está destacada"
+                                      : canFeatureForFree(userEmail)
+                                        ? "Destacar sin cargo"
+                                        : `Destacar por $${highlightSettings.price.toLocaleString("es-AR")} (${highlightSettings.durationDays} días)`}
                                   </span>
                                 </div>
                               )}
@@ -3540,13 +3644,18 @@ function DashboardPageContent() {
                             <Link href={`/listings/${listing.id}`} className="font-bold text-foreground text-sm block truncate hover:text-accent-gold transition-colors">
                               {listing.products?.name ?? "Sin nombre"}
                             </Link>
-                            <div className="flex items-center gap-2 mt-1">
+                            <div className="flex items-center gap-2 mt-1 flex-wrap">
                               <span className="text-[11px] text-text-muted">{listing.products?.brand ?? "-"}</span>
                               <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
                                 listing.condition === "NEW" ? "bg-accent-green/10 text-accent-green" : "bg-text-muted/10 text-text-muted"
                               }`}>
                                 {listing.condition === "NEW" ? "NUEVO" : "USADO"}
                               </span>
+                              {(listing.featured_plan === "FEATURED" || listing.featured_plan === "PREMIUM") && (
+                                <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold tracking-wider bg-accent-blue/10 text-accent-blue border border-accent-blue/20">
+                                  ⚡ DESTACADO
+                                </span>
+                              )}
                             </div>
                           </div>
                           <div className="relative shrink-0">
@@ -3672,17 +3781,29 @@ function DashboardPageContent() {
                                 >
                                   ⭐ {new Date(highlightedUntil[listing.id]).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })}
                                 </span>
+                              ) : listing.featured_plan === "FEATURED" || listing.featured_plan === "PREMIUM" ? (
+                                <span
+                                  className="bg-card-bg border border-card-border h-8 w-8 rounded-lg flex items-center justify-center text-accent-gold"
+                                  title="Ya está destacada"
+                                  aria-label="Ya está destacada"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
+                                    <path fillRule="evenodd" d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.006 5.404.434c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.321 21.38c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.434 2.082-5.005Z" clipRule="evenodd" />
+                                  </svg>
+                                </span>
                               ) : (
                                 <button
                                   onClick={() => handleHighlightListing(listing.id)}
                                   disabled={loading || highlightingListingId === listing.id}
                                   className="bg-card-bg border border-card-border text-foreground hover:text-accent-gold hover:border-accent-gold/40 h-8 w-8 rounded-lg flex items-center justify-center transition-all cursor-pointer disabled:opacity-50"
-                                  aria-label={`Destacar por $${highlightSettings.price.toLocaleString("es-AR")} (${highlightSettings.durationDays} días)`}
+                                  aria-label={canFeatureForFree(userEmail) ? "Destacar sin cargo" : `Destacar por $${highlightSettings.price.toLocaleString("es-AR")} (${highlightSettings.durationDays} días)`}
                                 >
                                   {highlightingListingId === listing.id ? (
                                     <span className="w-3.5 h-3.5 border-2 border-accent-gold border-t-transparent rounded-full animate-spin" />
                                   ) : (
-                                    <span className="text-sm">⭐</span>
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-4 h-4 opacity-40">
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 0 1 1.04 0l2.125 5.111a.563.563 0 0 0 .475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 0 0-.182.557l1.285 5.385a.562.562 0 0 1-.84.61l-4.725-2.885a.562.562 0 0 0-.586 0L6.982 20.54a.562.562 0 0 1-.84-.61l1.285-5.386a.562.562 0 0 0-.182-.557l-4.204-3.602a.562.562 0 0 1 .321-.988l5.518-.442a.563.563 0 0 0 .475-.345L11.48 3.5Z" />
+                                    </svg>
                                   )}
                                 </button>
                               )
@@ -3780,10 +3901,10 @@ function DashboardPageContent() {
           return (
             <div className="w-full flex flex-col gap-6">
               <div className="rounded-2xl glass-panel p-6">
-                <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-                  <div>
+                <div className="flex flex-col items-start gap-4 mb-8">
+                  <div className="mb-1">
                     <h3 className="font-heading text-sm font-extrabold text-foreground uppercase tracking-wider">💬 Consultas de Compradores</h3>
-                    <p className="text-xs text-text-muted mt-1">
+                    <p className="text-xs text-text-muted mt-3">
                       Todas las preguntas recibidas en tus publicaciones, para hacer seguimiento.
                     </p>
                   </div>

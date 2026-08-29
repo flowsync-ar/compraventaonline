@@ -25,6 +25,8 @@ export default function AdminUsuariosPage() {
   const [detailUserId, setDetailUserId] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<AdminUser | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [verifyTarget, setVerifyTarget] = useState<AdminUser | null>(null)
+  const [verifying, setVerifying] = useState(false)
 
   const loadUsers = async () => {
     const res = await fetch("/api/admin/users")
@@ -57,6 +59,23 @@ export default function AdminUsuariosPage() {
       loadUsers()
     } finally {
       setPendingId(null)
+    }
+  }
+
+  const handleVerifyIdentity = async () => {
+    if (!verifyTarget) return
+    setVerifying(true)
+    try {
+      const res = await fetch(`/api/admin/users/${verifyTarget.id}/identity`, { method: "PATCH" })
+      const data = await res.json()
+      if (!res.ok) {
+        alert(data.error ?? "No se pudo activar la verificación.")
+        return
+      }
+      setVerifyTarget(null)
+      loadUsers()
+    } finally {
+      setVerifying(false)
     }
   }
 
@@ -165,6 +184,23 @@ export default function AdminUsuariosPage() {
                         </span>
                       </div>
 
+                      {!user.identity_verified && (
+                        <div className="relative group">
+                          <button
+                            onClick={() => setVerifyTarget(user)}
+                            disabled={pendingId === user.id}
+                            className="bg-card-bg border border-card-border text-accent-blue hover:border-accent-blue/40 h-8 w-8 rounded-lg flex items-center justify-center transition-all cursor-pointer disabled:opacity-50"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-4 h-4">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M15 9h3.75M15 12h3.75M15 15h3.75M4.5 19.5h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Zm6-10.125a1.875 1.875 0 1 1-3.75 0 1.875 1.875 0 0 1 3.75 0Zm1.294 6.336a6.721 6.721 0 0 1-3.17.789 6.721 6.721 0 0 1-3.168-.789 3.376 3.376 0 0 1 6.338 0Z" />
+                            </svg>
+                          </button>
+                          <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max rounded bg-card-bg-solid border border-card-border px-2 py-1 text-[10px] font-bold text-foreground opacity-0 transition-opacity group-hover:opacity-100 shadow-xl z-30">
+                            Activar verificación
+                          </span>
+                        </div>
+                      )}
+
                       <div className="relative group">
                         <button
                           onClick={() => handleToggleStatus(user)}
@@ -216,6 +252,17 @@ export default function AdminUsuariosPage() {
       {detailUserId && (
         <UserDetailModal userId={detailUserId} onClose={() => setDetailUserId(null)} />
       )}
+
+      <ConfirmModal
+        isOpen={verifyTarget !== null}
+        title="Activar verificación de identidad"
+        description={`¿Marcar a ${verifyTarget?.name} como verificado? Va a poder publicar y comprar sin pasar por Didit.`}
+        confirmText="Activar"
+        type="warning"
+        isLoading={verifying}
+        onConfirm={handleVerifyIdentity}
+        onCancel={() => setVerifyTarget(null)}
+      />
 
       <ConfirmModal
         isOpen={deleteTarget !== null}

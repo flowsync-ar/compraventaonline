@@ -18,6 +18,7 @@ export type FeaturedListingCard = {
     sellers: {
       id: string;
       name: string;
+      username: string | null;
       score: number;
       tier: string;
     } | null;
@@ -41,6 +42,7 @@ const LISTING_SELECT = `
   sellers (
     id,
     name,
+    username,
     score,
     tier
   ),

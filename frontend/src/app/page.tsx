@@ -1,5 +1,4 @@
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import Link from "next/link";
 import HeroCarousel, { type HeroSlide } from "@/components/HeroCarousel";
 import FeaturedListingsCarousel from "@/components/FeaturedListingsCarousel";
@@ -38,25 +37,6 @@ async function getHeroSlides(): Promise<HeroSlide[]> {
 
 const HOME_FEATURED_LIMIT = 8;
 
-async function getSellersWithSales(): Promise<Set<string>> {
-  try {
-    const supabase = createAdminClient();
-    const { data, error } = await supabase
-      .from("orders")
-      .select("seller_id")
-      .eq("status", "PAID");
-
-    if (error) {
-      console.error("[home] Error fetching sellers with sales:", error.message);
-      return new Set();
-    }
-    return new Set((data ?? []).map((o) => o.seller_id));
-  } catch (err) {
-    console.error("[home] Unexpected error fetching sellers with sales:", err);
-    return new Set();
-  }
-}
-
 async function getFeaturedListings(): Promise<FeaturedListingCard[]> {
   try {
     const supabase = await createClient();
@@ -68,10 +48,9 @@ async function getFeaturedListings(): Promise<FeaturedListingCard[]> {
 }
 
 export default async function HomePage() {
-  const [highlights, heroSlides, sellersWithSales] = await Promise.all([
+  const [highlights, heroSlides] = await Promise.all([
     getFeaturedListings(),
     getHeroSlides(),
-    getSellersWithSales(),
   ]);
 
   return (
@@ -82,7 +61,7 @@ export default async function HomePage() {
         <HeroCarousel slides={heroSlides} />
       </section>
 
-      <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 w-full">
+      <section className="w-full pl-2 sm:pl-3 lg:pl-4 pr-4 sm:pr-6 lg:pr-8">
         <div className="flex items-center justify-between pb-2 mb-3">
           <div>
             <h2 className="font-heading text-xl font-bold tracking-tight text-foreground">Publicaciones Destacadas</h2>
@@ -101,10 +80,7 @@ export default async function HomePage() {
             <p className="text-text-muted text-xs mt-1">Sé el primero en publicar un artículo en La Pampa.</p>
           </div>
         ) : (
-          <FeaturedListingsCarousel
-            items={highlights}
-            sellerIdsWithSales={[...sellersWithSales]}
-          />
+          <FeaturedListingsCarousel items={highlights} />
         )}
       </section>
 

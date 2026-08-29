@@ -25,14 +25,11 @@ function useVisibleCount() {
 
 export default function FeaturedListingsCarousel({
   items,
-  sellerIdsWithSales,
 }: {
   items: FeaturedListingCardData[];
-  sellerIdsWithSales: string[];
 }) {
   const viewportCount = useVisibleCount();
   const visibleCount = Math.max(1, Math.min(viewportCount, Math.max(items.length, 1)));
-  const sales = new Set(sellerIdsWithSales);
   const shouldMove = items.length > 1;
   const copies = shouldMove ? Math.max(2, Math.ceil((visibleCount * 2) / items.length)) : 1;
   const loopItems = Array.from({ length: copies }, (_, copy) =>
@@ -57,10 +54,7 @@ export default function FeaturedListingsCarousel({
               className="min-w-0 px-3"
               style={{ width: `${100 / loopItems.length}%` }}
             >
-              <FeaturedListingCard
-                highlight={item}
-                sellerHasSales={!!item.listings?.sellers?.id && sales.has(item.listings.sellers.id)}
-              />
+              <FeaturedListingCard highlight={item} />
             </div>
           ))}
         </div>

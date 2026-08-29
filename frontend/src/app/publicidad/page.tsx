@@ -1,17 +1,17 @@
 "use client"
 
 import { useState } from "react"
-import Link from "next/link"
 import { LA_PAMPA_CITIES } from "@/lib/constants/laPampaCities"
 import { communityLanguageRejection } from "@/lib/communityLanguage"
 import CustomDropdown from "@/components/CustomDropdown"
 
-export default function ComerciosPage() {
-  const [commerceName, setCommerceName] = useState("")
+export default function PublicidadPage() {
+  const [brandName, setBrandName] = useState("")
   const [contactName, setContactName] = useState("")
   const [email, setEmail] = useState("")
   const [phone, setPhone] = useState("")
   const [city, setCity] = useState("")
+  const [placement, setPlacement] = useState("")
   const [message, setMessage] = useState("")
   const [submitted, setSubmitted] = useState(false)
   const [submitError, setSubmitError] = useState("")
@@ -20,7 +20,7 @@ export default function ComerciosPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setSubmitError("")
-    const languageError = communityLanguageRejection(commerceName, contactName, message)
+    const languageError = communityLanguageRejection(brandName, contactName, message)
     if (languageError) {
       setSubmitError(languageError)
       return
@@ -29,11 +29,12 @@ export default function ComerciosPage() {
     setSending(true)
     try {
       const composed = [
-        "Consulta de comercio (página /comercios)",
-        `Comercio: ${commerceName.trim()}`,
+        "Consulta de publicidad (página /publicidad)",
+        `Marca / comercio: ${brandName.trim()}`,
         `Contacto: ${contactName.trim()}`,
         phone.trim() ? `Teléfono: ${phone.trim()}` : null,
         city.trim() ? `Localidad: ${city.trim()}` : null,
+        placement.trim() ? `Espacio de interés: ${placement.trim()}` : null,
         "",
         message.trim(),
       ]
@@ -44,7 +45,7 @@ export default function ComerciosPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: `${contactName.trim()} — ${commerceName.trim()}`.slice(0, 120),
+          name: `${contactName.trim()} — ${brandName.trim()}`.slice(0, 120),
           email: email.trim(),
           message: composed,
         }),
@@ -55,11 +56,12 @@ export default function ComerciosPage() {
         return
       }
       setSubmitted(true)
-      setCommerceName("")
+      setBrandName("")
       setContactName("")
       setEmail("")
       setPhone("")
       setCity("")
+      setPlacement("")
       setMessage("")
     } catch {
       setSubmitError("No se pudo enviar. Probá de nuevo.")
@@ -72,39 +74,39 @@ export default function ComerciosPage() {
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12 w-full flex flex-col gap-12">
       <div className="text-center max-w-3xl mx-auto flex flex-col gap-4">
         <h1 className="font-heading text-4xl font-extrabold tracking-tight text-foreground">
-          Publicá tu comercio en CompraVentaOnline
+          Anunciá en CompraVentaOnline
         </h1>
         <p className="text-text-muted text-base leading-relaxed">
-          Si tenés un local o vendés en La Pampa y querés mostrar tus productos en el marketplace,
-          dejános tus datos. Te contactamos para ayudarte a abrir tu perfil y cargar el catálogo.
+          Si querés aparecer en el sitio —home, publicaciones u otros espacios— dejános tus datos.
+          Te contactamos para armar una propuesta de publicidad local en La Pampa.
         </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 items-start">
         <div className="lg:col-span-2 flex flex-col gap-4">
           <div className="rounded-2xl border border-card-border bg-card-bg-solid p-6 flex flex-col gap-3">
-            <h2 className="font-heading text-lg font-extrabold text-foreground">¿Para quién es?</h2>
+            <h2 className="font-heading text-lg font-extrabold text-foreground">Dónde podés aparecer</h2>
             <ul className="flex flex-col gap-2.5 text-sm text-text-muted leading-relaxed">
               <li className="flex gap-2">
                 <span className="text-accent-gold font-bold">✓</span>
-                Comercios de Santa Rosa, General Pico y el resto de la provincia
+                Banner en la ficha de un producto (el recuadro de publicidad local)
               </li>
               <li className="flex gap-2">
                 <span className="text-accent-gold font-bold">✓</span>
-                Locales que quieren un escaparate online sin armar una web propia
+                Carrusel de inicio, el primer lugar que ve quien entra al sitio
               </li>
               <li className="flex gap-2">
                 <span className="text-accent-gold font-bold">✓</span>
-                Quienes ya venden y necesitan cargar muchas publicaciones
+                Campañas a medida para comercios, marcas o eventos pampeanos
               </li>
             </ul>
           </div>
           <p className="text-xs text-text-muted leading-relaxed px-1">
-            Si ya sabés manejar el panel, podés{" "}
-            <Link href="/dashboard" className="font-bold text-accent-gold hover:underline">
-              registrarte y publicar
-            </Link>{" "}
-            por tu cuenta. Esta página es para que te acompañemos.
+            Esto no es publicar un producto a la venta. Si querés cargar tu catálogo, andá a{" "}
+            <a href="/comercios" className="font-bold text-accent-gold hover:underline">
+              Comercios
+            </a>
+            .
           </p>
         </div>
 
@@ -116,16 +118,16 @@ export default function ComerciosPage() {
           ) : (
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">
               <h2 className="font-heading text-base font-extrabold text-foreground uppercase tracking-wider">
-                Pedí que te contactemos
+                Pedí una propuesta
               </h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="flex flex-col gap-2">
-                  <label className="text-sm font-bold text-foreground">Nombre del comercio</label>
+                  <label className="text-sm font-bold text-foreground">Marca o comercio</label>
                   <input
                     type="text"
                     required
-                    value={commerceName}
-                    onChange={(e) => setCommerceName(e.target.value)}
+                    value={brandName}
+                    onChange={(e) => setBrandName(e.target.value)}
                     placeholder="Ej. Casa López"
                     className="w-full bg-background border border-card-border rounded-xl px-3 py-2.5 text-sm text-foreground focus:outline-none focus:border-accent-gold"
                   />
@@ -148,7 +150,7 @@ export default function ComerciosPage() {
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="comercio@correo.com"
+                    placeholder="hola@correo.com"
                     className="w-full bg-background border border-card-border rounded-xl px-3 py-2.5 text-sm text-foreground focus:outline-none focus:border-accent-gold"
                   />
                 </div>
@@ -164,28 +166,44 @@ export default function ComerciosPage() {
                   />
                 </div>
               </div>
-              <div className="flex flex-col gap-2">
-                <label className="text-sm font-bold text-foreground">Localidad</label>
-                <CustomDropdown
-                  name="city"
-                  defaultValue={city}
-                  onChange={setCity}
-                  showSearch
-                  placeholder="Buscar localidad..."
-                  options={[
-                    { name: "Elegí una localidad", value: "" },
-                    ...LA_PAMPA_CITIES.map((item) => ({ name: item, value: item })),
-                  ]}
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="flex flex-col gap-2">
+                  <label className="text-sm font-bold text-foreground">Localidad</label>
+                  <CustomDropdown
+                    name="city"
+                    defaultValue={city}
+                    onChange={setCity}
+                    showSearch
+                    placeholder="Buscar localidad..."
+                    options={[
+                      { name: "Elegí una localidad", value: "" },
+                      ...LA_PAMPA_CITIES.map((item) => ({ name: item, value: item })),
+                    ]}
+                  />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <label className="text-sm font-bold text-foreground">¿Dónde te interesa anunciar?</label>
+                  <CustomDropdown
+                    name="placement"
+                    defaultValue={placement}
+                    onChange={setPlacement}
+                    options={[
+                      { name: "Todavía no sé / a conversar", value: "" },
+                      { name: "Banner en publicaciones", value: "Banner en publicaciones" },
+                      { name: "Carrusel de inicio", value: "Carrusel de inicio" },
+                      { name: "Ambos o campaña a medida", value: "Ambos o campaña a medida" },
+                    ]}
+                  />
+                </div>
               </div>
               <div className="flex flex-col gap-2">
-                <label className="text-sm font-bold text-foreground">Contanos qué vendés</label>
+                <label className="text-sm font-bold text-foreground">Contanos tu idea</label>
                 <textarea
                   required
                   rows={4}
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
-                  placeholder="Rubro, si ya tenés fotos o lista de productos, y cómo preferís que te contactemos."
+                  placeholder="Qué querés promocionar, fechas, presupuesto aproximado si lo tenés."
                   className="w-full bg-background border border-card-border rounded-xl px-3 py-2.5 text-sm text-foreground focus:outline-none focus:border-accent-gold resize-none"
                 />
               </div>
@@ -195,7 +213,7 @@ export default function ComerciosPage() {
                 disabled={sending}
                 className="w-full rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover py-3 text-sm font-extrabold text-white shadow-md hover:opacity-95 transition-all cursor-pointer disabled:opacity-50"
               >
-                {sending ? "Enviando..." : "Quiero que me contacten"}
+                {sending ? "Enviando..." : "Quiero una propuesta"}
               </button>
             </form>
           )}

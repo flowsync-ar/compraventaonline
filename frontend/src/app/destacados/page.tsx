@@ -1,19 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import Link from "next/link";
 import { fetchFeaturedListingCards, type FeaturedListingCard } from "@/lib/featuredListings";
 import { stripRichText } from "@/lib/richText";
-
-function tierEmoji(tier: string): string {
-  switch (tier.toUpperCase()) {
-    case "PREMIUM": return "💎";
-    case "GOLD":
-    case "ORO": return "🥇";
-    case "PLATA":
-    case "SILVER": return "🥈";
-    default: return "🥉";
-  }
-}
 
 async function getHighlightedListings(): Promise<FeaturedListingCard[]> {
   try {
@@ -25,35 +13,8 @@ async function getHighlightedListings(): Promise<FeaturedListingCard[]> {
   }
 }
 
-// Sellers with at least one PAID order — used to avoid showing the default
-// score/tier (DB default: score 80, tier BRONCE) as if it were an earned
-// reputation for sellers who never actually sold anything.
-// Uses the admin client: `orders` RLS only lets the buyer/seller read their
-// own rows, but this page is public and needs the full picture.
-async function getSellersWithSales(): Promise<Set<string>> {
-  try {
-    const supabase = createAdminClient();
-    const { data, error } = await supabase
-      .from("orders")
-      .select("seller_id")
-      .eq("status", "PAID");
-
-    if (error) {
-      console.error("[destacados] Error fetching sellers with sales:", error.message);
-      return new Set();
-    }
-    return new Set((data ?? []).map((o) => o.seller_id));
-  } catch (err) {
-    console.error("[destacados] Unexpected error fetching sellers with sales:", err);
-    return new Set();
-  }
-}
-
 export default async function DestacadosPage() {
-  const [highlights, sellersWithSales] = await Promise.all([
-    getHighlightedListings(),
-    getSellersWithSales(),
-  ]);
+  const highlights = await getHighlightedListings();
 
   return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12 w-full flex flex-col gap-10">
@@ -93,7 +54,6 @@ export default async function DestacadosPage() {
             if (!item) return null;
             const isPremium = item.featured_plan === "PREMIUM";
             const product = item.products;
-            const seller = item.sellers;
             const image = product?.images?.[0] ?? "/sinimagen.webp";
             const descriptionPreview = product?.description ? stripRichText(product.description) : "";
 
@@ -146,26 +106,6 @@ export default async function DestacadosPage() {
                         {descriptionPreview}
                       </p>
                     )}
-                  </div>
-
-                  {/* Seller & Reputation details */}
-                  <div className="flex items-center justify-between border-t border-card-border/30 pt-3 text-[10px]">
-                    <div className="flex flex-col gap-0.5">
-                      <span className="text-text-muted">Vendedor</span>
-                      <span className="font-bold text-foreground max-w-[150px] truncate">
-                        {seller?.name ?? "Vendedor"}
-                      </span>
-                    </div>
-                    <div className="flex flex-col items-end gap-0.5">
-                      <span className="text-text-muted">Reputación</span>
-                      {seller?.id && sellersWithSales.has(seller.id) ? (
-                        <span className="font-extrabold text-accent-green">
-                          {tierEmoji(seller.tier)} {seller.score} pts
-                        </span>
-                      ) : (
-                        <span className="font-bold text-text-muted italic">🌱 Nuevo, sin ventas</span>
-                      )}
-                    </div>
                   </div>
 
                   {/* Bottom CTA & Price */}

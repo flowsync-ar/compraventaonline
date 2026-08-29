@@ -123,11 +123,6 @@ export default function ListingDetailPage() {
   // order-confirmed modal so they know exactly what the seller now sees.
   const [buyerContact, setBuyerContact] = useState<{ name: string; phone: string | null; email: string | null } | null>(null);
 
-  // Whether this listing's seller has at least one PAID order — sellers.score
-  // and sellers.tier default to 80/BRONCE at signup, which would otherwise
-  // read as a real reputation for a seller who never sold anything.
-  const [sellerHasSales, setSellerHasSales] = useState(false);
-
   // Full category path (root-first, e.g. Alimentos y Bebidas > Bebidas >
   // Vinos y Espumantes) for the breadcrumb — resolved once the listing's
   // own category id is known.
@@ -408,26 +403,6 @@ export default function ListingDetailPage() {
     fetchSellerPhone();
   }, [userId, listing?.sellers?.id]);
 
-  // Check whether the seller has any completed (PAID) sale — public info,
-  // works for any visitor regardless of login state.
-  useEffect(() => {
-    const listingSellerId = listing?.sellers?.id;
-    if (!listingSellerId) return;
-
-    async function fetchSellerSalesStatus() {
-      try {
-        const res = await fetch(`/api/sellers/${listingSellerId}/sales-status`);
-        const data = await res.json();
-        setSellerHasSales(res.ok ? !!data.hasSales : false);
-      } catch (err) {
-        console.error("Error fetching seller sales status:", err);
-        setSellerHasSales(false);
-      }
-    }
-
-    fetchSellerSalesStatus();
-  }, [listing?.sellers?.id]);
-
   // Keyboard navigation for the image carousel modal
   useEffect(() => {
     if (!showImageModal) return;
@@ -651,6 +626,9 @@ export default function ListingDetailPage() {
 
   const product = listing.products;
   const seller = listing.sellers;
+  // Tier BRONCE is the DB default for 0 pts. Only show a level after they
+  // earned points (ratings). Test PAID orders alone used to flip this to Bronce.
+  const showReputation = (seller?.score ?? 0) > 0;
   const isOwnListing = !!sellerId && seller?.id === sellerId;
   const images = product?.images ?? [];
   const mainImage = activeImage ?? images[0] ?? "/sinimagen.webp";
@@ -838,19 +816,19 @@ export default function ListingDetailPage() {
                       </span>
                     )}
                   </div>
-                  {sellerHasSales ? (
+                  {showReputation ? (
                     <span className={`px-2.5 py-0.5 rounded-full border text-[10px] font-extrabold uppercase tracking-wider ${getTierBadge(seller?.tier ?? "")}`}>
                       Nivel {seller?.tier}
                     </span>
                   ) : (
                     <span className="px-2.5 py-0.5 rounded-full border text-[10px] font-extrabold uppercase tracking-wider bg-accent-green/10 text-accent-green border-accent-green/30">
-                      🌱 Vendedor nuevo
+                      🌱 Nivel Nuevo
                     </span>
                   )}
                 </div>
 
                 <div className="border-t border-card-border/50 pt-4 mt-2">
-                  {sellerHasSales ? (() => {
+                  {showReputation ? (() => {
                     const points = seller?.score ?? 0;
                     const tierRange = points >= 300 ? null : points >= 150 ? { from: 150, to: 300 } : points >= 50 ? { from: 50, to: 150 } : { from: 0, to: 50 };
                     const pct = tierRange ? Math.round(((points - tierRange.from) / (tierRange.to - tierRange.from)) * 100) : 100;
@@ -891,7 +869,7 @@ export default function ListingDetailPage() {
               <p className="text-xs text-foreground font-bold mt-1">¿Querés que tu comercio aparezca acá?</p>
               <p className="text-[10px] text-text-muted mt-0.5">Llegá a miles de pampeanos diariamente. Anunciá con nosotros.</p>
             </div>
-            <Link href="/dashboard" className="rounded-xl border border-accent-gold/30 hover:border-accent-gold px-4 py-2 text-[10px] font-extrabold text-accent-gold hover:bg-accent-gold/5 transition-all">
+            <Link href="/publicidad" className="rounded-xl border border-accent-gold/30 hover:border-accent-gold px-4 py-2 text-[10px] font-extrabold text-accent-gold hover:bg-accent-gold/5 transition-all">
               Saber más
             </Link>
           </div>
@@ -1092,12 +1070,12 @@ export default function ListingDetailPage() {
                       {seller?.username ? `@${seller.username}` : seller?.name}
                     </h4>
                     <span className="text-[10px] text-text-muted block mt-0.5">
-                      {sellerHasSales ? `Vendedor nivel ${seller?.tier}` : "🌱 Recién se suma a la comunidad"}
+                      {showReputation ? `Vendedor nivel ${seller?.tier}` : "🌱 Recién se suma a la comunidad"}
                     </span>
                   </div>
                 </button>
                 <div className="text-right shrink-0">
-                  {sellerHasSales ? (
+                  {showReputation ? (
                     <>
                       <span className="text-sm font-extrabold text-accent-gold block">{getTierEmoji(seller?.tier ?? "")} {seller?.score ?? 0} pts</span>
                       <span className="text-[8px] text-text-muted block uppercase">Puntaje pampeano</span>
@@ -1152,7 +1130,7 @@ export default function ListingDetailPage() {
                   Seller Trust Box: sin ventas pagas todavía, no mostramos
                   un puntaje/tier que en verdad es solo el default de alta. */}
               <div className="w-full border-t border-card-border/50 pt-4">
-                {sellerHasSales ? (
+                {showReputation ? (
                   <>
                     <span className="text-xl font-extrabold text-accent-gold block">{getTierEmoji(seller?.tier ?? "")} {seller?.score ?? 0} pts</span>
                     <span className="text-[9px] text-text-muted block uppercase mt-0.5">Nivel {seller?.tier === "GOLD" ? "ORO" : seller?.tier}</span>

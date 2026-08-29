@@ -112,7 +112,7 @@ export default function SiteChrome({ children }: { children: ReactNode }) {
             la fila 2, debajo del nav — por eso comparten ancho exacto sin
             cálculos manuales, es la misma celda de grid. */}
       <header className={`${isDashboard ? "shrink-0" : "sticky top-0"} z-50 w-full border-b border-card-border bg-background/85 backdrop-blur-md`}>
-        <div className={`grid grid-cols-1 xl:grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-4 w-full px-4 sm:px-6 lg:px-8 pt-1.5 ${isHomePage ? "gap-y-2 sm:gap-y-2 xl:gap-y-1 pb-0" : "gap-y-5 sm:gap-y-6 xl:gap-y-4 pb-4 xl:pb-2"}`}>
+        <div className={`grid grid-cols-1 xl:grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-4 w-full px-4 sm:px-6 lg:px-8 pt-4 ${isHomePage ? "gap-y-2 sm:gap-y-2 xl:gap-y-1 pb-0" : "gap-y-5 sm:gap-y-6 xl:gap-y-4 pb-4 xl:pb-2"}`}>
 
           {/* Grupo Logo + Sesión/Tema (se disuelve desde xl) */}
           <div className="flex xl:contents items-center justify-between gap-2">
@@ -165,14 +165,14 @@ export default function SiteChrome({ children }: { children: ReactNode }) {
                 )}
               </div>
 
-              <Link href="/" className="relative flex flex-col items-center shrink-0 group min-w-0">
+              <Link href="/" className="relative -mt-2 flex flex-col items-center shrink-0 group min-w-0 xl:-mt-3">
                 <ThemedImage
                   lightSrc="/logo-cvo-new.png"
                   darkSrc="/logo-cvo-new.png"
                   alt="CompraVentaOnline La Pampa"
-                  className="h-16 sm:h-24 w-auto max-w-none object-contain transition-transform group-hover:scale-105"
+                  className="h-16 sm:h-24 w-auto max-w-none object-contain -ml-6 sm:-ml-8 transition-transform group-hover:scale-105"
                 />
-                <span className="-mt-1.5 sm:-mt-2.5 font-script text-sm sm:text-lg font-bold whitespace-nowrap transition-transform group-hover:scale-110">
+                <span className="mt-0.5 sm:mt-1 font-script text-sm sm:text-lg font-bold whitespace-nowrap transition-transform group-hover:scale-110">
                 <span className="text-accent-gold">100%</span> <span className="text-[#2A6BC5]">Pampeano</span>
                 </span>
               </Link>
@@ -278,6 +278,9 @@ export default function SiteChrome({ children }: { children: ReactNode }) {
               </Link>
               <Link href="/comercios" className="hover:text-accent-gold transition-colors">
                 Comercios
+              </Link>
+              <Link href="/publicidad" className="hover:text-accent-gold transition-colors">
+                Publicidad
               </Link>
             </div>
 

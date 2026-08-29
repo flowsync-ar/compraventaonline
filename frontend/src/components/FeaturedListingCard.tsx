@@ -3,33 +3,15 @@ import Image from "next/image";
 import FavoriteButton from "@/components/FavoriteButton";
 import type { FeaturedListingCard as FeaturedListingCardData } from "@/lib/featuredListings";
 
-function tierEmoji(tier: string): string {
-  switch (tier.toUpperCase()) {
-    case "PREMIUM":
-      return "💎";
-    case "GOLD":
-    case "ORO":
-      return "🥇";
-    case "PLATA":
-    case "SILVER":
-      return "🥈";
-    default:
-      return "🥉";
-  }
-}
-
 export default function FeaturedListingCard({
   highlight,
-  sellerHasSales,
 }: {
   highlight: FeaturedListingCardData;
-  sellerHasSales: boolean;
 }) {
   const listing = highlight.listings;
   if (!listing) return null;
 
   const product = listing.products;
-  const seller = listing.sellers;
   const image = product?.images?.[0] ?? "/sinimagen.webp";
 
   return (
@@ -80,11 +62,6 @@ export default function FeaturedListingCard({
             {listing.price.toLocaleString("es-AR", { minimumFractionDigits: 2 })}
           </span>
         </div>
-
-        <p className="truncate text-[10px] text-text-muted">
-          {seller?.name ?? "Vendedor"}
-          {seller?.id && sellerHasSales ? ` · ${tierEmoji(seller.tier)} ${seller.score}` : " · Nuevo"}
-        </p>
       </div>
     </Link>
   );

@@ -164,7 +164,7 @@ export default function AdminMetricasPage() {
         <div className="flex items-center gap-3">
           {lastUpdated && (
             <span className="text-[11px] text-text-muted">
-              Actualizado {lastUpdated.toLocaleTimeString("es-AR")}
+              Actualizado {lastUpdated.toLocaleTimeString("es-AR", { hour12: false })}
             </span>
           )}
           <button

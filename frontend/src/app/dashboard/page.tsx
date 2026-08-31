@@ -16,6 +16,7 @@ import { imageToWebp, imagesToWebp } from "@/lib/imageToWebp";
 import dynamic from "next/dynamic";
 import { isRichHtmlEmpty, sanitizeRichHtml, stripRichText } from "@/lib/richText";
 import { communityLanguageRejection, flaggedLanguageTerms } from "@/lib/communityLanguage";
+import { documentNumberPlaceholder, formatDocumentNumber } from "@/lib/documentNumber";
 import LanguageHighlightField from "@/components/LanguageHighlightField";
 import { analyzePrice, formatListedPrice } from "@/lib/priceIntegrity/analyzePrice";
 import { PRICE_INTEGRITY_EVENT, PRICE_RISK, type PriceIntegrityResult } from "@/lib/priceIntegrity/types";
@@ -444,10 +445,11 @@ function DashboardPageContent() {
         const profile = profileData as SellerProfile;
         setSellerProfile(profile);
         setProfileName(profile.name ?? "");
-        setProfileType(profile.type === "BUSINESS_SELLER" ? "BUSINESS_SELLER" : "PERSONAL_SELLER");
+        const loadedType = profile.type === "BUSINESS_SELLER" ? "BUSINESS_SELLER" : "PERSONAL_SELLER";
+        setProfileType(loadedType);
         setProfilePhone(profile.phone ?? "");
         setProfileLocation(profile.location ?? "");
-        setProfileDocumentNumber(profile.document_number ?? "");
+        setProfileDocumentNumber(formatDocumentNumber(profile.document_number ?? "", loadedType));
         setProfileBio(profile.bio ?? "");
         setAvatarUrl(profile.avatar_url ?? null);
         setBankCbu(profile.bank_cbu ?? "");
@@ -1342,23 +1344,23 @@ function DashboardPageContent() {
     setProfileSuccessMsg("");
     setProfileErrorMsg("");
 
-    const supabase = getSupabase();
     try {
-      const { error } = await supabase
-        .from("sellers")
-        .update({
+      const res = await fetch("/api/sellers/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           name: profileName,
           type: profileType,
           phone: profilePhone,
           location: profileLocation || null,
-          document_number: profileDocumentNumber || null,
+          documentNumber: profileDocumentNumber || null,
           bio: profileBio || null,
-          bank_cbu: bankCbu.trim() || null,
-          bank_alias: bankAlias.trim() || null,
-        })
-        .eq("id", sellerProfile.id);
-
-      if (error) throw new Error(error.message);
+          bankCbu: bankCbu.trim() || null,
+          bankAlias: bankAlias.trim() || null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "No se pudieron guardar los cambios.");
 
       setSellerProfile({
         ...sellerProfile,
@@ -1373,9 +1375,9 @@ function DashboardPageContent() {
       });
       setProfileSuccessMsg("¡Datos actualizados con éxito!");
       window.dispatchEvent(new Event("profile-updated"));
-    } catch (err: any) {
+    } catch (err) {
       console.error("Error al guardar el perfil:", err);
-      setProfileErrorMsg("No se pudieron guardar los cambios.");
+      setProfileErrorMsg(err instanceof Error ? err.message : "No se pudieron guardar los cambios.");
     } finally {
       setProfileSaving(false);
     }
@@ -4474,7 +4476,10 @@ function DashboardPageContent() {
                   <div className="grid grid-cols-2 gap-3 bg-background border border-card-border p-1 rounded-xl">
                     <button
                       type="button"
-                      onClick={() => setProfileType("PERSONAL_SELLER")}
+                      onClick={() => {
+                        setProfileType("PERSONAL_SELLER")
+                        setProfileDocumentNumber((current) => formatDocumentNumber(current, "PERSONAL_SELLER"))
+                      }}
                       className={`py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                         profileType === "PERSONAL_SELLER" ? "bg-accent-blue text-white shadow-md" : "text-text-muted hover:text-foreground"
                       }`}
@@ -4483,7 +4488,10 @@ function DashboardPageContent() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => setProfileType("BUSINESS_SELLER")}
+                      onClick={() => {
+                        setProfileType("BUSINESS_SELLER")
+                        setProfileDocumentNumber((current) => formatDocumentNumber(current, "BUSINESS_SELLER"))
+                      }}
                       className={`py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                         profileType === "BUSINESS_SELLER" ? "bg-accent-blue text-white shadow-md" : "text-text-muted hover:text-foreground"
                       }`}
@@ -4514,8 +4522,8 @@ function DashboardPageContent() {
                   <input
                     type="text"
                     value={profileDocumentNumber}
-                    onChange={(e) => setProfileDocumentNumber(e.target.value)}
-                    placeholder={profileType === "PERSONAL_SELLER" ? "Ej. 20-35444333-8" : "Ej. 30-71112223-9"}
+                    onChange={(e) => setProfileDocumentNumber(formatDocumentNumber(e.target.value, profileType))}
+                    placeholder={documentNumberPlaceholder(profileType)}
                     className="w-full bg-background border border-card-border rounded-xl px-4 py-3 text-xs text-foreground focus:outline-none focus:border-accent-gold"
                   />
                 </div>

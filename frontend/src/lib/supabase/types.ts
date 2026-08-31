@@ -1191,6 +1191,18 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: Json
       }
+      find_seller_identity_conflicts: {
+        Args: {
+          p_document_digits: string
+          p_phone_digits: string
+          p_seller_type: Database["public"]["Enums"]["seller_type"]
+          p_exclude_user_id?: string | null
+        }
+        Returns: {
+          document_taken: boolean
+          phone_taken: boolean
+        }[]
+      }
     }
     Enums: {
       ad_placement: "HOME_BANNER" | "SIDEBAR" | "LISTING_PAGE"

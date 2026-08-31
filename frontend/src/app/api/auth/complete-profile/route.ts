@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient as createServerClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
+import { findIdentityConflicts } from "@/lib/sellerIdentity.server"
+import { identityConflictMessage } from "@/lib/sellerIdentity"
 
 const USERNAME_PATTERN = /^[a-z0-9_.]{3,30}$/
 
@@ -58,9 +60,21 @@ export async function POST(request: NextRequest) {
     .from("sellers")
     .select("id")
     .eq("username", username)
+    .neq("user_id", user.id)
     .maybeSingle()
   if (existingUsername) {
     return NextResponse.json({ error: "Este nombre de usuario ya existe." }, { status: 400 })
+  }
+
+  const identity = await findIdentityConflicts(admin, {
+    documentNumber,
+    phone,
+    sellerType,
+    excludeUserId: user.id,
+  })
+  const identityError = identityConflictMessage(identity.documentTaken, identity.phoneTaken)
+  if (identityError) {
+    return NextResponse.json({ error: identityError }, { status: 400 })
   }
 
   const { data: updatedSeller, error: updateError } = await admin

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { sendConfirmationEmail } from "@/lib/mail"
+import { findIdentityConflicts } from "@/lib/sellerIdentity.server"
+import { identityConflictMessage } from "@/lib/sellerIdentity"
 
 // ============================================================
 // Admin client — uses service role key, bypasses RLS.
@@ -135,32 +137,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Ese email ya está registrado." }, { status: 400 })
   }
 
-  if (documentNumber) {
-    // Scoped to (document_number, sellerType): the same DNI/CUIT can be
-    // reused across a PERSONAL_SELLER and a BUSINESS_SELLER account (a
-    // sole proprietor legitimately does this), but not by two accounts
-    // of the same type — see 008_seller_uniqueness.sql.
-    const { data: existingByDocument, error: documentCheckError } = await admin
-      .from("sellers")
-      .select("id")
-      .eq("document_number", documentNumber)
-      .eq("type", sellerType)
-      .maybeSingle()
-
-    if (documentCheckError) {
-      console.error("Document uniqueness check failed:", documentCheckError.message)
-      return NextResponse.json(
-        { error: "No se pudo verificar el DNI/CUIT. Intentá de nuevo." },
-        { status: 500 },
-      )
-    }
-
-    if (existingByDocument) {
-      return NextResponse.json(
-        { error: "Ese DNI/CUIT ya está registrado." },
-        { status: 400 },
-      )
-    }
+  const identity = await findIdentityConflicts(admin, {
+    documentNumber,
+    phone,
+    sellerType,
+  })
+  const identityError = identityConflictMessage(identity.documentTaken, identity.phoneTaken)
+  if (identityError) {
+    return NextResponse.json({ error: identityError }, { status: 400 })
   }
 
   // Creates the auth user (unconfirmed) and returns a confirmation link —

@@ -11,6 +11,8 @@ import GenericAvatar from "@/components/GenericAvatar"
 import Toast from "@/components/Toast"
 import TermsAcceptanceModal from "@/components/TermsAcceptanceModal"
 import { LA_PAMPA_CITIES } from "@/lib/constants/laPampaCities"
+import { documentNumberPlaceholder, formatDocumentNumber } from "@/lib/documentNumber"
+import { isIdentityConflictError } from "@/lib/sellerIdentity"
 import { imageToWebp } from "@/lib/imageToWebp"
 
 // useSearchParams() requires a Suspense boundary in Next.js 16 (same fix
@@ -154,15 +156,6 @@ function LoginPageContent() {
     }
   }
 
-  // CUIL/CUIT are always 11 digits, formatted XX-XXXXXXXX-X — strips
-  // whatever the user typed down to digits first so pasting a raw 11-digit
-  // number, or editing mid-string, both land in the right shape.
-  const formatCuit = (value: string) => {
-    const digits = value.replace(/\D/g, "").slice(0, 11)
-    if (digits.length <= 2) return digits
-    if (digits.length <= 10) return `${digits.slice(0, 2)}-${digits.slice(2)}`
-    return `${digits.slice(0, 2)}-${digits.slice(2, 10)}-${digits.slice(10)}`
-  }
 
   const slugifyForUsername = (text: string) =>
     text
@@ -668,7 +661,10 @@ function LoginPageContent() {
                 <div className="grid grid-cols-2 gap-3 bg-background border border-card-border p-1 rounded-xl">
                   <button
                     type="button"
-                    onClick={() => setSellerType("PERSONAL_SELLER")}
+                    onClick={() => {
+                      setSellerType("PERSONAL_SELLER")
+                      setDocumentNumber((current) => formatDocumentNumber(current, "PERSONAL_SELLER"))
+                    }}
                     className={`py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                       sellerType === "PERSONAL_SELLER" ? "bg-accent-blue text-white shadow-md" : "text-text-muted hover:text-foreground"
                     }`}
@@ -677,7 +673,10 @@ function LoginPageContent() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setSellerType("BUSINESS_SELLER")}
+                    onClick={() => {
+                      setSellerType("BUSINESS_SELLER")
+                      setDocumentNumber((current) => formatDocumentNumber(current, "BUSINESS_SELLER"))
+                    }}
                     className={`py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                       sellerType === "BUSINESS_SELLER" ? "bg-accent-blue text-white shadow-md" : "text-text-muted hover:text-foreground"
                     }`}
@@ -695,8 +694,8 @@ function LoginPageContent() {
                   type="text"
                   required
                   value={documentNumber}
-                  onChange={(e) => setDocumentNumber(formatCuit(e.target.value))}
-                  placeholder={sellerType === "PERSONAL_SELLER" ? "Ej. 20-35444333-8" : "Ej. 30-71112223-9"}
+                  onChange={(e) => setDocumentNumber(formatDocumentNumber(e.target.value, sellerType))}
+                  placeholder={documentNumberPlaceholder(sellerType)}
                   className="w-full bg-background border border-card-border rounded-xl px-4 py-3 text-xs text-foreground focus:outline-none focus:border-accent-gold"
                 />
               </div>
@@ -773,7 +772,21 @@ function LoginPageContent() {
             either, on any form length or screen size. */}
         {(errorMsg || successMsg) && (
           <div className="mt-4">
-            {errorMsg && <Toast type="error" message={errorMsg} onClose={() => setErrorMsg("")} />}
+            {errorMsg && (
+              <Toast
+                type="error"
+                persist={isIdentityConflictError(errorMsg)}
+                message={errorMsg}
+                onClose={() => setErrorMsg("")}
+                footer={
+                  isIdentityConflictError(errorMsg) ? (
+                    <Link href="/support" className="text-white underline font-extrabold">
+                      Contactarnos
+                    </Link>
+                  ) : undefined
+                }
+              />
+            )}
             {successMsg && <Toast type="success" message={successMsg} onClose={() => setSuccessMsg("")} />}
           </div>
         )}

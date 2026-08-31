@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/admin/guard"
 import { createAdminClient } from "@/lib/supabase/admin"
+import { findIdentityConflicts } from "@/lib/sellerIdentity.server"
+import { identityConflictMessage } from "@/lib/sellerIdentity"
 
 export async function GET(request: NextRequest) {
   if (!(await requireAdmin(request))) {
@@ -114,20 +116,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Ese email ya está registrado." }, { status: 400 })
   }
 
-  if (documentNumber) {
-    const { data: existingByDocument, error: documentCheckError } = await admin
-      .from("sellers")
-      .select("id")
-      .eq("document_number", documentNumber)
-      .eq("type", sellerType)
-      .maybeSingle()
-
-    if (documentCheckError) {
-      return NextResponse.json({ error: "No se pudo verificar el DNI/CUIT." }, { status: 500 })
-    }
-    if (existingByDocument) {
-      return NextResponse.json({ error: "Ese DNI/CUIT ya está registrado." }, { status: 400 })
-    }
+  const identity = await findIdentityConflicts(admin, {
+    documentNumber,
+    phone,
+    sellerType,
+  })
+  const identityError = identityConflictMessage(identity.documentTaken, identity.phoneTaken)
+  if (identityError) {
+    return NextResponse.json({ error: identityError }, { status: 400 })
   }
 
   const { data: created, error: createError } = await admin.auth.admin.createUser({

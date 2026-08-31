@@ -1,6 +1,7 @@
 "use client"
 
 import { FormEvent, useState } from "react"
+import { documentNumberPlaceholder, formatDocumentNumber } from "@/lib/documentNumber"
 
 const inputClass =
   "w-full bg-background border border-card-border rounded-xl px-4 py-2 text-sm text-foreground focus:outline-none focus:border-accent-gold"
@@ -148,7 +149,10 @@ export default function CreateUserModal({ onClose, onCreated }: CreateUserModalP
           <div className="flex gap-1 p-1 rounded-xl bg-card-bg border border-card-border">
             <button
               type="button"
-              onClick={() => setSellerType("PERSONAL_SELLER")}
+              onClick={() => {
+                setSellerType("PERSONAL_SELLER")
+                setDocumentNumber((current) => formatDocumentNumber(current, "PERSONAL_SELLER"))
+              }}
               className={`flex-1 py-2 rounded-lg text-[11px] font-extrabold uppercase tracking-wide cursor-pointer transition-all ${
                 sellerType === "PERSONAL_SELLER" ? "bg-accent-blue text-white shadow-md" : "text-text-muted"
               }`}
@@ -157,7 +161,10 @@ export default function CreateUserModal({ onClose, onCreated }: CreateUserModalP
             </button>
             <button
               type="button"
-              onClick={() => setSellerType("BUSINESS_SELLER")}
+              onClick={() => {
+                setSellerType("BUSINESS_SELLER")
+                setDocumentNumber((current) => formatDocumentNumber(current, "BUSINESS_SELLER"))
+              }}
               className={`flex-1 py-2 rounded-lg text-[11px] font-extrabold uppercase tracking-wide cursor-pointer transition-all ${
                 sellerType === "BUSINESS_SELLER" ? "bg-accent-blue text-white shadow-md" : "text-text-muted"
               }`}
@@ -172,7 +179,8 @@ export default function CreateUserModal({ onClose, onCreated }: CreateUserModalP
             </span>
             <input
               value={documentNumber}
-              onChange={(e) => setDocumentNumber(e.target.value)}
+              onChange={(e) => setDocumentNumber(formatDocumentNumber(e.target.value, sellerType))}
+              placeholder={documentNumberPlaceholder(sellerType)}
               className={inputClass}
             />
           </label>

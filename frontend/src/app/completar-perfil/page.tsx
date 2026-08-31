@@ -11,7 +11,7 @@ import Toast from "@/components/Toast"
 import TermsAcceptanceModal from "@/components/TermsAcceptanceModal"
 import { LA_PAMPA_CITIES } from "@/lib/constants/laPampaCities"
 import { documentNumberPlaceholder, formatDocumentNumber } from "@/lib/documentNumber"
-import { isIdentityConflictError } from "@/lib/sellerIdentity"
+import { fieldErrorClass, fieldNormalClass, fieldsFromErrorPayload, isIdentityConflictError, type IdentityFieldErrors } from "@/lib/sellerIdentity"
 
 const USERNAME_PATTERN = /^[a-z0-9_.]{3,30}$/
 
@@ -43,6 +43,7 @@ function CompletarPerfilForm() {
 
   const [loading, setLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState("")
+  const [fieldErrors, setFieldErrors] = useState<IdentityFieldErrors>({})
 
 
   const slugifyForUsername = (text: string) =>
@@ -129,6 +130,7 @@ function CompletarPerfilForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setErrorMsg("")
+    setFieldErrors({})
 
     if (usernameStatus !== "available") {
       setErrorMsg("Verificá que el nombre de usuario esté disponible antes de continuar.")
@@ -147,7 +149,10 @@ function CompletarPerfilForm() {
         body: JSON.stringify({ username, sellerType, documentNumber, phone, location, acceptTerms }),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error || "No se pudo completar el perfil.")
+      if (!res.ok) {
+        setFieldErrors(fieldsFromErrorPayload(data))
+        throw new Error(data.error || "No se pudo completar el perfil.")
+      }
       router.push(next)
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : "No se pudo completar el perfil.")
@@ -242,9 +247,13 @@ function CompletarPerfilForm() {
             <input
               type="text"
               value={documentNumber}
-              onChange={(e) => setDocumentNumber(formatDocumentNumber(e.target.value, sellerType))}
+              onChange={(e) => {
+                setDocumentNumber(formatDocumentNumber(e.target.value, sellerType))
+                if (fieldErrors.document) setFieldErrors((prev) => ({ ...prev, document: false }))
+              }}
               placeholder={documentNumberPlaceholder(sellerType)}
-              className="w-full bg-background border border-card-border rounded-xl px-4 py-3 text-xs text-foreground focus:outline-none focus:border-accent-gold"
+              aria-invalid={!!fieldErrors.document}
+              className={fieldErrors.document ? fieldErrorClass : fieldNormalClass}
             />
           </div>
 
@@ -254,9 +263,13 @@ function CompletarPerfilForm() {
               type="tel"
               required
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
+              onChange={(e) => {
+                setPhone(e.target.value)
+                if (fieldErrors.phone) setFieldErrors((prev) => ({ ...prev, phone: false }))
+              }}
               placeholder="Ej. 2954123456"
-              className="w-full bg-background border border-card-border rounded-xl px-4 py-3 text-xs text-foreground focus:outline-none focus:border-accent-gold"
+              aria-invalid={!!fieldErrors.phone}
+              className={fieldErrors.phone ? fieldErrorClass : fieldNormalClass}
             />
             <p className="text-[10px] text-text-muted">
               Lo vamos a compartir solo con compradores que ya iniciaron sesión, para coordinar la entrega.

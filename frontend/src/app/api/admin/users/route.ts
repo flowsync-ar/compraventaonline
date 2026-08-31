@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/admin/guard"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { findIdentityConflicts } from "@/lib/sellerIdentity.server"
-import { identityConflictMessage } from "@/lib/sellerIdentity"
+import { identityConflictPayload } from "@/lib/sellerIdentity"
 
 export async function GET(request: NextRequest) {
   if (!(await requireAdmin(request))) {
@@ -121,9 +121,9 @@ export async function POST(request: NextRequest) {
     phone,
     sellerType,
   })
-  const identityError = identityConflictMessage(identity.documentTaken, identity.phoneTaken)
+  const identityError = identityConflictPayload(identity.documentTaken, identity.phoneTaken)
   if (identityError) {
-    return NextResponse.json({ error: identityError }, { status: 400 })
+    return NextResponse.json(identityError, { status: 400 })
   }
 
   const { data: created, error: createError } = await admin.auth.admin.createUser({

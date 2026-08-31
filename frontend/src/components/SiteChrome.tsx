@@ -120,13 +120,13 @@ export default function SiteChrome({ children }: { children: ReactNode }) {
               {/* Botón hamburguesa: solo <md. Ahí el nav ni siquiera con
                   wrap tiene aire para 6 links, así que se oculta detrás de
                   este botón en vez de amontonarse en 3 líneas apretadas. */}
-              <div ref={mobileMenuRef} className="relative shrink-0 md:hidden">
+              <div ref={mobileMenuRef} className="relative z-20 shrink-0 md:hidden">
                 <button
                   type="button"
                   onClick={() => setMobileMenuOpen((open) => !open)}
                   aria-label="Abrir menú de navegación"
                   aria-expanded={mobileMenuOpen}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg bg-card-bg border border-card-border/80 hover:border-card-border text-foreground transition-colors cursor-pointer"
+                  className="relative z-20 flex h-8 w-8 items-center justify-center rounded-lg bg-card-bg border border-card-border/80 hover:border-card-border text-foreground transition-colors cursor-pointer"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     {mobileMenuOpen ? (
@@ -170,7 +170,7 @@ export default function SiteChrome({ children }: { children: ReactNode }) {
                   lightSrc="/logo-cvo-new.png"
                   darkSrc="/logo-cvo-new.png"
                   alt="CompraVentaOnline La Pampa"
-                  className="h-16 sm:h-24 w-auto max-w-none object-contain -ml-6 sm:-ml-8 transition-transform group-hover:scale-105"
+                  className="h-16 sm:h-24 w-auto max-w-none object-contain md:-ml-6 lg:-ml-8 transition-transform group-hover:scale-105"
                 />
                 <span className="mt-0.5 sm:mt-1 font-script text-sm sm:text-lg font-bold whitespace-nowrap transition-transform group-hover:scale-110">
                 <span className="text-accent-gold">100%</span> <span className="text-[#2A6BC5]">Pampeano</span>

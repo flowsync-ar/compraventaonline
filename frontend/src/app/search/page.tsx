@@ -152,7 +152,6 @@ async function searchListings(params: {
         price,
         condition,
         featured_plan,
-        exclude_from_price_sort,
         products (
           name,
           brand,
@@ -183,7 +182,7 @@ async function searchListings(params: {
     }
 
     if (params.sort === "price_asc") {
-      query = query.order("exclude_from_price_sort", { ascending: true }).order("price", { ascending: true });
+      query = query.order("price", { ascending: true });
     } else if (params.sort === "price_desc") {
       query = query.order("price", { ascending: false });
     } else {

@@ -12,7 +12,7 @@ import Toast from "@/components/Toast"
 import TermsAcceptanceModal from "@/components/TermsAcceptanceModal"
 import { LA_PAMPA_CITIES } from "@/lib/constants/laPampaCities"
 import { documentNumberPlaceholder, formatDocumentNumber } from "@/lib/documentNumber"
-import { isIdentityConflictError } from "@/lib/sellerIdentity"
+import { fieldErrorClass, fieldNormalClass, fieldsFromErrorPayload, isIdentityConflictError, type IdentityFieldErrors } from "@/lib/sellerIdentity"
 import { imageToWebp } from "@/lib/imageToWebp"
 
 // useSearchParams() requires a Suspense boundary in Next.js 16 (same fix
@@ -81,6 +81,7 @@ function LoginPageContent() {
     setIsLogin(searchParams.get("mode") !== "register")
   }, [searchParams])
   const [errorMsg, setErrorMsg] = useState("")
+  const [fieldErrors, setFieldErrors] = useState<IdentityFieldErrors>({})
   const [successMsg, setSuccessMsg] = useState("")
   const [loading, setLoading] = useState(false)
   const [showConfirmModal, setShowConfirmModal] = useState(false)
@@ -225,6 +226,7 @@ function LoginPageContent() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setErrorMsg("")
+    setFieldErrors({})
     setSuccessMsg("")
     setLoading(true)
 
@@ -341,6 +343,7 @@ function LoginPageContent() {
         const result = await res.json()
 
         if (!res.ok) {
+          setFieldErrors(fieldsFromErrorPayload(result))
           throw new Error(result.error ?? "No se pudo crear la cuenta. Intentá de nuevo.")
         }
 
@@ -694,9 +697,13 @@ function LoginPageContent() {
                   type="text"
                   required
                   value={documentNumber}
-                  onChange={(e) => setDocumentNumber(formatDocumentNumber(e.target.value, sellerType))}
+                  onChange={(e) => {
+                    setDocumentNumber(formatDocumentNumber(e.target.value, sellerType))
+                    if (fieldErrors.document) setFieldErrors((prev) => ({ ...prev, document: false }))
+                  }}
                   placeholder={documentNumberPlaceholder(sellerType)}
-                  className="w-full bg-background border border-card-border rounded-xl px-4 py-3 text-xs text-foreground focus:outline-none focus:border-accent-gold"
+                  aria-invalid={!!fieldErrors.document}
+                  className={fieldErrors.document ? fieldErrorClass : fieldNormalClass}
                 />
               </div>
 
@@ -706,9 +713,13 @@ function LoginPageContent() {
                   type="tel"
                   required
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
+                  onChange={(e) => {
+                    setPhone(e.target.value)
+                    if (fieldErrors.phone) setFieldErrors((prev) => ({ ...prev, phone: false }))
+                  }}
                   placeholder="Ej. 2954123456"
-                  className="w-full bg-background border border-card-border rounded-xl px-4 py-3 text-xs text-foreground focus:outline-none focus:border-accent-gold"
+                  aria-invalid={!!fieldErrors.phone}
+                  className={fieldErrors.phone ? fieldErrorClass : fieldNormalClass}
                 />
                 <p className="text-[10px] text-text-muted">
                   Lo vamos a compartir solo con compradores que ya iniciaron sesión, para coordinar la entrega.

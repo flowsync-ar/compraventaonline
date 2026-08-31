@@ -82,13 +82,18 @@ function HomeSearchBarForm() {
     });
   }, [categories]);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const searchHref = () => {
     const params = new URLSearchParams();
     if (query.trim()) params.set("q", query.trim());
     if (category) params.set("category", category);
     if (location) params.set("location", location);
-    router.push(`/search${params.toString() ? `?${params.toString()}` : ""}`);
+    const qs = params.toString();
+    return qs ? `/search?${qs}` : "/search";
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    router.push(searchHref());
   };
 
   return (
@@ -99,10 +104,16 @@ function HomeSearchBarForm() {
       >
         {/* Texto libre */}
         <div className="flex items-center gap-2 flex-1 sm:min-w-36 sm:basis-64 px-4 py-2">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-text-muted">
-            <circle cx="11" cy="11" r="8" />
-            <line x1="21" y1="21" x2="16.65" y2="16.65" />
-          </svg>
+          <button
+            type="submit"
+            aria-label="Buscar en todo el sitio"
+            className="shrink-0 text-text-muted hover:text-foreground transition-colors cursor-pointer"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+          </button>
           <input
             type="text"
             value={query}

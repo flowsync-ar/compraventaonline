@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { sendConfirmationEmail } from "@/lib/mail"
 import { findIdentityConflicts } from "@/lib/sellerIdentity.server"
-import { identityConflictMessage } from "@/lib/sellerIdentity"
+import { identityConflictPayload } from "@/lib/sellerIdentity"
 
 // ============================================================
 // Admin client — uses service role key, bypasses RLS.
@@ -142,9 +142,9 @@ export async function POST(request: NextRequest) {
     phone,
     sellerType,
   })
-  const identityError = identityConflictMessage(identity.documentTaken, identity.phoneTaken)
+  const identityError = identityConflictPayload(identity.documentTaken, identity.phoneTaken)
   if (identityError) {
-    return NextResponse.json({ error: identityError }, { status: 400 })
+    return NextResponse.json(identityError, { status: 400 })
   }
 
   // Creates the auth user (unconfirmed) and returns a confirmation link —

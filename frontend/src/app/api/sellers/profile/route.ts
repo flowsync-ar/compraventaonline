@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient as createServerClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { findIdentityConflicts } from "@/lib/sellerIdentity.server"
-import { identityConflictMessage } from "@/lib/sellerIdentity"
+import { identityConflictPayload } from "@/lib/sellerIdentity"
 
 export async function PATCH(request: NextRequest) {
   const supabase = await createServerClient()
@@ -38,9 +38,9 @@ export async function PATCH(request: NextRequest) {
     sellerType,
     excludeUserId: user.id,
   })
-  const identityError = identityConflictMessage(identity.documentTaken, identity.phoneTaken)
+  const identityError = identityConflictPayload(identity.documentTaken, identity.phoneTaken)
   if (identityError) {
-    return NextResponse.json({ error: identityError }, { status: 400 })
+    return NextResponse.json(identityError, { status: 400 })
   }
 
   const { error } = await admin

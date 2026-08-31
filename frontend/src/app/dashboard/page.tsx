@@ -17,6 +17,7 @@ import dynamic from "next/dynamic";
 import { isRichHtmlEmpty, sanitizeRichHtml, stripRichText } from "@/lib/richText";
 import { communityLanguageRejection, flaggedLanguageTerms } from "@/lib/communityLanguage";
 import { documentNumberPlaceholder, formatDocumentNumber } from "@/lib/documentNumber";
+import { fieldErrorClass, fieldNormalClass, fieldsFromErrorPayload, type IdentityFieldErrors } from "@/lib/sellerIdentity";
 import LanguageHighlightField from "@/components/LanguageHighlightField";
 import { analyzePrice, formatListedPrice } from "@/lib/priceIntegrity/analyzePrice";
 import { PRICE_INTEGRITY_EVENT, PRICE_RISK, type PriceIntegrityResult } from "@/lib/priceIntegrity/types";
@@ -238,6 +239,7 @@ function DashboardPageContent() {
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileSuccessMsg, setProfileSuccessMsg] = useState("");
   const [profileErrorMsg, setProfileErrorMsg] = useState("");
+  const [profileFieldErrors, setProfileFieldErrors] = useState<IdentityFieldErrors>({});
 
   // Foto de perfil / logo — se sube apenas se elige el archivo (no espera al
   // submit del resto del form), así el seller no pierde la foto si cierra
@@ -1343,6 +1345,7 @@ function DashboardPageContent() {
     setProfileSaving(true);
     setProfileSuccessMsg("");
     setProfileErrorMsg("");
+    setProfileFieldErrors({});
 
     try {
       const res = await fetch("/api/sellers/profile", {
@@ -1360,7 +1363,10 @@ function DashboardPageContent() {
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "No se pudieron guardar los cambios.");
+      if (!res.ok) {
+        setProfileFieldErrors(fieldsFromErrorPayload(data));
+        throw new Error(data.error ?? "No se pudieron guardar los cambios.");
+      }
 
       setSellerProfile({
         ...sellerProfile,
@@ -4509,9 +4515,13 @@ function DashboardPageContent() {
                     type="tel"
                     required
                     value={profilePhone}
-                    onChange={(e) => setProfilePhone(e.target.value)}
+                    onChange={(e) => {
+                      setProfilePhone(e.target.value);
+                      if (profileFieldErrors.phone) setProfileFieldErrors((prev) => ({ ...prev, phone: false }));
+                    }}
                     placeholder="Ej. 2954123456"
-                    className="w-full bg-background border border-card-border rounded-xl px-4 py-3 text-xs text-foreground focus:outline-none focus:border-accent-gold"
+                    aria-invalid={!!profileFieldErrors.phone}
+                    className={profileFieldErrors.phone ? fieldErrorClass : fieldNormalClass}
                   />
                 </div>
 
@@ -4522,9 +4532,13 @@ function DashboardPageContent() {
                   <input
                     type="text"
                     value={profileDocumentNumber}
-                    onChange={(e) => setProfileDocumentNumber(formatDocumentNumber(e.target.value, profileType))}
+                    onChange={(e) => {
+                      setProfileDocumentNumber(formatDocumentNumber(e.target.value, profileType));
+                      if (profileFieldErrors.document) setProfileFieldErrors((prev) => ({ ...prev, document: false }));
+                    }}
                     placeholder={documentNumberPlaceholder(profileType)}
-                    className="w-full bg-background border border-card-border rounded-xl px-4 py-3 text-xs text-foreground focus:outline-none focus:border-accent-gold"
+                    aria-invalid={!!profileFieldErrors.document}
+                    className={profileFieldErrors.document ? fieldErrorClass : fieldNormalClass}
                   />
                 </div>
               </div>

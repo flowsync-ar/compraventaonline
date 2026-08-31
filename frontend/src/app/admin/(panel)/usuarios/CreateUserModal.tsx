@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react"
 import { documentNumberPlaceholder, formatDocumentNumber } from "@/lib/documentNumber"
+import { fieldsFromErrorPayload, type IdentityFieldErrors } from "@/lib/sellerIdentity"
 
 const inputClass =
   "w-full bg-background border border-card-border rounded-xl px-4 py-2 text-sm text-foreground focus:outline-none focus:border-accent-gold"
@@ -33,10 +34,12 @@ export default function CreateUserModal({ onClose, onCreated }: CreateUserModalP
   const [highlightFree, setHighlightFree] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<IdentityFieldErrors>({})
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setError(null)
+    setFieldErrors({})
     setSubmitting(true)
     try {
       const res = await fetch("/api/admin/users", {
@@ -57,6 +60,7 @@ export default function CreateUserModal({ onClose, onCreated }: CreateUserModalP
       })
       const data = await res.json()
       if (!res.ok) {
+        setFieldErrors(fieldsFromErrorPayload(data))
         setError(data.error ?? "No se pudo crear el usuario.")
         return
       }
@@ -138,7 +142,16 @@ export default function CreateUserModal({ onClose, onCreated }: CreateUserModalP
 
           <label className="flex flex-col gap-1">
             <span className="text-[11px] font-bold uppercase tracking-wide text-text-muted">Teléfono</span>
-            <input required value={phone} onChange={(e) => setPhone(e.target.value)} className={inputClass} />
+            <input
+              required
+              value={phone}
+              onChange={(e) => {
+                setPhone(e.target.value)
+                if (fieldErrors.phone) setFieldErrors((prev) => ({ ...prev, phone: false }))
+              }}
+              aria-invalid={!!fieldErrors.phone}
+              className={`${inputClass}${fieldErrors.phone ? " border-red-500 focus:border-red-500" : ""}`}
+            />
           </label>
 
           <label className="flex flex-col gap-1">
@@ -179,9 +192,13 @@ export default function CreateUserModal({ onClose, onCreated }: CreateUserModalP
             </span>
             <input
               value={documentNumber}
-              onChange={(e) => setDocumentNumber(formatDocumentNumber(e.target.value, sellerType))}
+              onChange={(e) => {
+                setDocumentNumber(formatDocumentNumber(e.target.value, sellerType))
+                if (fieldErrors.document) setFieldErrors((prev) => ({ ...prev, document: false }))
+              }}
               placeholder={documentNumberPlaceholder(sellerType)}
-              className={inputClass}
+              aria-invalid={!!fieldErrors.document}
+              className={`${inputClass}${fieldErrors.document ? " border-red-500 focus:border-red-500" : ""}`}
             />
           </label>
 

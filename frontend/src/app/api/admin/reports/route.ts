@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
   const { data, error } = await admin
     .from("product_reports")
     .select(
-      "id, reason, details, created_at, listings(id, products(name)), reporter:sellers!reporter_id(id, name)"
+      "id, reason, details, status, created_at, listings(id, products(name)), reporter:sellers!reporter_id(id, name)"
     )
     .order("created_at", { ascending: false })
 

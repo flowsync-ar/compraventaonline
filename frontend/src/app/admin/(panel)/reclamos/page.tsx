@@ -7,6 +7,7 @@ const REASON_LABELS: Record<string, string> = {
   FRAUD: "Fraude",
   INAPPROPRIATE: "Contenido inapropiado",
   DUPLICATE: "Publicación duplicada",
+  MISLEADING_PRICE: "Precio engañoso",
   OTHER: "Otro",
 }
 

@@ -4,6 +4,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import type { TablesInsert } from '@/lib/supabase/types'
 import { validateBulkRowFields, validateCategoryId, type BulkRowInput } from '@/lib/bulk/validateRow'
 import { communityLanguageRejection } from '@/lib/communityLanguage'
+import { analyzePrice } from '@/lib/priceIntegrity/analyzePrice'
+import { PRICE_INTEGRITY_EVENT, PRICE_RISK } from '@/lib/priceIntegrity/types'
 
 interface ConfirmRow extends BulkRowInput {
   categoryId?: string | null
@@ -139,15 +141,28 @@ export async function POST(req: NextRequest) {
       image_url: images[0] ?? null,
     }
 
-    const { error: listingError } = await admin.from('listings').insert({
+    const { data: listingRow, error: listingError } = await admin.from('listings').insert({
       ...listing,
       product_id: productData.id,
       seller_id: sellerId,
-    })
+    }).select('id').single()
 
     if (listingError) {
       failed.push({ row: rowNumber, reason: listingError.message })
       continue
+    }
+
+    const analysis = analyzePrice({ price: fields.price })
+    if (analysis.risk !== PRICE_RISK.NORMAL && listingRow) {
+      await admin.from('price_integrity_events').insert({
+        listing_id: listingRow.id,
+        seller_id: sellerId,
+        event_type: analysis.risk === PRICE_RISK.HIGH
+          ? PRICE_INTEGRITY_EVENT.HIGH_RISK_DETECTED
+          : PRICE_INTEGRITY_EVENT.WARNING_SHOWN,
+        risk: analysis.risk,
+        reasons: analysis.reasons,
+      })
     }
 
     inserted++

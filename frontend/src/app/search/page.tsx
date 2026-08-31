@@ -48,6 +48,7 @@ type ListingRow = {
   price: number;
   condition: string;
   featured_plan: string;
+  exclude_from_price_sort?: boolean;
   products: {
     name: string;
     brand: string;
@@ -151,6 +152,7 @@ async function searchListings(params: {
         price,
         condition,
         featured_plan,
+        exclude_from_price_sort,
         products (
           name,
           brand,
@@ -181,7 +183,7 @@ async function searchListings(params: {
     }
 
     if (params.sort === "price_asc") {
-      query = query.order("price", { ascending: true });
+      query = query.order("exclude_from_price_sort", { ascending: true }).order("price", { ascending: true });
     } else if (params.sort === "price_desc") {
       query = query.order("price", { ascending: false });
     } else {
@@ -261,6 +263,14 @@ async function searchListings(params: {
     // Client-side location filter (seller's registered city).
     if (params.location) {
       results = results.filter((l) => l.sellers?.location === params.location);
+    }
+
+    if (params.sort === "price_asc") {
+      results = [...results].sort((a, b) => {
+        const bait = Number(!!a.exclude_from_price_sort) - Number(!!b.exclude_from_price_sort);
+        if (bait !== 0) return bait;
+        return a.price - b.price;
+      });
     }
 
     const total = results.length;

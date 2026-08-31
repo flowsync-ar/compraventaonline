@@ -55,6 +55,7 @@ export default function PurchasesPage() {
   const [ratedOrderIds, setRatedOrderIds] = useState<Set<string>>(new Set());
   const [ratingOrder, setRatingOrder] = useState<Order | null>(null);
   const [ratingValue, setRatingValue] = useState<RatingValue | null>(null);
+  const [respectedPrice, setRespectedPrice] = useState<boolean | null>(null);
   const [ratingComment, setRatingComment] = useState("");
   const [ratingSubmitting, setRatingSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
@@ -122,11 +123,15 @@ export default function PurchasesPage() {
         buyer_id: mySellerId,
         rating: ratingValue,
         comment: ratingComment.trim() || null,
+        respected_published_price: respectedPrice,
       });
       if (error) throw new Error(error.message);
 
       setRatedOrderIds((prev) => new Set(prev).add(ratingOrder.id));
       setRatingOrder(null);
+      setRatingValue(null);
+      setRespectedPrice(null);
+      setRatingComment("");
     } catch (err) {
       console.error("Error al calificar al vendedor:", err);
       setErrorMsg("No se pudo registrar la calificación.");
@@ -397,6 +402,34 @@ export default function PurchasesPage() {
               ))}
             </div>
 
+            <div className="flex flex-col gap-2">
+              <p className="text-sm font-bold text-foreground">¿El vendedor respetó el precio publicado?</p>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setRespectedPrice(true)}
+                  className={`rounded-xl border p-3 text-xs font-bold cursor-pointer min-h-11 ${
+                    respectedPrice === true
+                      ? "border-accent-gold bg-accent-gold/10 text-accent-gold"
+                      : "border-card-border text-foreground"
+                  }`}
+                >
+                  Sí
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRespectedPrice(false)}
+                  className={`rounded-xl border p-3 text-xs font-bold cursor-pointer min-h-11 ${
+                    respectedPrice === false
+                      ? "border-accent-gold bg-accent-gold/10 text-accent-gold"
+                      : "border-card-border text-foreground"
+                  }`}
+                >
+                  No
+                </button>
+              </div>
+            </div>
+
             <textarea
               value={ratingComment}
               onChange={(e) => setRatingComment(e.target.value)}
@@ -414,7 +447,7 @@ export default function PurchasesPage() {
               </button>
               <button
                 onClick={handleSubmitRating}
-                disabled={!ratingValue || ratingSubmitting}
+                disabled={!ratingValue || respectedPrice === null || ratingSubmitting}
                 className="rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover py-3 text-xs font-extrabold text-white shadow-md hover:opacity-95 transition-all disabled:opacity-50 cursor-pointer"
               >
                 {ratingSubmitting ? "Enviando..." : "Enviar calificación"}

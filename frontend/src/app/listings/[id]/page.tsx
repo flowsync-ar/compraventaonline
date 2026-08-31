@@ -13,6 +13,7 @@ import { getOrCreateVisitorId } from "@/lib/visitorId";
 import RichTextDisplay from "@/components/RichTextDisplay";
 import { communityLanguageRejection, flaggedLanguageTerms } from "@/lib/communityLanguage";
 import LanguageHighlightField from "@/components/LanguageHighlightField";
+import { trackEvent } from "@/lib/analytics";
 
 interface Listing {
   id: string;
@@ -93,6 +94,7 @@ export default function ListingDetailPage() {
   const [reportDetails, setReportDetails] = useState("");
   const [reportSuccess, setReportSuccess] = useState(false);
   const [reportError, setReportError] = useState("");
+  const [priceRespectLabel, setPriceRespectLabel] = useState<string | null>(null);
 
   // Cart integration
   const [addedToCart, setAddedToCart] = useState(false);
@@ -242,6 +244,15 @@ export default function ListingDetailPage() {
           const row = data as unknown as Listing;
           setListing(row);
           setActiveImage(row.image_url ?? row.products?.images?.[0] ?? null);
+          const sellerRowId = row.sellers?.id;
+          if (sellerRowId) {
+            fetch(`/api/sellers/${sellerRowId}/price-reputation`)
+              .then((res) => res.json())
+              .then((rep: { label?: string | null }) => {
+                setPriceRespectLabel(rep.label ?? null);
+              })
+              .catch(() => {});
+          }
         }
       } catch (err) {
         console.error("[listing] Unexpected error fetching listing:", err);
@@ -579,18 +590,32 @@ export default function ListingDetailPage() {
 
     const supabase = getSupabase();
     try {
-      await supabase
+      const { error } = await supabase
         .from("product_reports")
         .insert({
           listing_id: id,
-          reason: reportReason,
+          reason: reportReason as "SPAM" | "FRAUD" | "INAPPROPRIATE" | "DUPLICATE" | "OTHER" | "MISLEADING_PRICE",
           details: reportDetails,
           reporter_id: sellerId,
         });
 
+      if (error) {
+        if (error.code === "23505") {
+          setReportError("Ya reportaste esta publicación.");
+          return;
+        }
+        setReportError("No se pudo enviar el reporte. Intentá de nuevo.");
+        return;
+      }
+
+      if (reportReason === "MISLEADING_PRICE") {
+        trackEvent("price_report_created");
+      }
+
       setReportSuccess(true);
     } catch {
-      setReportSuccess(true); // Graceful UX fallback
+      setReportError("No se pudo enviar el reporte. Intentá de nuevo.");
+      return;
     }
 
     setTimeout(() => {
@@ -1134,6 +1159,9 @@ export default function ListingDetailPage() {
                   <>
                     <span className="text-xl font-extrabold text-accent-gold block">{getTierEmoji(seller?.tier ?? "")} {seller?.score ?? 0} pts</span>
                     <span className="text-[9px] text-text-muted block uppercase mt-0.5">Nivel {seller?.tier === "GOLD" ? "ORO" : seller?.tier}</span>
+                    {priceRespectLabel && (
+                      <span className="text-[11px] text-foreground block mt-2">{priceRespectLabel}</span>
+                    )}
                   </>
                 ) : (
                   <span className="text-xs font-bold text-text-muted italic">Sin ventas aún en la plataforma</span>
@@ -1213,9 +1241,10 @@ export default function ListingDetailPage() {
                     onChange={setReportReason}
                     options={[
                       { name: "Sospecha de estafa o fraude", value: "FRAUD" },
-                      { name: "Producto prohibido / ilegal", value: "ILLEGAL" },
-                      { name: "Contenido ofensivo o violento", value: "OFFENSIVE" },
-                      { name: "Artículo falso o engañoso", value: "FAKE" },
+                      { name: "Precio engañoso / no respeta el precio publicado", value: "MISLEADING_PRICE" },
+                      { name: "Contenido inapropiado", value: "INAPPROPRIATE" },
+                      { name: "Spam", value: "SPAM" },
+                      { name: "Publicación duplicada", value: "DUPLICATE" },
                       { name: "Otro motivo", value: "OTHER" },
                     ]}
                   />

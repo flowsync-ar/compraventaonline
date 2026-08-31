@@ -392,6 +392,10 @@ export type Database = {
           status: Database["public"]["Enums"]["listing_status"]
           stock: number
           updated_at: string
+          price_risk: Database["public"]["Enums"]["price_risk_level"]
+          price_risk_reasons: string[]
+          price_seller_confirmed: boolean
+          exclude_from_price_sort: boolean
         }
         Insert: {
           condition?: string
@@ -407,6 +411,10 @@ export type Database = {
           status?: Database["public"]["Enums"]["listing_status"]
           stock?: number
           updated_at?: string
+          price_risk?: Database["public"]["Enums"]["price_risk_level"]
+          price_risk_reasons?: string[]
+          price_seller_confirmed?: boolean
+          exclude_from_price_sort?: boolean
         }
         Update: {
           condition?: string
@@ -422,6 +430,10 @@ export type Database = {
           status?: Database["public"]["Enums"]["listing_status"]
           stock?: number
           updated_at?: string
+          price_risk?: Database["public"]["Enums"]["price_risk_level"]
+          price_risk_reasons?: string[]
+          price_seller_confirmed?: boolean
+          exclude_from_price_sort?: boolean
         }
         Relationships: [
           {
@@ -455,6 +467,7 @@ export type Database = {
           listing_id: string
           reason: Database["public"]["Enums"]["report_reason"]
           reporter_id: string | null
+          status: Database["public"]["Enums"]["report_moderation_status"]
         }
         Insert: {
           created_at?: string
@@ -463,6 +476,7 @@ export type Database = {
           listing_id: string
           reason: Database["public"]["Enums"]["report_reason"]
           reporter_id?: string | null
+          status?: Database["public"]["Enums"]["report_moderation_status"]
         }
         Update: {
           created_at?: string
@@ -471,6 +485,7 @@ export type Database = {
           listing_id?: string
           reason?: Database["public"]["Enums"]["report_reason"]
           reporter_id?: string | null
+          status?: Database["public"]["Enums"]["report_moderation_status"]
         }
         Relationships: [
           {
@@ -488,6 +503,96 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      listing_price_history: {
+        Row: {
+          created_at: string
+          currency_id: string | null
+          id: string
+          listing_id: string
+          new_price: number
+          old_price: number | null
+        }
+        Insert: {
+          created_at?: string
+          currency_id?: string | null
+          id?: string
+          listing_id: string
+          new_price: number
+          old_price?: number | null
+        }
+        Update: {
+          created_at?: string
+          currency_id?: string | null
+          id?: string
+          listing_id?: string
+          new_price?: number
+          old_price?: number | null
+        }
+        Relationships: []
+      }
+      price_integrity_events: {
+        Row: {
+          created_at: string
+          event_type: Database["public"]["Enums"]["price_integrity_event_type"]
+          id: string
+          listing_id: string | null
+          reasons: string[]
+          risk: Database["public"]["Enums"]["price_risk_level"] | null
+          seller_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          event_type: Database["public"]["Enums"]["price_integrity_event_type"]
+          id?: string
+          listing_id?: string | null
+          reasons?: string[]
+          risk?: Database["public"]["Enums"]["price_risk_level"] | null
+          seller_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          event_type?: Database["public"]["Enums"]["price_integrity_event_type"]
+          id?: string
+          listing_id?: string | null
+          reasons?: string[]
+          risk?: Database["public"]["Enums"]["price_risk_level"] | null
+          seller_id?: string | null
+        }
+        Relationships: []
+      }
+      seller_ratings: {
+        Row: {
+          buyer_id: string
+          comment: string | null
+          created_at: string
+          id: string
+          order_id: string
+          rating: Database["public"]["Enums"]["buyer_rating_value"]
+          respected_published_price: boolean | null
+          seller_id: string
+        }
+        Insert: {
+          buyer_id: string
+          comment?: string | null
+          created_at?: string
+          id?: string
+          order_id: string
+          rating: Database["public"]["Enums"]["buyer_rating_value"]
+          respected_published_price?: boolean | null
+          seller_id: string
+        }
+        Update: {
+          buyer_id?: string
+          comment?: string | null
+          created_at?: string
+          id?: string
+          order_id?: string
+          rating?: Database["public"]["Enums"]["buyer_rating_value"]
+          respected_published_price?: boolean | null
+          seller_id?: string
+        }
+        Relationships: []
       }
       products: {
         Row: {
@@ -756,6 +861,7 @@ export type Database = {
           updated_at: string
           user_id: string
           username: string | null
+          price_integrity_level: number
         }
         Insert: {
           avatar_url?: string | null
@@ -781,6 +887,7 @@ export type Database = {
           updated_at?: string
           user_id: string
           username?: string | null
+          price_integrity_level?: number
         }
         Update: {
           avatar_url?: string | null
@@ -806,6 +913,7 @@ export type Database = {
           updated_at?: string
           user_id?: string
           username?: string | null
+          price_integrity_level?: number
         }
         Relationships: []
       }
@@ -1091,7 +1199,11 @@ export type Database = {
       order_payment_method: "MERCADOPAGO" | "TRANSFER"
       order_status: "PENDING" | "PAID" | "CANCELLED" | "EN_CUSTODIA" | "LIBERADO" | "DISPUTADO" | "REEMBOLSADO"
       question_status: "PENDING" | "ANSWERED"
-      report_reason: "SPAM" | "FRAUD" | "INAPPROPRIATE" | "DUPLICATE" | "OTHER"
+      buyer_rating_value: "POSITIVA" | "NEUTRAL" | "NEGATIVA"
+      price_risk_level: "normal" | "warning" | "high"
+      price_integrity_event_type: "WARNING_SHOWN" | "WARNING_ACCEPTED" | "WARNING_EDITED" | "HIGH_RISK_DETECTED" | "SELLER_CONFIRMED"
+      report_moderation_status: "PENDING" | "CONFIRMED" | "REJECTED"
+      report_reason: "SPAM" | "FRAUD" | "INAPPROPRIATE" | "DUPLICATE" | "OTHER" | "MISLEADING_PRICE"
       reward_type: "HIGHLIGHT" | "DISCOUNT" | "FREE_LISTING"
       seller_status: "ACTIVE" | "SUSPENDED"
       seller_type: "PERSONAL_SELLER" | "BUSINESS_SELLER"
@@ -1275,7 +1387,7 @@ export const Constants = {
       order_payment_method: ["MERCADOPAGO", "TRANSFER"],
       order_status: ["PENDING", "PAID", "CANCELLED", "EN_CUSTODIA", "LIBERADO", "DISPUTADO", "REEMBOLSADO"],
       question_status: ["PENDING", "ANSWERED"],
-      report_reason: ["SPAM", "FRAUD", "INAPPROPRIATE", "DUPLICATE", "OTHER"],
+      report_reason: ["SPAM", "FRAUD", "INAPPROPRIATE", "DUPLICATE", "OTHER", "MISLEADING_PRICE"],
       reward_type: ["HIGHLIGHT", "DISCOUNT", "FREE_LISTING"],
       seller_status: ["ACTIVE", "SUSPENDED"],
       seller_type: ["PERSONAL_SELLER", "BUSINESS_SELLER"],

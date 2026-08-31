@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import UserDetailModal from "./UserDetailModal"
+import CreateUserModal from "./CreateUserModal"
 import ConfirmModal from "@/components/ConfirmModal"
 
 interface AdminUser {
@@ -30,6 +31,7 @@ export default function AdminUsuariosPage() {
   const [verifying, setVerifying] = useState(false)
   const [highlightTarget, setHighlightTarget] = useState<AdminUser | null>(null)
   const [togglingHighlight, setTogglingHighlight] = useState(false)
+  const [showCreate, setShowCreate] = useState(false)
 
   const loadUsers = async () => {
     const res = await fetch("/api/admin/users")
@@ -130,7 +132,16 @@ export default function AdminUsuariosPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col items-start gap-3">
-        <h1 className="font-heading text-2xl font-extrabold text-foreground">Usuarios</h1>
+        <div className="flex w-full items-center justify-between gap-3 flex-wrap">
+          <h1 className="font-heading text-2xl font-extrabold text-foreground">Usuarios</h1>
+          <button
+            type="button"
+            onClick={() => setShowCreate(true)}
+            className="h-10 px-4 rounded-xl bg-accent-gold text-sm font-extrabold text-background cursor-pointer"
+          >
+            Crear usuario
+          </button>
+        </div>
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -291,6 +302,16 @@ export default function AdminUsuariosPage() {
           </table>
         )}
       </div>
+
+      {showCreate && (
+        <CreateUserModal
+          onClose={() => setShowCreate(false)}
+          onCreated={() => {
+            setShowCreate(false)
+            loadUsers()
+          }}
+        />
+      )}
 
       {detailUserId && (
         <UserDetailModal userId={detailUserId} onClose={() => setDetailUserId(null)} />

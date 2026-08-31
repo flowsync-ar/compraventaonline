@@ -17,6 +17,10 @@ import dynamic from "next/dynamic";
 import { isRichHtmlEmpty, sanitizeRichHtml, stripRichText } from "@/lib/richText";
 import { communityLanguageRejection, flaggedLanguageTerms } from "@/lib/communityLanguage";
 import LanguageHighlightField from "@/components/LanguageHighlightField";
+import { analyzePrice, formatListedPrice } from "@/lib/priceIntegrity/analyzePrice";
+import { PRICE_INTEGRITY_EVENT, PRICE_RISK, type PriceIntegrityResult } from "@/lib/priceIntegrity/types";
+import PriceRiskConfirmModal from "@/components/PriceRiskConfirmModal";
+import { trackEvent } from "@/lib/analytics";
 
 const RichTextEditor = dynamic(() => import("@/components/RichTextEditor"), {
   ssr: false,
@@ -205,6 +209,8 @@ function DashboardPageContent() {
   const [brand, setBrand] = useState("");
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState("");
+  const [priceRiskAnalysis, setPriceRiskAnalysis] = useState<PriceIntegrityResult | null>(null);
+  const priceGatePassedRef = useRef("");
   const [condition, setCondition] = useState("NEW");
   const [stock, setStock] = useState("1");
   const [categoryId, setCategoryId] = useState("");
@@ -964,6 +970,23 @@ function DashboardPageContent() {
     const inputVal = e.target.value;
     const cleanVal = inputVal.replace(/[^0-9]/g, "");
     setPrice(cleanVal);
+    if (priceGatePassedRef.current && priceGatePassedRef.current !== cleanVal) {
+      priceGatePassedRef.current = "";
+    }
+  };
+
+  const recordPriceIntegrity = async (listingId: string, confirmed: boolean) => {
+    await fetch("/api/listings/price-integrity", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        listingId,
+        confirmed,
+        eventType: confirmed
+          ? PRICE_INTEGRITY_EVENT.SELLER_CONFIRMED
+          : PRICE_INTEGRITY_EVENT.HIGH_RISK_DETECTED,
+      }),
+    }).catch(() => {});
   };
 
   const handlePublish = async (e: React.FormEvent) => {
@@ -999,6 +1022,20 @@ function DashboardPageContent() {
           return;
         }
       }
+    }
+
+    const numericPrice = parseFloat(price);
+    const priceAnalysis = analyzePrice({
+      price: numericPrice,
+      seller: { isNewSeller: !sellerHasSales },
+    });
+    if (priceAnalysis.requiresConfirmation && priceGatePassedRef.current !== price) {
+      setPriceRiskAnalysis(priceAnalysis);
+      trackEvent(
+        priceAnalysis.risk === PRICE_RISK.HIGH ? "price_high_risk_detected" : "price_warning_shown",
+      );
+      setLoading(false);
+      return;
     }
 
     try {
@@ -1051,6 +1088,10 @@ function DashboardPageContent() {
           .eq("id", selectedListingToEdit.id);
 
         if (listingError) throw new Error(listingError.message);
+
+        if (priceAnalysis.requiresConfirmation) {
+          await recordPriceIntegrity(selectedListingToEdit.id, true);
+        }
 
         setSuccessMsg("¡Publicación actualizada con éxito!");
 
@@ -1111,6 +1152,10 @@ function DashboardPageContent() {
           .single();
 
         if (listingError) throw new Error(listingError.message);
+
+        if (priceAnalysis.requiresConfirmation) {
+          await recordPriceIntegrity(listingData.id, true);
+        }
 
         setMyListings([listingData as unknown as Listing, ...myListings]);
         setSuccessMsg("¡Publicación creada con éxito! Ya se encuentra activa.");
@@ -2362,11 +2407,7 @@ function DashboardPageContent() {
 
         {/* TAB 2: Publish Form */}
         {activeTab === "publish" && (
-          // La carga individual se queda angosta (max-w-3xl) porque es un
-          // formulario de un solo producto — pero la subida masiva
-          // necesita todo el ancho disponible para que la tabla de
-          // revisión no quede apretada con 8 columnas.
-          <div className={`${publishMode === "bulk" ? "max-w-none" : "max-w-3xl"} mx-auto flex h-full min-h-0 w-full flex-col overflow-hidden rounded-2xl glass-panel`}>
+          <div className="flex h-full min-h-0 w-full flex-col overflow-hidden rounded-2xl glass-panel">
             <h2 className="font-heading shrink-0 px-5 pt-5 mb-4 text-base font-bold text-foreground md:px-6">
               {selectedListingToEdit ? "Editar Publicación" : "Publicación de Artículos"}
             </h2>
@@ -2525,7 +2566,7 @@ function DashboardPageContent() {
                 </div>
 
                 {/* 4. Precio, Moneda y Estado de la Publicación */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-5 items-start">
                   <div className="flex flex-col gap-2">
                     <label className="text-xs font-bold text-foreground">Moneda</label>
                     <CustomDropdown
@@ -2536,9 +2577,12 @@ function DashboardPageContent() {
                     />
                   </div>
                   <div className="flex flex-col gap-2">
-                    <label className="text-xs font-bold text-foreground">Precio</label>
+                    <label className="text-xs font-bold text-foreground">
+                      Precio <span className="text-accent-gold">*</span>
+                    </label>
                     <input 
                       type="text" 
+                      inputMode="numeric"
                       required
                       value={priceDisplay}
                       onChange={handlePriceChange}
@@ -2570,6 +2614,12 @@ function DashboardPageContent() {
                       className="w-full bg-background border border-card-border rounded-xl px-4 py-3 text-xs text-foreground focus:outline-none focus:border-accent-gold"
                     />
                   </div>
+                  <p className="col-span-1 sm:col-span-2 lg:col-span-4 text-[11px] text-text-muted leading-relaxed flex gap-1.5 -mt-1">
+                    <span className="mt-0.5 shrink-0" aria-hidden>ℹ️</span>
+                    <span>
+                      <span className="text-accent-gold font-bold">*</span> El precio que publiques será el que verán los compradores. Publicar precios engañosos o no respetar el precio informado puede afectar tu reputación.
+                    </span>
+                  </p>
                 </div>
 
                 <div className="flex flex-col gap-2">
@@ -4608,6 +4658,26 @@ function DashboardPageContent() {
               </button>
             </div>
           </div>
+        )}
+
+        {priceRiskAnalysis && (
+          <PriceRiskConfirmModal
+            analysis={priceRiskAnalysis}
+            formattedPrice={formatListedPrice(
+              parseFloat(price) || 0,
+              currencies.find((c) => c.id === currencyId)?.symbol ?? "$",
+            )}
+            onEdit={() => {
+              trackEvent("price_warning_edited", { risk: priceRiskAnalysis.risk });
+              setPriceRiskAnalysis(null);
+            }}
+            onConfirm={() => {
+              trackEvent("price_warning_accepted", { risk: priceRiskAnalysis.risk });
+              priceGatePassedRef.current = price;
+              setPriceRiskAnalysis(null);
+              void handlePublish({ preventDefault() {} } as React.FormEvent);
+            }}
+          />
         )}
 
         {/* Modal de Confirmación de Eliminación */}

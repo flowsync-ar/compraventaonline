@@ -52,3 +52,5 @@ Thumbs.db
 
 # Gentle AI internal artifacts
 .atl/
+.vercel
+.env*

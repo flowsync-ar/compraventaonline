@@ -146,13 +146,6 @@ export default function SiteChrome({ children }: { children: ReactNode }) {
 
                 {mobileMenuOpen && (
                   <div className="absolute left-0 top-full mt-2 w-60 rounded-2xl bg-card-bg-solid border border-card-border p-2 shadow-2xl z-50 flex flex-col gap-1 animate-in fade-in slide-in-from-top-2 duration-200">
-                    <Link
-                      href="/dashboard?tab=publish"
-                      onClick={() => setMobileMenuOpen(false)}
-                      className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-extrabold uppercase tracking-wide text-white bg-accent-blue border border-accent-blue/30"
-                    >
-                      Vender
-                    </Link>
                     <Link href="/" className={navButtonClass(isNavActive("/"))}>
                       Inicio
                     </Link>

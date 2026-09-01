@@ -120,7 +120,7 @@ export default function AdminInboxBell() {
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-full mt-3 w-96 rounded-2xl bg-card-bg-solid border border-card-border p-4 shadow-2xl z-50 flex flex-col gap-3 max-h-[70vh] animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="absolute right-0 top-full mt-3 w-[min(24rem,calc(100vw-1.5rem))] rounded-2xl bg-card-bg-solid border border-card-border p-4 shadow-2xl z-50 flex flex-col gap-3 max-h-[70vh] animate-in fade-in slide-in-from-top-2 duration-200">
             <div className="flex shrink-0 border-b border-card-border">
               <button
                 type="button"

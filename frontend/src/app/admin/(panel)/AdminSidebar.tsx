@@ -18,7 +18,13 @@ const LINKS = [
   { href: "/admin/configuracion", label: "Configuración", icon: "⚙️" },
 ]
 
-export default function AdminSidebar() {
+export default function AdminSidebar({
+  open,
+  onClose,
+}: {
+  open: boolean
+  onClose: () => void
+}) {
   const pathname = usePathname()
   const router = useRouter()
 
@@ -29,13 +35,17 @@ export default function AdminSidebar() {
   }
 
   return (
-    <aside className="w-60 shrink-0 border-r border-card-border bg-card-bg-solid flex flex-col h-screen sticky top-0">
-      <div className="px-5 py-6 border-b border-card-border flex flex-col items-center gap-2">
+    <aside
+      className={`w-64 max-w-[85vw] shrink-0 border-r border-card-border bg-card-bg-solid flex flex-col z-50 transition-transform duration-200 ease-out max-lg:fixed max-lg:top-14 max-lg:bottom-0 max-lg:left-0 max-lg:h-auto lg:sticky lg:top-0 lg:h-screen ${
+        open ? "max-lg:translate-x-0" : "max-lg:-translate-x-full max-lg:pointer-events-none"
+      } lg:translate-x-0`}
+    >
+      <div className="px-5 py-5 border-b border-card-border flex flex-col items-center gap-2">
         <ThemedImage
           lightSrc="/logo-cvo-new.png"
           darkSrc="/logo-cvo-new.png"
           alt="CompraVentaOnline"
-          className="h-16 w-auto object-contain"
+          className="h-12 lg:h-16 w-auto object-contain"
         />
         <span className="font-heading text-xs font-extrabold text-foreground uppercase tracking-wider">
           Administrador
@@ -44,6 +54,7 @@ export default function AdminSidebar() {
 
       <div className="p-3 border-b border-card-border">
         <button
+          type="button"
           onClick={handleLogout}
           className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-bold text-red-500 hover:bg-red-500/5 transition-all cursor-pointer"
         >
@@ -54,14 +65,15 @@ export default function AdminSidebar() {
         </button>
       </div>
 
-      <nav className="flex-1 flex flex-col gap-1 p-3">
+      <nav className="flex-1 flex flex-col gap-1 p-3 overflow-y-auto">
         {LINKS.map((link) => {
           const isActive = pathname === link.href
           return (
             <Link
               key={link.href}
               href={link.href}
-              className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-bold transition-all ${
+              onClick={onClose}
+              className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-bold transition-all min-h-11 ${
                 isActive
                   ? "bg-accent-gold text-white shadow-sm"
                   : "text-text-muted hover:text-accent-blue hover:bg-card-bg"

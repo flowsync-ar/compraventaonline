@@ -132,12 +132,12 @@ export default function AdminUsuariosPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col items-start gap-3">
-        <div className="flex w-full items-center justify-between gap-3 flex-wrap">
-          <h1 className="font-heading text-2xl font-extrabold text-foreground">Usuarios</h1>
+        <div className="flex w-full flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <h1 className="font-heading text-xl sm:text-2xl font-extrabold text-foreground">Usuarios</h1>
           <button
             type="button"
             onClick={() => setShowCreate(true)}
-            className="h-10 px-4 rounded-xl bg-accent-gold text-sm font-extrabold text-background cursor-pointer"
+            className="h-10 w-full sm:w-auto px-4 rounded-xl bg-accent-gold text-sm font-extrabold text-background cursor-pointer"
           >
             Crear usuario
           </button>
@@ -146,15 +146,102 @@ export default function AdminUsuariosPage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Buscar por nombre, email o teléfono..."
-          className="w-full max-w-md bg-background border border-card-border rounded-xl px-4 py-2 text-sm text-foreground focus:outline-none focus:border-accent-gold"
+          className="w-full bg-background border border-card-border rounded-xl px-4 py-2 text-sm text-foreground focus:outline-none focus:border-accent-gold"
         />
       </div>
 
-      <div className="rounded-2xl glass-panel p-6 overflow-x-auto">
+      <div className="rounded-2xl glass-panel p-3 sm:p-6">
         {loading ? (
           <p className="text-sm text-text-muted">Cargando...</p>
         ) : (
-          <table className="w-full text-left text-sm border-collapse">
+          <>
+            <div className="flex flex-col gap-3 lg:hidden">
+              {filtered.map((user) => (
+                <div key={user.id} className="rounded-xl border border-card-border bg-background/40 p-3 flex flex-col gap-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-extrabold text-foreground break-words">{user.name}</p>
+                      <p className="text-[11px] text-text-muted break-all mt-0.5">{user.email ?? "Sin email"}</p>
+                      <p className="text-[11px] text-text-muted mt-0.5">
+                        {user.type === "BUSINESS_SELLER" ? "Empresa" : "Personal"}
+                        {user.phone ? ` · ${user.phone}` : ""}
+                        {user.location ? ` · ${user.location}` : ""}
+                      </p>
+                    </div>
+                    <span
+                      className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${
+                        user.status === "ACTIVE"
+                          ? "bg-accent-green/10 text-accent-green"
+                          : "bg-red-500/10 text-red-500"
+                      }`}
+                    >
+                      {user.status === "ACTIVE" ? "Activo" : "Suspendido"}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${
+                      user.identity_verified ? "bg-accent-green/10 text-accent-green" : "bg-text-muted/10 text-text-muted"
+                    }`}>
+                      ID {user.identity_verified ? "verificado" : "pendiente"}
+                    </span>
+                    {user.highlight_free && (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-accent-gold/10 text-accent-gold">
+                        Destacar gratis
+                      </span>
+                    )}
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold text-text-muted">
+                      {new Date(user.created_at).toLocaleDateString("es-AR")}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setDetailUserId(user.id)}
+                      className="h-9 px-3 rounded-lg border border-card-border bg-card-bg text-xs font-bold text-foreground cursor-pointer"
+                    >
+                      Editar
+                    </button>
+                    {!user.identity_verified && (
+                      <button
+                        type="button"
+                        onClick={() => setVerifyTarget(user)}
+                        disabled={pendingId === user.id}
+                        className="h-9 px-3 rounded-lg border border-accent-blue/40 bg-accent-blue/10 text-accent-blue text-xs font-extrabold cursor-pointer disabled:opacity-50"
+                      >
+                        Verificar ID
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setHighlightTarget(user)}
+                      disabled={pendingId === user.id}
+                      className="h-9 px-3 rounded-lg border border-card-border bg-card-bg text-xs font-bold text-foreground cursor-pointer disabled:opacity-50"
+                    >
+                      {user.highlight_free ? "Quitar gratis" : "Destacar gratis"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleToggleStatus(user)}
+                      disabled={pendingId === user.id}
+                      className="h-9 px-3 rounded-lg border border-card-border bg-card-bg text-xs font-bold cursor-pointer disabled:opacity-50"
+                    >
+                      {user.status === "ACTIVE" ? "Suspender" : "Reactivar"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDeleteTarget(user)}
+                      disabled={pendingId === user.id}
+                      className="h-9 px-3 rounded-lg border border-red-500/30 bg-card-bg text-xs font-bold text-red-500 cursor-pointer disabled:opacity-50"
+                    >
+                      Eliminar
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="hidden lg:block overflow-x-auto">
+          <table className="w-full min-w-[720px] text-left text-sm border-collapse">
             <thead>
               <tr className="border-b border-card-border text-text-muted font-bold select-none">
                 <th className="py-2 pr-4">Nombre</th>
@@ -300,6 +387,8 @@ export default function AdminUsuariosPage() {
               ))}
             </tbody>
           </table>
+            </div>
+          </>
         )}
       </div>
 

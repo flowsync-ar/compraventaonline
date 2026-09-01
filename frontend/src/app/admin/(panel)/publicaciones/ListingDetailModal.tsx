@@ -126,7 +126,7 @@ export default function ListingDetailModal({ listingId, onClose }: { listingId: 
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-3xl bg-card-bg border border-card-border p-8 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200"
+        className="w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-2xl sm:rounded-3xl bg-card-bg border border-card-border p-4 sm:p-8 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200"
       >
         <button onClick={onClose} className="absolute top-4 right-4 text-text-muted hover:text-foreground text-lg cursor-pointer">
           ✕

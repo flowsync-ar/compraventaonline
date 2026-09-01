@@ -93,23 +93,99 @@ export default function AdminPublicacionesPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between gap-4">
-        <h1 className="font-heading text-2xl font-extrabold text-foreground">Publicaciones</h1>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <h1 className="font-heading text-xl sm:text-2xl font-extrabold text-foreground">Publicaciones</h1>
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Buscar por artículo o vendedor..."
-          className="w-64 bg-background border border-card-border rounded-xl px-4 py-2 text-sm text-foreground focus:outline-none focus:border-accent-gold"
+          className="w-full sm:w-64 bg-background border border-card-border rounded-xl px-4 py-2 text-sm text-foreground focus:outline-none focus:border-accent-gold"
         />
       </div>
 
-      <div className="rounded-2xl glass-panel p-6 overflow-x-auto">
+      <div className="rounded-2xl glass-panel p-3 sm:p-6">
         {loading ? (
           <p className="text-sm text-text-muted">Cargando...</p>
         ) : filtered.length === 0 ? (
           <p className="text-sm text-text-muted text-center py-6">No se encontraron publicaciones.</p>
         ) : (
-          <table className="w-full text-left text-sm border-collapse">
+          <>
+            <div className="flex flex-col gap-3 lg:hidden">
+              {filtered.map((listing) => {
+                const isActive = listing.status === "ACTIVE" || listing.status === "APPROVED"
+                const thumbnail = listing.image_url ?? listing.products?.images?.[0] ?? null
+                return (
+                  <div key={listing.id} className="rounded-xl border border-card-border bg-background/40 p-3 flex flex-col gap-3">
+                    <div className="flex items-start gap-3">
+                      <Link
+                        href={`/listings/${listing.id}`}
+                        target="_blank"
+                        className="block h-16 w-16 rounded-lg overflow-hidden border border-card-border bg-card-bg shrink-0"
+                      >
+                        {thumbnail ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={thumbnail} alt="" className="h-full w-full object-contain" />
+                        ) : (
+                          <span className="h-full w-full flex items-center justify-center text-text-muted text-lg">📦</span>
+                        )}
+                      </Link>
+                      <div className="min-w-0 flex-1">
+                        <Link
+                          href={`/listings/${listing.id}`}
+                          target="_blank"
+                          className="text-sm font-extrabold text-foreground break-words leading-snug hover:text-accent-gold"
+                        >
+                          {listing.products?.name ?? "Sin nombre"}
+                        </Link>
+                        <p className="text-[11px] text-text-muted mt-0.5 break-words">{listing.sellers?.name ?? "Sin vendedor"}</p>
+                        <p className="text-sm font-bold text-foreground mt-1">
+                          ${Number(listing.price).toLocaleString("es-AR")}
+                        </p>
+                      </div>
+                      <span
+                        className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${
+                          isActive
+                            ? "bg-accent-green/10 text-accent-green"
+                            : listing.status === "SOLD"
+                              ? "bg-accent-gold/10 text-accent-gold"
+                              : "bg-card-border/30 text-text-muted"
+                        }`}
+                      >
+                        {STATUS_LABELS[listing.status] ?? listing.status}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setDetailListingId(listing.id)}
+                        className="h-9 px-3 rounded-lg border border-card-border bg-card-bg text-xs font-bold text-foreground cursor-pointer"
+                      >
+                        Ver detalle
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPauseTarget(listing)}
+                        disabled={pendingId === listing.id}
+                        className="h-9 px-3 rounded-lg border border-card-border bg-card-bg text-xs font-bold text-foreground cursor-pointer disabled:opacity-50"
+                      >
+                        {isActive ? "Pausar" : "Reactivar"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDeleteTarget(listing)}
+                        disabled={pendingId === listing.id}
+                        className="h-9 px-3 rounded-lg border border-red-500/30 bg-card-bg text-xs font-bold text-red-500 cursor-pointer disabled:opacity-50"
+                      >
+                        Eliminar
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            <div className="hidden lg:block overflow-x-auto">
+          <table className="w-full min-w-[720px] text-left text-sm border-collapse">
             <thead>
               <tr className="border-b border-card-border text-text-muted font-bold select-none">
                 <th className="py-2 pr-4">Foto</th>
@@ -229,6 +305,8 @@ export default function AdminPublicacionesPage() {
               })}
             </tbody>
           </table>
+            </div>
+          </>
         )}
       </div>
 

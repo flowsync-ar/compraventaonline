@@ -215,8 +215,8 @@ export default function AdminCategoriasPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <h1 className="font-heading text-2xl font-extrabold text-foreground">Categorías</h1>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <h1 className="font-heading text-xl sm:text-2xl font-extrabold text-foreground">Categorías</h1>
         {!showForm && (
           <button
             type="button"
@@ -224,7 +224,7 @@ export default function AdminCategoriasPage() {
               resetForm()
               setShowForm(true)
             }}
-            className="rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover px-5 py-2.5 text-sm font-extrabold text-white shadow-md hover:opacity-90 transition-all cursor-pointer"
+            className="w-full sm:w-auto rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover px-4 py-2.5 text-sm font-extrabold text-white shadow-md hover:opacity-90 transition-all cursor-pointer"
           >
             + Agregar categoría
           </button>
@@ -362,19 +362,62 @@ export default function AdminCategoriasPage() {
 
       {error && <p className="text-sm text-red-500 font-bold">{error}</p>}
 
-      <div className="rounded-2xl glass-panel p-6 overflow-x-auto">
+      <div className="rounded-2xl glass-panel p-3 sm:p-6">
         {loading ? (
           <p className="text-sm text-text-muted">Cargando...</p>
         ) : filteredTree.length === 0 ? (
           <p className="text-sm text-text-muted">No se encontraron categorías para &quot;{search}&quot;.</p>
         ) : (
-          <table className="w-full text-left text-sm border-collapse">
+          <>
+            <div className="flex flex-col gap-2 lg:hidden">
+              {filteredTree.map(({ category, depth }) => (
+                <div
+                  key={`m-${category.id}`}
+                  className="rounded-xl border border-card-border bg-background/40 p-3 flex items-start justify-between gap-2"
+                  style={{ marginLeft: Math.min(depth, 3) * 12 }}
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold break-words leading-snug" style={{ color: depthColor(depth) }}>
+                      {depth > 0 ? "↳ " : ""}
+                      {category.icon ? `${category.icon} ` : ""}
+                      {category.name}
+                    </p>
+                    <p className="text-[11px] text-text-muted break-all mt-0.5">{category.slug}</p>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      aria-label="Editar"
+                      onClick={() => handleEdit(category)}
+                      className="bg-card-bg border border-card-border text-foreground h-9 w-9 rounded-lg flex items-center justify-center cursor-pointer"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-4 h-4">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Borrar"
+                      onClick={() => setDeleteTarget(category)}
+                      className="bg-card-bg border border-card-border text-red-500 h-9 w-9 rounded-lg flex items-center justify-center cursor-pointer"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-4 h-4">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.34 9m-4.78 0L9 9m9.96-3.08c.18.04.36.08.54.13M15 3.57a48.008 48.008 0 0 0-6 0M4.5 6.08c.18-.05.36-.09.54-.13M18 6.08a48.108 48.108 0 0 0-12 0M6.25 6.08l.81 12.35c.04.83.69 1.5 1.52 1.5H15.4c.83 0 1.48-.67 1.52-1.5l.81-12.35m-9.96 0h12" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="hidden lg:block overflow-x-auto">
+          <table className="w-full min-w-[640px] text-left text-sm border-collapse">
             <thead>
               <tr className="border-b border-card-border text-text-muted font-bold select-none">
-                <th className="py-2">Ícono</th>
-                <th className="py-2">Nombre</th>
-                <th className="py-2">Slug</th>
-                <th className="py-2 text-right">Acciones</th>
+                <th className="py-2 pr-3 whitespace-nowrap">Ícono</th>
+                <th className="py-2 px-3 whitespace-nowrap">Nombre</th>
+                <th className="py-2 px-3 whitespace-nowrap">Slug</th>
+                <th className="py-2 pl-3 text-right whitespace-nowrap">Acciones</th>
               </tr>
             </thead>
             <tbody>
@@ -446,6 +489,8 @@ export default function AdminCategoriasPage() {
               ))}
             </tbody>
           </table>
+            </div>
+          </>
         )}
       </div>
 

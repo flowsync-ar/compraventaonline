@@ -100,7 +100,7 @@ function HomeSearchBarForm() {
     <div className="w-full">
       <form
         onSubmit={handleSubmit}
-        className="flex flex-col sm:flex-row items-stretch rounded-full bg-card-bg-solid border border-card-border shadow-md"
+        className="flex flex-col xl:flex-row items-stretch rounded-full bg-card-bg-solid border border-card-border shadow-md"
       >
         {/* Texto libre */}
         <div className="flex items-center gap-2 flex-1 sm:min-w-36 sm:basis-64 px-4 py-2.5 sm:py-2">
@@ -136,11 +136,11 @@ function HomeSearchBarForm() {
           ) : null}
         </div>
 
-        <div className="hidden sm:block w-px bg-card-border my-2.5" />
+        <div className="hidden xl:block w-px bg-card-border my-2.5" />
 
-        {/* Categoría — desktop/tablet. En mobile la home es solo el texto;
-            categoría y ciudad se eligen en /search. */}
-        <div className="hidden sm:flex items-center gap-2 sm:w-60 min-w-28 px-4 py-2">
+        {/* Categoría — solo desktop ancho. En el teléfono (y en Chrome
+            Android “sitio de escritorio” ~980px) queda solo el texto. */}
+        <div className="hidden xl:flex items-center gap-2 xl:w-60 min-w-28 px-4 py-2">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-accent-blue">
             <path d="M4 6h16M4 12h16M4 18h7" />
           </svg>
@@ -157,10 +157,10 @@ function HomeSearchBarForm() {
           />
         </div>
 
-        <div className="hidden sm:block w-px bg-card-border my-2.5" />
+        <div className="hidden xl:block w-px bg-card-border my-2.5" />
 
         {/* Ubicación */}
-        <div className="hidden sm:flex items-center gap-2 sm:w-60 min-w-28 px-4 py-2">
+        <div className="hidden xl:flex items-center gap-2 xl:w-60 min-w-28 px-4 py-2">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-text-muted">
             <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
             <circle cx="12" cy="10" r="3" />
@@ -182,7 +182,7 @@ function HomeSearchBarForm() {
 
         <button
           type="submit"
-          className="hidden sm:flex items-center justify-center gap-2 rounded-bl-none rounded-tr-full rounded-br-full bg-gradient-to-r from-accent-gold to-accent-gold-hover px-5 py-2 text-sm font-extrabold text-white hover:opacity-95 transition-all cursor-pointer"
+          className="hidden xl:flex items-center justify-center gap-2 rounded-bl-none rounded-tr-full rounded-br-full bg-gradient-to-r from-accent-gold to-accent-gold-hover px-5 py-2 text-sm font-extrabold text-white hover:opacity-95 transition-all cursor-pointer"
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="11" cy="11" r="8" />

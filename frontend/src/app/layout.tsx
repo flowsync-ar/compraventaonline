@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import Script from "next/script";
 import "./globals.css";
 import SiteChrome from "../components/SiteChrome";
@@ -7,6 +7,11 @@ export const metadata: Metadata = {
   title: "CompraVentaOnline - El Marketplace de La Pampa",
   description: "Compra y venta de productos nuevos y usados en La Pampa, Argentina. Encuentra las mejores ofertas de comercios locales y usuarios particulares.",
   keywords: "La Pampa, Santa Rosa, General Pico, compra, venta, marketplace, clasificados, nuevo, usado",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
 };
 
 export default function RootLayout({

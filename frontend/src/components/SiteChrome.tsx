@@ -112,7 +112,7 @@ export default function SiteChrome({ children }: { children: ReactNode }) {
             la fila 2, debajo del nav — por eso comparten ancho exacto sin
             cálculos manuales, es la misma celda de grid. */}
       <header className={`${isDashboard ? "shrink-0" : "sticky top-0"} z-50 w-full border-b border-card-border bg-background/85 backdrop-blur-md`}>
-        <div className={`grid grid-cols-1 xl:grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-4 w-full px-4 sm:px-6 lg:px-8 pt-4 ${isHomePage ? "gap-y-2 sm:gap-y-2 xl:gap-y-1 pb-0" : "gap-y-5 sm:gap-y-6 xl:gap-y-4 pb-4 xl:pb-2"}`}>
+        <div className={`grid grid-cols-1 xl:grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-4 w-full px-4 sm:px-6 lg:px-8 pt-4 ${isHomePage ? "gap-y-2 sm:gap-y-2 xl:gap-y-1 pb-4 sm:pb-3 xl:pb-2" : "gap-y-5 sm:gap-y-6 xl:gap-y-4 pb-4 xl:pb-2"}`}>
 
           {/* Grupo Logo + Sesión/Tema (se disuelve desde xl) */}
           <div className="flex xl:contents items-center justify-between gap-2">
@@ -146,6 +146,13 @@ export default function SiteChrome({ children }: { children: ReactNode }) {
 
                 {mobileMenuOpen && (
                   <div className="absolute left-0 top-full mt-2 w-60 rounded-2xl bg-card-bg-solid border border-card-border p-2 shadow-2xl z-50 flex flex-col gap-1 animate-in fade-in slide-in-from-top-2 duration-200">
+                    <Link
+                      href="/dashboard?tab=publish"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-extrabold uppercase tracking-wide text-white bg-accent-blue border border-accent-blue/30"
+                    >
+                      Vender
+                    </Link>
                     <Link href="/" className={navButtonClass(isNavActive("/"))}>
                       Inicio
                     </Link>
@@ -210,8 +217,16 @@ export default function SiteChrome({ children }: { children: ReactNode }) {
                 redundante en pantallas como el detalle de una publicación
                 o el dashboard. Se reserva para la home. Desde xl+ (una
                 sola fila, compacto) se muestra siempre, como en desktop. */}
-            <div className={isHomePage ? "w-full" : "hidden xl:block w-full"}>
-              <HomeSearchBar />
+            <div className={isHomePage ? "flex w-full items-stretch gap-2 sm:block" : "hidden xl:block w-full"}>
+              <div className="min-w-0 flex-1">
+                <HomeSearchBar />
+              </div>
+              <Link
+                href="/dashboard?tab=publish"
+                className="sm:hidden inline-flex shrink-0 items-center justify-center gap-1.5 rounded-full bg-accent-blue px-4 text-xs font-extrabold uppercase tracking-wide text-white"
+              >
+                Vender
+              </Link>
             </div>
 
             <nav className="hidden md:flex flex-wrap items-center justify-center gap-2 min-w-0">

@@ -121,7 +121,7 @@ export default function HeroCarousel({ slides }: HeroCarouselProps) {
   };
 
   return (
-    <div className="relative mt-2.5 w-full">
+    <div className="relative mt-5 w-full sm:mt-3">
       <div
         className="relative w-full overflow-hidden cursor-grab active:cursor-grabbing touch-pan-y"
         onPointerDown={handlePointerDown}
@@ -180,7 +180,7 @@ export default function HeroCarousel({ slides }: HeroCarouselProps) {
                 {slide.showCta !== false && (
                   <Link
                     href={slide.href}
-                    className={`inline-flex rounded-lg bg-gradient-to-r from-accent-gold to-accent-gold-hover px-5 py-2.5 text-[11px] font-extrabold text-white shadow-lg hover:scale-[1.03] active:scale-[0.98] transition-all ${
+                    className={`hidden sm:inline-flex rounded-lg bg-gradient-to-r from-accent-gold to-accent-gold-hover px-5 py-2.5 text-[11px] font-extrabold text-white shadow-lg hover:scale-[1.03] active:scale-[0.98] transition-all ${
                       slide.eyebrow || slide.title ? "mt-4" : ""
                     }`}
                   >
@@ -190,12 +190,21 @@ export default function HeroCarousel({ slides }: HeroCarouselProps) {
               </div>
             </div>
             )}
+            {slide.showCta !== false && slide.href ? (
+              <Link
+                href={slide.href}
+                onPointerDown={(e) => e.stopPropagation()}
+                className="absolute bottom-2 right-2 z-20 sm:hidden rounded-md bg-background/70 px-2 py-0.5 text-[9px] font-bold text-foreground/90 backdrop-blur-sm"
+              >
+                {slide.cta || "Ver más"}
+              </Link>
+            ) : null}
           </div>
           );
         })}
 
         {activeSlides.length > 1 && (
-        <div className="absolute bottom-3 left-1/2 z-20 flex -translate-x-1/2 items-center gap-2">
+        <div className="absolute bottom-3 left-1/2 z-20 hidden -translate-x-1/2 items-center gap-2 sm:flex">
           {activeSlides.map((slide, index) => (
             <button
               key={slide.id}

@@ -663,6 +663,18 @@ export default function HeaderSessionBar() {
                   Mi Panel / Perfil
                 </Link>
                 <Link
+                  href="/dashboard?tab=publish"
+                  onClick={() => setShowUserMenu(false)}
+                  className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-accent-blue hover:bg-accent-blue/10 transition-all"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z" />
+                    <path d="M3 6h18" />
+                    <path d="M16 10a4 4 0 0 1-8 0" />
+                  </svg>
+                  Vender
+                </Link>
+                <Link
                   href="/compras"
                   onClick={() => setShowUserMenu(false)}
                   className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-foreground/80 hover:text-accent-gold hover:bg-card-border/30 transition-all w-full text-left cursor-pointer"

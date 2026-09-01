@@ -48,6 +48,18 @@ interface UmamiData {
   rangeLabel: string
 }
 
+interface SnapshotRow {
+  id: string
+  captured_at: string
+  captured_at_art: string
+  label: string | null
+  payload: {
+    catalog: { sellers: number; listingsApproved?: number; listings: number; sellersTodayArt?: number }
+    traffic: { uniqueVisitors: number; pageViewsTodayArt: number }
+    infra: { storageBytes: number; storageFiles: number }
+  }
+}
+
 const BUCKET_LABELS: Record<string, string> = {
   listings: "Publicaciones",
   avatars: "Avatares",
@@ -118,6 +130,10 @@ export default function AdminMetricasPage() {
   const [umamiLoading, setUmamiLoading] = useState(true)
   const [umamiError, setUmamiError] = useState("")
 
+  const [snapshots, setSnapshots] = useState<SnapshotRow[]>([])
+  const [snapshotsError, setSnapshotsError] = useState("")
+  const [savingSnapshot, setSavingSnapshot] = useState(false)
+
   const load = () => {
     setLoading(true)
     setError("")
@@ -141,6 +157,27 @@ export default function AdminMetricasPage() {
       })
       .catch((err) => setUmamiError(err instanceof Error ? err.message : "No se pudo cargar Umami."))
       .finally(() => setUmamiLoading(false))
+
+    setSnapshotsError("")
+    fetch("/api/admin/metrics/snapshots")
+      .then(async (res) => {
+        const json = await res.json()
+        if (!res.ok) throw new Error(json.error ?? "No se pudieron cargar los cortes.")
+        setSnapshots(json.snapshots ?? [])
+      })
+      .catch((err) => setSnapshotsError(err instanceof Error ? err.message : "No se pudieron cargar los cortes."))
+  }
+
+  const takeSnapshot = () => {
+    setSavingSnapshot(true)
+    fetch("/api/admin/metrics/snapshots", { method: "POST" })
+      .then(async (res) => {
+        const json = await res.json()
+        if (!res.ok) throw new Error(json.error ?? "No se pudo guardar el corte.")
+        load()
+      })
+      .catch((err) => setSnapshotsError(err instanceof Error ? err.message : "No se pudo guardar el corte."))
+      .finally(() => setSavingSnapshot(false))
   }
 
   useEffect(() => {
@@ -176,6 +213,63 @@ export default function AdminMetricasPage() {
           </button>
         </div>
       </div>
+
+      <section className="flex flex-col gap-3">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <h2 className="text-xs font-extrabold text-text-muted uppercase tracking-wide">
+            Cortes de campaña (cada 6 h + manual)
+          </h2>
+          <button
+            type="button"
+            onClick={takeSnapshot}
+            disabled={savingSnapshot}
+            className="rounded-xl border border-card-border bg-card-bg px-3.5 py-2 text-xs font-bold text-foreground hover:border-accent-gold/40 hover:text-accent-gold transition-all disabled:opacity-50 cursor-pointer"
+          >
+            {savingSnapshot ? "Guardando..." : "Tomar corte ahora"}
+          </button>
+        </div>
+        {snapshotsError ? (
+          <p className="text-sm text-red-500">
+            {snapshotsError.includes("site_metric_snapshots") || snapshotsError.includes("does not exist")
+              ? "Falta aplicar la migración 052_site_metric_snapshots.sql en el SQL Editor de Supabase."
+              : snapshotsError}
+          </p>
+        ) : snapshots.length === 0 ? (
+          <p className="text-sm text-text-muted">
+            Todavía no hay cortes guardados. El cron de Vercel corre cada 6 horas, o usá “Tomar corte ahora”.
+          </p>
+        ) : (
+          <div className="rounded-2xl bg-card-bg-solid border border-card-border overflow-x-auto">
+            <table className="w-full text-left text-sm border-collapse">
+              <thead>
+                <tr className="border-b border-card-border text-text-muted font-bold">
+                  <th className="py-3 px-5">Corte (ART)</th>
+                  <th className="py-3 px-5">Vendedores</th>
+                  <th className="py-3 px-5">Publicaciones</th>
+                  <th className="py-3 px-5">Visitantes únicos</th>
+                  <th className="py-3 px-5">Storage</th>
+                </tr>
+              </thead>
+              <tbody>
+                {snapshots.map((row) => (
+                  <tr key={row.id} className="border-b border-card-border/30">
+                    <td className="py-3 px-5 text-foreground">
+                      {row.captured_at_art}
+                      {row.label ? <span className="ml-2 text-[11px] text-text-muted">{row.label}</span> : null}
+                    </td>
+                    <td className="py-3 px-5 text-foreground font-bold">{row.payload.catalog.sellers}</td>
+                    <td className="py-3 px-5 text-foreground font-bold">
+                      {row.payload.catalog.listingsApproved ?? row.payload.catalog.listings}
+                    </td>
+                    <td className="py-3 px-5 text-foreground font-bold">{row.payload.traffic.uniqueVisitors}</td>
+                    <td className="py-3 px-5 text-text-muted">{formatBytes(row.payload.infra.storageBytes)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
 
       <section className="flex flex-col gap-3">
         <h2 className="text-xs font-extrabold text-text-muted uppercase tracking-wide">

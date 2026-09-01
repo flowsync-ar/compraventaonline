@@ -1,0 +1,300 @@
+{
+  "label": "baseline-campana-lanzamiento",
+  "capturedAt": "2026-08-31T23:57:49.192Z",
+  "capturedAtArt": "2026-08-31 20:57:49",
+  "timezone": "America/Argentina/Buenos_Aires",
+  "note": "Corte de referencia al arrancar la publicidad (31 ago 2026 ~20:55 ART).",
+  "catalog": {
+    "authUsers": 12,
+    "authUsersConfirmed": 12,
+    "sellers": 12,
+    "sellersByType": {
+      "PERSONAL_SELLER": 9,
+      "BUSINESS_SELLER": 3
+    },
+    "sellersByStatus": {
+      "ACTIVE": 12
+    },
+    "sellersIdentityVerified": 7,
+    "sellersLast7d": 7,
+    "sellersLast30d": 11,
+    "sellersTodayArt": 6,
+    "listings": 37,
+    "listingsByStatus": {
+      "APPROVED": 36,
+      "ACTIVE": 1
+    },
+    "listingsByFeatured": {
+      "FREE": 31,
+      "FEATURED": 6
+    },
+    "listingsLast7d": 12,
+    "listingsLast30d": 37,
+    "questions": 7,
+    "favorites": 3,
+    "reports": 0,
+    "supportMessages": 3
+  },
+  "commerce": {
+    "orders": 3,
+    "ordersByStatus": {
+      "PAID": 1,
+      "PENDING": 2
+    },
+    "paidOrders": 1,
+    "paidRevenue": 950000
+  },
+  "traffic": {
+    "uniquePageViews": 14,
+    "uniqueVisitors": 14,
+    "pageViewsLast7d": 14,
+    "pageViewsLast30d": 14,
+    "pageViewsTodayArt": 14,
+    "listingViews": 43,
+    "listingViewsTodayArt": 2,
+    "dailyUniqueVisitorsArt": [
+      {
+        "date": "2026-08-31",
+        "uniqueVisits": 14
+      }
+    ],
+    "topPaths": [
+      {
+        "path": "/",
+        "count": 11
+      },
+      {
+        "path": "/login",
+        "count": 2
+      },
+      {
+        "path": "/completar-perfil",
+        "count": 1
+      }
+    ]
+  },
+  "infra": {
+    "storage": {
+      "by_bucket": [
+        {
+          "bucket_id": "avatars",
+          "file_count": 5,
+          "total_bytes": 1166192,
+          "avg_bytes": 233238,
+          "max_bytes": 337754
+        },
+        {
+          "bucket_id": "listings",
+          "file_count": 166,
+          "total_bytes": 7591622,
+          "avg_bytes": 45733,
+          "max_bytes": 532334
+        },
+        {
+          "bucket_id": "hero-slides",
+          "file_count": 47,
+          "total_bytes": 21936233,
+          "avg_bytes": 466728,
+          "max_bytes": 2419702
+        }
+      ],
+      "histogram": [
+        {
+          "bucket_id": "avatars",
+          "under_500kb": 5,
+          "kb500_1mb": 0,
+          "mb1_2": 0,
+          "mb2_5": 0,
+          "over_5mb": 0
+        },
+        {
+          "bucket_id": "listings",
+          "under_500kb": 165,
+          "kb500_1mb": 1,
+          "mb1_2": 0,
+          "mb2_5": 0,
+          "over_5mb": 0
+        },
+        {
+          "bucket_id": "hero-slides",
+          "under_500kb": 37,
+          "kb500_1mb": 1,
+          "mb1_2": 4,
+          "mb2_5": 5,
+          "over_5mb": 0
+        }
+      ],
+      "largest": [
+        {
+          "bucket_id": "hero-slides",
+          "name": "1787335426427-frwbwcqjx0o.png",
+          "size_bytes": 331565,
+          "created_at": "2026-08-21T18:03:47.191697+00:00",
+          "seller_name": null,
+          "seller_username": null
+        },
+        {
+          "bucket_id": "avatars",
+          "name": "0c9cc5c5-a483-4ac2-a8f9-5b7e37b4f671/avatar.png",
+          "size_bytes": 337754,
+          "created_at": "2026-08-20T02:31:57.61835+00:00",
+          "seller_name": null,
+          "seller_username": null
+        },
+        {
+          "bucket_id": "avatars",
+          "name": "de5192c1-16a5-4f4b-b1fb-6b84d399e12c/avatar.png",
+          "size_bytes": 337754,
+          "created_at": "2026-08-19T17:38:16.046966+00:00",
+          "seller_name": null,
+          "seller_username": null
+        },
+        {
+          "bucket_id": "hero-slides",
+          "name": "1787539965528-1hqxgvcrwc1.jpeg",
+          "size_bytes": 385251,
+          "created_at": "2026-08-24T02:52:46.557602+00:00",
+          "seller_name": null,
+          "seller_username": null
+        },
+        {
+          "bucket_id": "hero-slides",
+          "name": "1787538787470-9dl7q4esrr.png",
+          "size_bytes": 471469,
+          "created_at": "2026-08-24T02:33:08.801441+00:00",
+          "seller_name": null,
+          "seller_username": null
+        },
+        {
+          "bucket_id": "hero-slides",
+          "name": "1787336421224-rktqbtpra1l.png",
+          "size_bytes": 471469,
+          "created_at": "2026-08-21T18:20:22.482036+00:00",
+          "seller_name": null,
+          "seller_username": null
+        },
+        {
+          "bucket_id": "hero-slides",
+          "name": "1787335886196-iqem2h89j1.png",
+          "size_bytes": 654079,
+          "created_at": "2026-08-21T18:11:27.668241+00:00",
+          "seller_name": null,
+          "seller_username": null
+        },
+        {
+          "bucket_id": "hero-slides",
+          "name": "1787337108697-nnarsv89yar.png",
+          "size_bytes": 1056833,
+          "created_at": "2026-08-21T18:31:50.059959+00:00",
+          "seller_name": null,
+          "seller_username": null
+        },
+        {
+          "bucket_id": "hero-slides",
+          "name": "1787341155070-cyzolkvpf8q.png",
+          "size_bytes": 1391528,
+          "created_at": "2026-08-21T19:39:16.699261+00:00",
+          "seller_name": null,
+          "seller_username": null
+        },
+        {
+          "bucket_id": "hero-slides",
+          "name": "1787339718937-3i6ycng7n1j.png",
+          "size_bytes": 1624859,
+          "created_at": "2026-08-21T19:15:20.616009+00:00",
+          "seller_name": null,
+          "seller_username": null
+        },
+        {
+          "bucket_id": "hero-slides",
+          "name": "1787369009936-4aoginfm76u.png",
+          "size_bytes": 1731768,
+          "created_at": "2026-08-22T03:23:30.326354+00:00",
+          "seller_name": null,
+          "seller_username": null
+        },
+        {
+          "bucket_id": "hero-slides",
+          "name": "1787334979020-io53sm7ij08.jpeg",
+          "size_bytes": 2152613,
+          "created_at": "2026-08-21T17:56:19.398374+00:00",
+          "seller_name": null,
+          "seller_username": null
+        },
+        {
+          "bucket_id": "hero-slides",
+          "name": "1787335008890-onhxjxgers.jpeg",
+          "size_bytes": 2152613,
+          "created_at": "2026-08-21T17:56:50.5254+00:00",
+          "seller_name": null,
+          "seller_username": null
+        },
+        {
+          "bucket_id": "hero-slides",
+          "name": "1787538796385-56qlek3yaih.jpeg",
+          "size_bytes": 2236259,
+          "created_at": "2026-08-24T02:33:20.187173+00:00",
+          "seller_name": null,
+          "seller_username": null
+        },
+        {
+          "bucket_id": "hero-slides",
+          "name": "1787368928877-d7ka5sjlodh.jpeg",
+          "size_bytes": 2291849,
+          "created_at": "2026-08-22T03:22:09.399668+00:00",
+          "seller_name": null,
+          "seller_username": null
+        },
+        {
+          "bucket_id": "hero-slides",
+          "name": "1787370035449-v3h4zqh5qyr.png",
+          "size_bytes": 2419702,
+          "created_at": "2026-08-22T03:40:36.044649+00:00",
+          "seller_name": null,
+          "seller_username": null
+        },
+        {
+          "bucket_id": "listings",
+          "name": "migrated/6c0cd9d2-4715-419e-bb35-fb6ed3c9bb0b/5-1787622005546.webp",
+          "size_bytes": 340018,
+          "created_at": "2026-08-25T01:40:05.979792+00:00",
+          "seller_name": null,
+          "seller_username": null
+        },
+        {
+          "bucket_id": "listings",
+          "name": "migrated/6c0cd9d2-4715-419e-bb35-fb6ed3c9bb0b/3-1787622004150.webp",
+          "size_bytes": 346032,
+          "created_at": "2026-08-25T01:40:04.711348+00:00",
+          "seller_name": null,
+          "seller_username": null
+        },
+        {
+          "bucket_id": "listings",
+          "name": "migrated/6c0cd9d2-4715-419e-bb35-fb6ed3c9bb0b/2-1787622003342.webp",
+          "size_bytes": 426120,
+          "created_at": "2026-08-25T01:40:03.917807+00:00",
+          "seller_name": null,
+          "seller_username": null
+        },
+        {
+          "bucket_id": "listings",
+          "name": "migrated/6c0cd9d2-4715-419e-bb35-fb6ed3c9bb0b/1-1787622002528.webp",
+          "size_bytes": 532334,
+          "created_at": "2026-08-25T01:40:03.114782+00:00",
+          "seller_name": null,
+          "seller_username": null
+        }
+      ],
+      "orphaned_count": 2,
+      "orphaned_bytes": 150286
+    },
+    "supabaseProject": "uasifhyzuwjishzohcwo",
+    "hosting": "Vercel + Supabase + Umami Cloud"
+  },
+  "umami": {
+    "last24h": null,
+    "last7d": null,
+    "last30d": null
+  }
+}

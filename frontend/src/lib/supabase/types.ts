@@ -1158,6 +1158,30 @@ export type Database = {
           },
         ]
       }
+      site_metric_snapshots: {
+        Row: {
+          captured_at: string
+          captured_at_art: string
+          id: string
+          label: string | null
+          payload: Json
+        }
+        Insert: {
+          captured_at?: string
+          captured_at_art: string
+          id?: string
+          label?: string | null
+          payload: Json
+        }
+        Update: {
+          captured_at?: string
+          captured_at_art?: string
+          id?: string
+          label?: string | null
+          payload?: Json
+        }
+        Relationships: []
+      }
       platform_settings: {
         Row: {
           highlight_duration_days: number

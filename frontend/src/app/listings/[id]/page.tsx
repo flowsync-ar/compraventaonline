@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef, useMemo } from "react";
+import { useEffect, useLayoutEffect, useState, useRef, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -67,6 +67,13 @@ export default function ListingDetailPage() {
   const [listing, setListing] = useState<Listing | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"desc" | "seller">("desc");
+
+  // Next keeps the previous page's scroll (search/home) because this is a
+  // client page inside a shared layout. Land at the top of the ficha —
+  // photos and title — not halfway down in the description.
+  useLayoutEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+  }, [id, loading]);
 
   // Checkout / Payment States
   const [isPaid, setIsPaid] = useState(false);
@@ -722,7 +729,7 @@ export default function ListingDetailPage() {
     : null;
 
   return (
-    <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 w-full">
+    <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 w-full [overflow-anchor:none]">
       {/* Breadcrumb Navigation — shows the product's real category path
           (root-first, e.g. Alimentos y Bebidas / Bebidas / Vinos y
           Espumantes) once it resolves, so you can see exactly where this

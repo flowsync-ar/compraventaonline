@@ -165,20 +165,20 @@ export default function SiteChrome({ children }: { children: ReactNode }) {
                 )}
               </div>
 
-              <Link href="/" className="relative -mt-2 flex flex-col items-center shrink-0 group min-w-0 xl:-mt-3">
+              <Link href="/" className="relative -mt-1 sm:-mt-2 flex min-w-0 flex-col items-center group xl:-mt-3">
                 <ThemedImage
                   lightSrc="/logo-cvo-new.png"
                   darkSrc="/logo-cvo-new.png"
                   alt="CompraVentaOnline La Pampa"
-                  className="h-16 sm:h-24 w-auto max-w-none object-contain md:-ml-6 lg:-ml-8 transition-transform group-hover:scale-105"
+                  className="h-10 w-auto max-w-full object-contain sm:h-16 md:h-20 xl:h-24 md:-ml-6 lg:-ml-8 transition-transform group-hover:scale-105"
                 />
-                <span className="mt-0.5 sm:mt-1 font-script text-sm sm:text-lg font-bold whitespace-nowrap transition-transform group-hover:scale-110">
+                <span className="mt-0.5 sm:mt-1 font-script text-[11px] sm:text-sm md:text-lg font-bold whitespace-nowrap transition-transform group-hover:scale-110">
                 <span className="text-accent-gold">100%</span> <span className="text-[#2A6BC5]">Pampeano</span>
                 </span>
               </Link>
             </div>
 
-            <div className="flex shrink-0 items-center gap-1 sm:gap-2.5 xl:col-start-3 xl:row-start-1 xl:self-start">
+            <div className="relative z-10 flex shrink-0 items-center gap-1 sm:gap-2.5 xl:col-start-3 xl:row-start-1 xl:self-start">
               <HeaderSessionBar />
               <div className="pl-1 sm:pl-2.5 border-l border-card-border/40">
                 <ThemeToggle />

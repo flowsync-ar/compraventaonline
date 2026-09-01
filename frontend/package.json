@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "import-ml-categories": "node --env-file=.env.local scripts/import-ml-categories.mjs"
+    "import-ml-categories": "node --env-file=.env.local scripts/import-ml-categories.mjs",
+    "snapshot:metrics": "node --env-file=.env.local scripts/capture-site-metrics.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.0",

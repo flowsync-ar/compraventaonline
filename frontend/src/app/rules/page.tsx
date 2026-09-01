@@ -21,7 +21,7 @@ export default function RulesPage() {
             <li className="flex gap-2"><span className="text-accent-gold shrink-0">→</span> Solo podés publicar artículos o servicios que sean de tu propiedad o que estés autorizado a vender.</li>
             <li className="flex gap-2"><span className="text-accent-gold shrink-0">→</span> Las fotos y descripciones deben representar fielmente el producto real.</li>
             <li className="flex gap-2"><span className="text-accent-gold shrink-0">→</span> Está prohibido publicar artículos ilegales, robados, falsificados o peligrosos.</li>
-            <li className="flex gap-2"><span className="text-accent-gold shrink-0">→</span> No se permite la venta de medicamentos, armas, explosivos ni sustancias controladas.</li>
+            <li className="flex gap-2"><span className="text-accent-gold shrink-0">→</span> No se permite: drogas, armas, explosivos, pirotecnia, animales vivos, servicios pornográficos o sexuales, medicamentos bajo receta ni documentos falsos. El listado completo está en el punto 7 de los Términos y Condiciones.</li>
             <li className="flex gap-2"><span className="text-accent-gold shrink-0">→</span> El precio publicado debe ser el precio real. No se admiten publicaciones señuelo.</li>
           </ul>
         </section>

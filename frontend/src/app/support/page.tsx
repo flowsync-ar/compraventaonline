@@ -25,9 +25,14 @@ export default function SupportPage() {
       answer: "Es el primer marketplace diseñado exclusivamente para conectar a compradores y vendedores dentro de la provincia de La Pampa, Argentina. Facilitamos el comercio de cercanía de forma gratuita, permitiendo buscar publicaciones por localidad (Santa Rosa, General Pico, Toay, Realicó, etc.) y coordinar el intercambio directamente sin intermediarios obligatorios."
     },
     {
+      category: "general",
+      question: "¿Por qué tengo que validar mi identidad para comprar o vender?",
+      answer: "CompraVentaOnline pide validación de identidad para publicar, vender y usar funciones de compra o contacto comercial. El objetivo es una comunidad más segura: confirmar que sos mayor de 18 años y que la cuenta corresponde a una persona real. Completás el proceso en Verificar identidad (documento y datos auténticos de tu propia identidad). Tener la identidad validada no garantiza la conducta de la otra parte: sigue siendo una operación entre particulares. No está permitido usar datos ajenos, documentación falsa ni una cuenta validada de otra persona."
+    },
+    {
       category: "vendedores",
       question: "¿Cómo puedo empezar a vender mis productos?",
-      answer: "Es muy fácil: 1) Registrate en la plataforma ingresando tu nombre, email, contraseña y DNI/CUIL o CUIT. 2) Se creará automáticamente tu Perfil Comercial. 3) Hacé click en el botón 'Vender' de la barra superior. 4) Completá el formulario con el nombre del producto, descripción, marca, precio, stock, categoría y plan de destacado, y dale a publicar. Tu artículo pasará una moderación de contenido automática y estará disponible al instante en el buscador."
+      answer: "1) Registrate (solo mayores de 18 años) con datos verdaderos. 2) Completá la validación de identidad: sin eso no podés publicar. 3) Entrá a Vender / Publicar artículo. 4) Cargá fotos, descripción, precio real y categoría, y confirmá. Tu artículo pasa por moderación y luego aparece en el buscador. El pago y la entrega los coordinás vos con el comprador."
     },
     {
       category: "reputacion",
@@ -47,7 +52,7 @@ export default function SupportPage() {
     {
       category: "compradores",
       question: "¿Cómo compro un artículo en la plataforma?",
-      answer: "Utilizá el buscador de la página principal para encontrar lo que necesites. Podés buscar por palabras clave, filtrar por categoría (searcheable) y ordenar por menor/mayor precio o condición (nuevo/usado). Una vez que encuentres lo que buscás, podés comunicarte directamente con el vendedor para coordinar el pago (efectivo, transferencia, etc.) y el punto de entrega en la localidad."
+      answer: "Buscá en la página principal por palabras clave, categoría, precio o condición. Para Comprar ahora necesitás estar registrado, ser mayor de 18 años y tener la identidad validada: si todavía no lo hiciste, te vamos a pedir que completes Verificar identidad. Después coordinás el pago y la entrega directamente con el vendedor. Preguntar al vendedor puede estar disponible con tu cuenta iniciada; las operaciones comerciales siguen exigiendo identidad validada."
     },
     {
       category: "compradores",
@@ -57,7 +62,7 @@ export default function SupportPage() {
     {
       category: "general",
       question: "¿Qué tipo de productos están prohibidos publicar?",
-      answer: "Para mantener una comunidad segura y legal en la provincia, está prohibido publicar: medicamentos de venta bajo receta, pirotecnia, armas o artículos de defensa personal, animales, productos robados, copias ilegales de software o películas, y cualquier contenido ofensivo o discriminatorio. Todas las publicaciones se evalúan periódicamente."
+      answer: "No se pueden publicar, entre otros: drogas y sustancias controladas; armas, municiones, explosivos y pirotecnia; animales vivos; servicios o contenidos pornográficos o sexuales; medicamentos bajo receta; bienes robados o falsificados; documentos falsos; y ofertas de odio, violencia o estafa. Tampoco fotos o precios engañosos. El detalle está en el punto 7 de los Términos y Condiciones. Las publicaciones que infrinjan esas reglas se retiran y la cuenta puede ser sancionada."
     }
   ];
 

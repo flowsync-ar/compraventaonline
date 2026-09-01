@@ -273,7 +273,7 @@ export async function POST(request: NextRequest) {
     const { error: termsError } = await admin.from("terms_acceptances").insert({
       seller_id: updatedSeller.id,
       user_id: userId,
-      terms_version: "1.0",
+      terms_version: "2026-08-31",
       ip_address: ipAddress,
       user_agent: userAgent,
     })

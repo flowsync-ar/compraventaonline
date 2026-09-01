@@ -38,7 +38,7 @@ export default function TermsAcceptanceModal({
       <div className="bg-card-bg-solid border border-card-border rounded-3xl w-full max-w-lg max-h-[85vh] flex flex-col shadow-2xl">
         <div className="flex items-start justify-between gap-3 p-6 border-b border-card-border">
           <h3 className="font-heading text-base font-bold text-foreground">
-            Términos y Condiciones de Uso de CompraventaOnline
+            Términos y Condiciones de CompraVentaOnline
           </h3>
           <button
             onClick={onClose}
@@ -54,55 +54,59 @@ export default function TermsAcceptanceModal({
           className="overflow-y-auto p-6 flex flex-col gap-4 text-xs text-text-muted leading-relaxed"
         >
           <div>
-            <h4 className="text-xs font-bold text-foreground mb-1">Naturaleza del Servicio</h4>
+            <h4 className="text-xs font-bold text-foreground mb-1">Naturaleza del servicio</h4>
             <p>
-              CompraventaOnline actúa exclusivamente como un servicio de intermediación tecnológica
-              y plataforma de contacto entre vendedores y compradores. CompraventaOnline no es
-              dueño, propietario, ni poseedor de los productos publicados, ni participa en la
-              cadena de distribución o venta física.
+              CompraVentaOnline es una plataforma de clasificados que conecta compradores y
+              vendedores. No es propietaria de los productos publicados y, salvo un servicio
+              particular que se indique expresamente, no administra el pago ni la entrega. Esas
+              condiciones las acuerdan las partes entre sí.
+            </p>
+          </div>
+
+          <div>
+            <h4 className="text-xs font-bold text-foreground mb-1">Capacidad</h4>
+            <p>
+              Solo pueden registrarse y operar personas mayores de 18 años con capacidad legal
+              para contratar. No está permitido el uso de la plataforma por menores de edad,
+              aunque cuenten con autorización de un adulto.
+            </p>
+          </div>
+
+          <div>
+            <h4 className="text-xs font-bold text-foreground mb-1">Validación de identidad</h4>
+            <p>
+              Para publicar, vender o usar determinadas funciones de compra y contacto comercial
+              debés completar la validación de identidad. Debés usar datos y documentación
+              auténticos de tu propia identidad. Una cuenta validada no garantiza la conducta de
+              la otra parte.
+            </p>
+          </div>
+
+          <div>
+            <h4 className="text-xs font-bold text-foreground mb-1">Publicaciones y operaciones</h4>
+            <p>
+              Sos responsable de la veracidad de tus publicaciones (fotos, precio real, estado y
+              disponibilidad). CompraVentaOnline puede limitar, pausar o eliminar publicaciones y
+              aplicar sanciones ante fraude, productos prohibidos o incumplimientos.
             </p>
           </div>
 
           <div>
             <h4 className="text-xs font-bold text-foreground mb-1">Responsabilidad</h4>
             <p>
-              La responsabilidad por la calidad, garantía, veracidad de la descripción y entrega
-              del producto recae 100% sobre el vendedor.
-            </p>
-          </div>
-
-          <div>
-            <h4 className="text-xs font-bold text-foreground mb-1">Proceso de Pago</h4>
-            <p>
-              Los pagos se procesan a través de proveedores externos (Mercado Pago). Al utilizar
-              el sistema de cuotas, el usuario acepta que la plataforma aplica un cargo de gestión
-              por servicio de intermediación y financiamiento.
-            </p>
-          </div>
-
-          <div>
-            <h4 className="text-xs font-bold text-foreground mb-1">Liberación de Fondos</h4>
-            <p>
-              La plataforma implementa un sistema de protección al comprador. El dinero de la
-              transacción permanecerá retenido por el procesador de pagos hasta que el comprador
-              confirme la recepción del producto o se cumpla el plazo de seguridad establecido.
-            </p>
-          </div>
-
-          <div>
-            <h4 className="text-xs font-bold text-foreground mb-1">Garantía</h4>
-            <p>
-              CompraventaOnline no garantiza la resolución de controversias entre las partes,
-              aunque se reserva el derecho de mediar y aplicar sanciones (suspensión de cuentas)
-              a vendedores que incumplan sus obligaciones.
+              La plataforma no garantiza existencia, calidad, autenticidad, legalidad ni
+              cumplimiento del pago o la entrega. Cada usuario evalúa la operación antes de
+              concretarla. CompraVentaOnline responde por sus propios servicios en el alcance de
+              la legislación argentina.
             </p>
           </div>
 
           <div>
             <h4 className="text-xs font-bold text-foreground mb-1">Aceptación</h4>
             <p>
-              Al hacer clic en &quot;Registrarse&quot;, el usuario declara haber leído,
-              comprendido y aceptado la totalidad de estos términos.
+              Al registrarte declarás haber leído y aceptado estos Términos y Condiciones (versión
+              vigente 31 de agosto de 2026), la Declaración de Privacidad y las políticas
+              complementarias. El texto completo está en compraventaonline.com.ar/terms.
             </p>
           </div>
         </div>

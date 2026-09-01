@@ -4130,7 +4130,7 @@ function DashboardPageContent() {
             <div className="rounded-2xl glass-panel p-6">
               <h3 className="font-heading text-sm font-extrabold text-foreground uppercase tracking-wider mb-2">🎁 Mis Premios y Beneficios</h3>
               <p className="text-xs text-text-muted">
-                Tu reputación en la provincia de La Pampa tiene valor. A medida que subas tu reputación (Score y Tier), el sistema te otorgará de forma automática beneficios comerciales exclusivos para impulsar tu negocio.
+                Tu reputación en la provincia de La Pampa tiene valor. A medida que subas tu reputación (Score y Tier), el sistema te otorgará de forma automática beneficios comerciales exclusivos para impulsar tus ventas.
               </p>
             </div>
 

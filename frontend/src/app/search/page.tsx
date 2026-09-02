@@ -9,6 +9,7 @@ import { LA_PAMPA_CITIES } from "@/lib/constants/laPampaCities";
 import { getCachedCategories, buildChildrenMap } from "@/lib/categories";
 import { stripRichText } from "@/lib/richText";
 import ClearableTextInput from "@/components/ClearableTextInput";
+import { compareShuffledListings, searchShuffleSeed } from "@/lib/searchShuffle";
 
 // Builds the numbered page list with "…" gaps, e.g. for current=10,
 // total=42: [1, "…", 5,6,7,8,9,10,11,12,13,14,15, "…", 42]. First/last
@@ -195,16 +196,34 @@ async function searchListings(params: {
     // Without any of those, pagination can go straight to the DB via
     // .range() — exact and cheap regardless of catalog size.
     const hasClientSideFilters = !!(params.q || params.category || params.subcategory || params.location);
+    const isPriceSort = params.sort === "price_asc" || params.sort === "price_desc";
 
     if (!hasClientSideFilters) {
-      const from = (page - 1) * PAGE_SIZE;
-      const { data, error, count } = await query.range(from, from + PAGE_SIZE - 1);
+      if (isPriceSort) {
+        const from = (page - 1) * PAGE_SIZE;
+        const { data, error, count } = await query.range(from, from + PAGE_SIZE - 1);
 
+        if (error) {
+          console.error("[search] Error fetching listings:", error.message);
+          return { listings: [], total: 0 };
+        }
+        return { listings: (data ?? []) as unknown as ListingRow[], total: count ?? 0 };
+      }
+
+      // Default "Relevancia": mix a wide recent window with a per-hour seed
+      // so browse is not always newest-first. Highlights stay on top.
+      const { data, error, count } = await query.limit(1000);
       if (error) {
         console.error("[search] Error fetching listings:", error.message);
         return { listings: [], total: 0 };
       }
-      return { listings: (data ?? []) as unknown as ListingRow[], total: count ?? 0 };
+      const seed = searchShuffleSeed();
+      const shuffled = [...((data ?? []) as unknown as ListingRow[])].sort((a, b) =>
+        compareShuffledListings(a, b, seed),
+      );
+      const total = Math.min(count ?? shuffled.length, shuffled.length);
+      const from = (page - 1) * PAGE_SIZE;
+      return { listings: shuffled.slice(from, from + PAGE_SIZE), total };
     }
 
     // Client-filtered path: PostgREST's .or() doesn't reliably support
@@ -270,6 +289,15 @@ async function searchListings(params: {
         if (bait !== 0) return bait;
         return a.price - b.price;
       });
+    } else if (params.sort === "price_desc") {
+      results = [...results].sort((a, b) => {
+        const bait = Number(!!a.exclude_from_price_sort) - Number(!!b.exclude_from_price_sort);
+        if (bait !== 0) return bait;
+        return b.price - a.price;
+      });
+    } else {
+      const seed = searchShuffleSeed();
+      results = [...results].sort((a, b) => compareShuffledListings(a, b, seed));
     }
 
     const total = results.length;
@@ -374,14 +402,27 @@ export default async function SearchPage({
             running off the bottom of the viewport on shorter screens. */}
         <aside className="w-full lg:w-64 shrink-0 lg:sticky lg:top-36 lg:max-h-[calc(100vh-9.5rem)] lg:overflow-y-auto">
           <form action="/search" method="GET" className="rounded-2xl glass-panel p-4 lg:p-6">
-            {/* Acordeón SOLO en mobile/tablet (<lg) — el panel de filtros
-                entero es alto y en pantallas chicas/tablet empujaba todo el
-                resultado bien abajo, obligando a scrollear mucho para ver
-                la primera publicación. Arranca COLAPSADO en mobile/tablet y
-                se auto-abre al llegar a lg (ver FiltersAccordion); en
-                desktop además queda bloqueado para cerrar (lg:pointer-events-none
-                en el summary) — se ve exactamente como el sidebar fijo de
-                siempre. En mobile/tablet sí se puede tocar para expandirlo. */}
+            {params.seller && <input type="hidden" name="seller" value={params.seller} />}
+
+            <div className="flex items-end gap-2 mb-4 lg:mb-6">
+              <div className="flex-1 flex flex-col gap-2 min-w-0">
+                <label className="text-xs font-bold text-foreground">Buscar</label>
+                <ClearableTextInput
+                  key={params.q || "q"}
+                  name="q"
+                  defaultValue={params.q || ""}
+                  placeholder="Ej. taladro, motorhome…"
+                  className="w-full bg-background border border-card-border rounded-xl px-3 py-2.5 text-xs text-foreground focus:outline-none focus:border-accent-gold"
+                />
+              </div>
+              <button
+                type="submit"
+                className="lg:hidden shrink-0 rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover px-4 py-2.5 text-xs font-extrabold text-white shadow-md"
+              >
+                Buscar
+              </button>
+            </div>
+
             <FiltersAccordion>
               <summary className="flex items-center justify-between cursor-pointer lg:cursor-default lg:pointer-events-none list-none [&::-webkit-details-marker]:hidden font-heading text-xs lg:text-sm font-extrabold text-foreground uppercase tracking-wider group-open:border-b group-open:border-card-border group-open:pb-3 lg:border-b lg:border-card-border lg:pb-3">
                 Filtros
@@ -391,23 +432,6 @@ export default async function SearchPage({
               </summary>
 
               <div className="flex flex-col gap-6 pt-6">
-                {/* Preserva el filtro por vendedor (llegado desde "Más
-                    artículos de este vendedor" en el detalle de una
-                    publicación) cuando se refina con otros filtros. */}
-                {params.seller && <input type="hidden" name="seller" value={params.seller} />}
-
-                {/* Input Search */}
-                <div className="flex flex-col gap-2">
-                  <label className="text-xs font-bold text-foreground">Palabra Clave</label>
-                  <ClearableTextInput
-                    key={params.q || "q"}
-                    name="q"
-                    defaultValue={params.q || ""}
-                    placeholder="Ej. taladro..."
-                    className="w-full bg-background border border-card-border rounded-xl px-3 py-2 text-xs text-foreground focus:outline-none focus:border-accent-gold"
-                  />
-                </div>
-
                 {/* Location Filter */}
                 <div className="flex flex-col gap-2">
                   <label className="text-xs font-bold text-foreground">Ubicación</label>

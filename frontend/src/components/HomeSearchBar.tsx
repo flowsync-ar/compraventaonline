@@ -100,10 +100,10 @@ function HomeSearchBarForm() {
     <div className="w-full">
       <form
         onSubmit={handleSubmit}
-        className="flex flex-col xl:flex-row items-stretch rounded-full bg-card-bg-solid border border-card-border shadow-md"
+        className="flex flex-row items-center rounded-full bg-card-bg-solid border border-card-border shadow-md"
       >
         {/* Texto libre */}
-        <div className="flex items-center gap-2 flex-1 sm:min-w-36 sm:basis-64 px-4 py-2.5 sm:py-2">
+        <div className="flex items-center gap-2 min-w-0 flex-1 xl:min-w-36 xl:basis-64 px-4 py-2.5 sm:py-2">
           <button
             type="submit"
             aria-label="Buscar en todo el sitio"

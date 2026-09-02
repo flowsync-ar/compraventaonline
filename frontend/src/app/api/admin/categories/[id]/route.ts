@@ -40,7 +40,10 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
     .single()
 
   if (error) {
-    const message = error.code === "23505" ? "Ya existe una categoría con ese nombre o slug." : error.message
+    const message =
+      error.code === "23505"
+        ? "Ya existe una categoría con ese nombre en el mismo nivel, o el enlace interno está ocupado."
+        : error.message
     return NextResponse.json({ error: message }, { status: 400 })
   }
   return NextResponse.json({ category: data })

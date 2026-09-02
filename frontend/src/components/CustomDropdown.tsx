@@ -117,7 +117,7 @@ export default function CustomDropdown({
         left: r.left,
         top: openUp ? undefined : r.bottom + 8,
         bottom: openUp ? window.innerHeight - r.top + 8 : undefined,
-        zIndex: 80,
+        zIndex: 250,
         width: wide ? undefined : r.width,
         minWidth: r.width,
         maxWidth: panelWidthClassName.includes("max-w-xs") ? 320 : undefined,
@@ -168,7 +168,7 @@ export default function CustomDropdown({
         createPortal(
         <>
           {/* Backdrop to close click outside */}
-          <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
+          <div className="fixed inset-0 z-[240]" onClick={() => setIsOpen(false)} />
           
           <div style={panelStyle} className="rounded-2xl bg-card-bg-solid border border-card-border p-3 shadow-2xl flex flex-col gap-2 animate-in fade-in slide-in-from-top-2 duration-200">
             {/* Search Input inside Dropdown */}

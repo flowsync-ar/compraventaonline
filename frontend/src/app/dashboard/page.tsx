@@ -29,6 +29,9 @@ const RichTextEditor = dynamic(() => import("@/components/RichTextEditor"), {
   loading: () => <div className="w-full min-h-32 rounded-xl border border-card-border bg-background" />,
 });
 
+/** Destacar de pago (Checkout Pro) — oculto hasta que Mercado Pago esté configurado. */
+const SELLER_HIGHLIGHT_CHECKOUT_ENABLED = false;
+
 interface Listing {
   id: string;
   price: number;
@@ -179,7 +182,6 @@ function DashboardPageContent() {
 
   // Publicar Artículo: qué redes tildó el vendedor para esta publicación.
   const [shareToSocial, setShareToSocial] = useState<string[]>([]);
-  const [shareConsent, setShareConsent] = useState(false);
 
   // Modal post-publicación: imagen con sello + texto listos para pegar a
   // mano en cada red (hasta que exista el auto-posteo real).
@@ -193,8 +195,10 @@ function DashboardPageContent() {
     name: string
     price: number
     symbol: string
-    sharedToCvoInstagram?: boolean
+    listingId: string
+    sharedToCvoInstagram: boolean
   } | null>(null);
+  const [instagramShareBusy, setInstagramShareBusy] = useState(false);
   const [categoryPickerEpoch, setCategoryPickerEpoch] = useState(0);
   const [focusCategoryPicker, setFocusCategoryPicker] = useState(false);
   const publishFormScrollRef = useRef<HTMLDivElement>(null);
@@ -1154,7 +1158,6 @@ function DashboardPageContent() {
             currency_id: currencyId || null,
             image_url: imageList[0] ?? null,
             status: "APPROVED",
-            share_to_social: shareConsent ? ["INSTAGRAM"] : null,
           })
           .select(`
             id, price, condition, stock, status, featured_plan, currency_id, image_url,
@@ -1174,14 +1177,9 @@ function DashboardPageContent() {
           name: productName,
           price: parseFloat(price),
           symbol: currencies.find((c) => c.id === currencyId)?.symbol ?? "$",
-          sharedToCvoInstagram: shareConsent,
+          listingId: listingData.id,
+          sharedToCvoInstagram: false,
         });
-
-        if (shareConsent) {
-          fetch(`/api/listings/${listingData.id}/cvo-instagram`, { method: "POST" }).catch((err) => {
-            console.error("Error al avisar a Instagram CVO:", err);
-          });
-        }
 
         // Reset product fields but keep category (+ its specific attributes)
         // until the seller says whether the next listing is the same rama.
@@ -1194,7 +1192,6 @@ function DashboardPageContent() {
         setSelectedImages([]);
         setFeaturedPlan("FREE");
         setShareToSocial([]);
-        setShareConsent(false);
       }
     } catch (err: any) {
       console.error("Error al procesar la publicación:", err);
@@ -1500,6 +1497,7 @@ function DashboardPageContent() {
   }, [activeTab]);
 
   const handleHighlightListing = async (listingId: string) => {
+    if (!SELLER_HIGHLIGHT_CHECKOUT_ENABLED) return;
     setHighlightingListingId(listingId);
     setErrorMsg("");
     try {
@@ -2141,9 +2139,39 @@ function DashboardPageContent() {
               </p>
               {publishSuccessInfo.sharedToCvoInstagram ? (
                 <p className="text-xs text-foreground mt-2 rounded-xl border border-accent-blue/30 bg-accent-blue/10 px-3 py-2 leading-relaxed">
-                  La foto de portada de tu artículo va a usarse como imagen destacada en las redes oficiales de CompraVentaOnline (Instagram).
+                  Listo: la foto de portada va a usarse en las historias destacadas del Instagram de CompraVentaOnline.
                 </p>
-              ) : null}
+              ) : (
+                <div className="text-left mt-3 rounded-xl border border-card-border bg-card-bg/40 px-3 py-3 flex flex-col gap-2">
+                  <p className="text-xs text-foreground leading-relaxed">
+                    ¿Te interesa publicar este contenido en las historias destacadas del Instagram de CompraVentaOnline (@compraventaonline.lp)?
+                  </p>
+                  <button
+                    type="button"
+                    disabled={instagramShareBusy}
+                    onClick={async () => {
+                      setInstagramShareBusy(true);
+                      try {
+                        const res = await fetch(`/api/listings/${publishSuccessInfo.listingId}/cvo-instagram`, {
+                          method: "POST",
+                        });
+                        if (!res.ok) throw new Error("No se pudo avisar a Instagram");
+                        setPublishSuccessInfo((prev) =>
+                          prev ? { ...prev, sharedToCvoInstagram: true } : prev,
+                        );
+                      } catch (err) {
+                        console.error("Error al avisar a Instagram CVO:", err);
+                        setErrorMsg("La publicación quedó activa, pero no se pudo enviar a Instagram. Probá más tarde.");
+                      } finally {
+                        setInstagramShareBusy(false);
+                      }
+                    }}
+                    className="rounded-xl bg-accent-blue/15 border border-accent-blue/40 py-2 text-xs font-extrabold text-foreground hover:bg-accent-blue/25 transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    {instagramShareBusy ? "Enviando…" : "Sí, publicar en Instagram"}
+                  </button>
+                </div>
+              )}
             </div>
 
             <p className="text-xs text-text-muted">¿Querés publicar otro producto de la misma categoría?</p>
@@ -2468,21 +2496,6 @@ function DashboardPageContent() {
               <form onSubmit={handlePublish} className="flex min-h-0 flex-1 flex-col">
                 <div ref={publishFormScrollRef} className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-5 py-4 md:px-6">
 
-                {!selectedListingToEdit && (
-                  <label className="flex items-start gap-2.5 rounded-xl border border-card-border bg-card-bg/40 p-4 text-xs text-foreground cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={shareConsent}
-                      onChange={(e) => setShareConsent(e.target.checked)}
-                      className="h-4 w-4 mt-0.5 rounded border-card-border text-accent-gold focus:ring-accent-gold cursor-pointer shrink-0"
-                    />
-                    <span>
-                      <span className="font-bold">Publicar en Instagram de CompraVentaOnline</span>
-                      {" "}(@compraventaonline.lp). Autorizo usar la foto de portada, el título y la descripción de este artículo en las redes oficiales.
-                    </span>
-                  </label>
-                )}
-
                 {/* 1. Categoría primero — Categoría + Subcategoría en cascada:
                     elegir una categoría con hijos (p.ej. "Computación")
                     muestra un segundo dropdown para elegir entre sus
@@ -2657,6 +2670,7 @@ function DashboardPageContent() {
                   </p>
                 </div>
 
+                {SELLER_HIGHLIGHT_CHECKOUT_ENABLED && (
                 <div className="flex flex-col gap-2">
                   <label className="text-xs font-bold text-foreground">Plan de Destacado (Monetización)</label>
                   {!!sellerProfile?.highlight_free ? (
@@ -2679,6 +2693,7 @@ function DashboardPageContent() {
                     </p>
                   )}
                 </div>
+                )}
 
                 {selectedListingToEdit && (
                   <div className="flex flex-col gap-2 mt-2 animate-in fade-in duration-200">
@@ -3438,51 +3453,62 @@ function DashboardPageContent() {
                 )}
               </div>
 
-              <div className="hidden md:block overflow-x-auto md:overflow-x-visible">
-                <table className="w-full text-left text-xs border-collapse">
+              <div className="hidden lg:block">
+                <table className="w-full table-fixed text-left text-xs border-collapse">
+                  <colgroup>
+                    <col className="w-16" />
+                    <col />
+                    <col className="w-[11%]" />
+                    <col className="w-[10%]" />
+                    <col className="w-[12%]" />
+                    <col className="w-[7%]" />
+                    <col className="w-[8%]" />
+                    <col className="w-[13%]" />
+                    <col className="w-40" />
+                  </colgroup>
                   <thead>
                     <tr className="border-b border-card-border text-text-muted font-bold select-none">
-                      <th className="pb-3 pr-4">Foto</th>
+                      <th className="pb-3 pr-3">Foto</th>
                       <th
                         onClick={() => handleSort("name")}
-                        className="pb-3 pr-4 cursor-pointer hover:text-accent-gold transition-colors"
+                        className="pb-3 pr-3 cursor-pointer hover:text-accent-gold transition-colors"
                       >
                         Artículo {renderSortIndicator("name")}
                       </th>
                       <th 
                         onClick={() => handleSort("brand")}
-                        className="pb-3 px-4 cursor-pointer hover:text-accent-gold transition-colors"
+                        className="pb-3 px-2 cursor-pointer hover:text-accent-gold transition-colors"
                       >
                         Marca {renderSortIndicator("brand")}
                       </th>
                       <th 
                         onClick={() => handleSort("condition")}
-                        className="pb-3 px-4 text-center cursor-pointer hover:text-accent-gold transition-colors"
+                        className="pb-3 px-2 text-center cursor-pointer hover:text-accent-gold transition-colors"
                       >
                         Condición {renderSortIndicator("condition")}
                       </th>
                       <th 
                         onClick={() => handleSort("price")}
-                        className="pb-3 px-4 text-right cursor-pointer hover:text-accent-gold transition-colors"
+                        className="pb-3 px-2 text-right cursor-pointer hover:text-accent-gold transition-colors"
                       >
                         Precio {renderSortIndicator("price")}
                       </th>
                       <th 
                         onClick={() => handleSort("stock")}
-                        className="pb-3 px-4 text-center cursor-pointer hover:text-accent-gold transition-colors"
+                        className="pb-3 px-2 text-center cursor-pointer hover:text-accent-gold transition-colors"
                       >
                         Stock {renderSortIndicator("stock")}
                       </th>
-                      <th className="pb-3 px-4 text-center" title="Visitantes únicos por día — no cuenta refrescos ni tus propias visitas">
+                      <th className="pb-3 px-2 text-center" title="Visitantes únicos por día — no cuenta refrescos ni tus propias visitas">
                         Visitas
                       </th>
                       <th
                         onClick={() => handleSort("status")}
-                        className="pb-3 px-4 text-center cursor-pointer hover:text-accent-gold transition-colors"
+                        className="pb-3 px-2 text-center cursor-pointer hover:text-accent-gold transition-colors"
                       >
                         Estado {renderSortIndicator("status")}
                       </th>
-                      <th className="pb-3 pl-4 text-right">Acciones</th>
+                      <th className="pb-3 pl-2 text-right">Acciones</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-card-border/30">
@@ -3497,7 +3523,7 @@ function DashboardPageContent() {
                         const thumbnail = listing.image_url ?? listing.products?.images?.[0] ?? null;
                         return (
                         <tr key={listing.id} className="hover:bg-card-bg/30 transition-colors">
-                          <td className="py-4 pr-4">
+                          <td className="py-4 pr-3">
                             <Link href={`/listings/${listing.id}`} className="block h-12 w-12 rounded-lg overflow-hidden border border-card-border bg-card-bg shrink-0">
                               {thumbnail ? (
                                 // eslint-disable-next-line @next/next/no-img-element
@@ -3507,9 +3533,9 @@ function DashboardPageContent() {
                               )}
                             </Link>
                           </td>
-                          <td className="py-4 pr-4 font-bold text-foreground">
+                          <td className="py-4 pr-3 font-bold text-foreground overflow-hidden">
                             <div className="flex items-center gap-2 min-w-0">
-                              <Link href={`/listings/${listing.id}`} className="hover:text-accent-gold transition-colors truncate">
+                              <Link href={`/listings/${listing.id}`} className="hover:text-accent-gold transition-colors truncate min-w-0">
                                 {listing.products?.name ?? "Sin nombre"}
                               </Link>
                               {(listing.featured_plan === "FEATURED" || listing.featured_plan === "PREMIUM") && (
@@ -3519,23 +3545,23 @@ function DashboardPageContent() {
                               )}
                             </div>
                           </td>
-                          <td className="py-4 px-4 text-text-muted">{listing.products?.brand ?? "-"}</td>
-                          <td className="py-4 px-4 text-center">
+                          <td className="py-4 px-2 text-text-muted truncate">{listing.products?.brand ?? "-"}</td>
+                          <td className="py-4 px-2 text-center">
                             <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
                               listing.condition === "NEW" ? "bg-accent-green/10 text-accent-green" : "bg-text-muted/10 text-text-muted"
                             }`}>
                               {listing.condition === "NEW" ? "NUEVO" : "USADO"}
                             </span>
                           </td>
-                          <td className="py-4 px-4 text-right font-extrabold text-foreground">
+                          <td className="py-4 px-2 text-right font-extrabold text-foreground whitespace-nowrap">
                             {currencies.find((c) => c.id === listing.currency_id)?.symbol ?? "$"}
                             {Number(listing.price).toLocaleString("es-AR")}
                           </td>
-                          <td className="py-4 px-4 text-center font-bold text-foreground">{listing.stock}</td>
-                          <td className="py-4 px-4 text-center text-text-muted">
+                          <td className="py-4 px-2 text-center font-bold text-foreground">{listing.stock}</td>
+                          <td className="py-4 px-2 text-center text-text-muted">
                             ({viewCounts[listing.id] ?? 0})
                           </td>
-                          <td className="py-4 px-4 text-center relative">
+                          <td className="py-4 px-2 text-center relative">
                             {listing.status === "SOLD" ? (
                               <div className="flex flex-col items-center gap-1">
                                 <span className="px-2.5 py-1 rounded-xl text-[9px] font-extrabold bg-text-muted/10 text-text-muted border border-card-border/60 uppercase tracking-wider">
@@ -3613,7 +3639,7 @@ function DashboardPageContent() {
                               </>
                             )}
                           </td>
-                          <td className="py-4 pl-4 text-right">
+                          <td className="py-4 pl-2 text-right whitespace-nowrap">
                             <div className="inline-flex gap-2">
                               {/* Botón Clonar */}
                               <div className="relative group">
@@ -3626,7 +3652,7 @@ function DashboardPageContent() {
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 8.25V6a2.25 2.25 0 0 0-2.25-2.25H6A2.25 2.25 0 0 0 3.75 6v8.25A2.25 2.25 0 0 0 6 16.5h2.25m8.25-8.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-7.5A2.25 2.25 0 0 1 8.25 18v-1.5m8.25-8.25h-6a2.25 2.25 0 0 0-2.25 2.25v6" />
                                   </svg>
                                 </button>
-                                <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max rounded bg-card-bg-solid border border-card-border px-2 py-1 text-[10px] font-bold text-foreground opacity-0 transition-opacity group-hover:opacity-100 shadow-xl z-30">
+                                <span className="pointer-events-none absolute bottom-full right-0 mb-2 w-max max-w-[16rem] rounded bg-card-bg-solid border border-card-border px-2 py-1 text-[10px] font-bold text-foreground opacity-0 transition-opacity group-hover:opacity-100 shadow-xl z-50">
                                   Clonar
                                 </span>
                               </div>
@@ -3642,13 +3668,13 @@ function DashboardPageContent() {
                                     <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
                                   </svg>
                                 </button>
-                                <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max rounded bg-card-bg-solid border border-card-border px-2 py-1 text-[10px] font-bold text-foreground opacity-0 transition-opacity group-hover:opacity-100 shadow-xl z-30">
+                                <span className="pointer-events-none absolute bottom-full right-0 mb-2 w-max max-w-[16rem] rounded bg-card-bg-solid border border-card-border px-2 py-1 text-[10px] font-bold text-foreground opacity-0 transition-opacity group-hover:opacity-100 shadow-xl z-50">
                                   Editar
                                 </span>
                               </div>
 
-                              {/* Destacar: plan FEATURED o ventana paga vigente */}
-                              {(listing.status === "APPROVED" || listing.status === "ACTIVE") && (
+                              {/* Destacar: oculto mientras Mercado Pago no esté configurado. */}
+                              {SELLER_HIGHLIGHT_CHECKOUT_ENABLED && (listing.status === "APPROVED" || listing.status === "ACTIVE") && (
                                 <div className="relative group">
                                   {highlightedUntil[listing.id] ? (
                                     <span
@@ -3681,7 +3707,7 @@ function DashboardPageContent() {
                                       )}
                                     </button>
                                   )}
-                                  <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max rounded bg-card-bg-solid border border-card-border px-2 py-1 text-[10px] font-bold text-foreground opacity-0 transition-opacity group-hover:opacity-100 shadow-xl z-30">
+                                  <span className="pointer-events-none absolute bottom-full right-0 mb-2 w-max max-w-[16rem] whitespace-nowrap rounded bg-card-bg-solid border border-card-border px-2 py-1 text-[10px] font-bold text-foreground opacity-0 transition-opacity group-hover:opacity-100 shadow-xl z-50">
                                     {highlightedUntil[listing.id] || listing.featured_plan === "FEATURED" || listing.featured_plan === "PREMIUM"
                                       ? "Ya está destacada"
                                       : !!sellerProfile?.highlight_free
@@ -3702,7 +3728,7 @@ function DashboardPageContent() {
                                     <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.34 9m-4.78 0L9 9m9.96-3.08c.18.04.36.08.54.13M15 3.57a48.008 48.008 0 0 0-6 0M4.5 6.08c.18-.05.36-.09.54-.13M18 6.08a48.108 48.108 0 0 0-12 0M6.25 6.08l.81 12.35c.04.83.69 1.5 1.52 1.5H15.4c.83 0 1.48-.67 1.52-1.5l.81-12.35m-9.96 0h12" />
                                   </svg>
                                 </button>
-                                <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max rounded bg-card-bg-solid border border-card-border px-2 py-1 text-[10px] font-bold text-foreground opacity-0 transition-opacity group-hover:opacity-100 shadow-xl z-30">
+                                <span className="pointer-events-none absolute bottom-full right-0 mb-2 w-max max-w-[16rem] rounded bg-card-bg-solid border border-card-border px-2 py-1 text-[10px] font-bold text-foreground opacity-0 transition-opacity group-hover:opacity-100 shadow-xl z-50">
                                   Eliminar
                                 </span>
                               </div>
@@ -3716,10 +3742,9 @@ function DashboardPageContent() {
                 </table>
               </div>
 
-              {/* Mobile card list — the table above is unreadable squeezed
-                  into a phone width, so <md gets its own compact layout
-                  instead of relying on horizontal scroll. */}
-              <div className="flex flex-col gap-3 md:hidden">
+              {/* Mobile/tablet card list — the table is for lg+ so headers
+                  and cells stay aligned. */}
+              <div className="flex flex-col gap-3 lg:hidden">
                 {filteredAndSortedListings.length === 0 ? (
                   <div className="py-8 text-center text-text-muted text-xs">No se encontraron artículos</div>
                 ) : (
@@ -3869,7 +3894,7 @@ function DashboardPageContent() {
                                 <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
                               </svg>
                             </button>
-                            {(listing.status === "APPROVED" || listing.status === "ACTIVE") && (
+                            {SELLER_HIGHLIGHT_CHECKOUT_ENABLED && (listing.status === "APPROVED" || listing.status === "ACTIVE") && (
                               highlightedUntil[listing.id] ? (
                                 <span
                                   className="h-8 px-1.5 rounded-lg flex items-center justify-center text-[8px] font-extrabold bg-accent-gold/10 text-accent-gold border border-accent-gold/30 whitespace-nowrap"
@@ -4722,6 +4747,7 @@ function DashboardPageContent() {
           type="danger"
         />
 
+        {SELLER_HIGHLIGHT_CHECKOUT_ENABLED && (
         <ConfirmModal
           isOpen={listingIdToHighlight !== null}
           title={
@@ -4746,6 +4772,7 @@ function DashboardPageContent() {
           onCancel={() => setListingIdToHighlight(null)}
           type="info"
         />
+        )}
 
         <ConfirmModal
           isOpen={showBulkDeleteConfirm}

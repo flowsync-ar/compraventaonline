@@ -67,6 +67,10 @@ function getAncestorChain(categories: Category[], id: string): Category[] {
   return chain
 }
 
+function categoryPath(categories: Category[], id: string): string {
+  return getAncestorChain(categories, id).map((c) => c.name).join(" → ")
+}
+
 function getDescendantIds(categories: Category[], id: string): Set<string> {
   const childrenByParentId = new Map<string | null, Category[]>()
   for (const c of categories) {
@@ -95,7 +99,6 @@ export default function AdminCategoriasPage() {
 
   const [editingId, setEditingId] = useState<string | null>(null)
   const [name, setName] = useState("")
-  const [slug, setSlug] = useState("")
   const [icon, setIcon] = useState("")
   const [parentId, setParentId] = useState<string>("")
   const [saving, setSaving] = useState(false)
@@ -104,6 +107,8 @@ export default function AdminCategoriasPage() {
   const [showForm, setShowForm] = useState(false)
   const [search, setSearch] = useState("")
   const [suggestions, setSuggestions] = useState<CategorySuggestion[]>([])
+  const [formHint, setFormHint] = useState<string | null>(null)
+  const [askSaveForm, setAskSaveForm] = useState(false)
   const formRef = useRef<HTMLFormElement>(null)
 
   const loadSuggestions = async () => {
@@ -134,17 +139,26 @@ export default function AdminCategoriasPage() {
   const resetForm = () => {
     setEditingId(null)
     setName("")
-    setSlug("")
     setIcon("")
     setParentId("")
+    setFormHint(null)
   }
 
   const handleEdit = (category: Category) => {
     setEditingId(category.id)
     setName(category.name)
-    setSlug(category.slug)
     setIcon(category.icon ?? "")
     setParentId(category.parent_id ?? "")
+    setFormHint(null)
+    setShowForm(true)
+  }
+
+  const handleAddChild = (category: Category) => {
+    setEditingId(null)
+    setName("")
+    setIcon("")
+    setParentId(category.id)
+    setFormHint(`Va a quedar dentro de “${category.name}”.`)
     setShowForm(true)
   }
 
@@ -160,19 +174,57 @@ export default function AdminCategoriasPage() {
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, slug, icon, parentId: parentId || null }),
+        body: JSON.stringify({ name, icon, parentId: parentId || null }),
       })
       const data = await res.json()
       if (!res.ok) {
         setError(data.error ?? "No se pudo guardar la categoría.")
         return
       }
-      resetForm()
-      setShowForm(false)
+      if (editingId) {
+        resetForm()
+        setShowForm(false)
+      } else {
+        const created = data.category as Category | undefined
+        setName("")
+        setIcon("")
+        setEditingId(null)
+        if (created?.id) {
+          setParentId(created.id)
+          setFormHint(`“${created.name}” creada. Si escribís otra, va adentro de esa (por ejemplo Motorhomes dentro de Otros).`)
+        }
+      }
       loadCategories()
     } finally {
       setSaving(false)
     }
+  }
+
+  const isCategoryFormDirty = (() => {
+    if (editingId) {
+      const original = categories.find((c) => c.id === editingId)
+      if (!original) return name.trim() !== ""
+      return (
+        name.trim() !== original.name ||
+        (icon.trim() || "") !== (original.icon ?? "") ||
+        (parentId || "") !== (original.parent_id ?? "")
+      )
+    }
+    return name.trim() !== "" || icon.trim() !== ""
+  })()
+
+  const closeCategoryForm = () => {
+    resetForm()
+    setShowForm(false)
+    setAskSaveForm(false)
+  }
+
+  const requestCloseCategoryForm = () => {
+    if (isCategoryFormDirty) {
+      setAskSaveForm(true)
+      return
+    }
+    closeCategoryForm()
   }
 
   const handleSuggestionStatus = async (id: string, status: "DONE" | "DISMISSED") => {
@@ -226,7 +278,7 @@ export default function AdminCategoriasPage() {
             }}
             className="w-full sm:w-auto rounded-xl bg-gradient-to-r from-accent-gold to-accent-gold-hover px-4 py-2.5 text-sm font-extrabold text-white shadow-md hover:opacity-90 transition-all cursor-pointer"
           >
-            + Agregar categoría
+            + Nueva categoría
           </button>
         )}
       </div>
@@ -275,6 +327,7 @@ export default function AdminCategoriasPage() {
         </div>
       )}
 
+      {!showForm && (
       <div className="relative">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none">
           <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
@@ -286,29 +339,57 @@ export default function AdminCategoriasPage() {
           className="w-full bg-background border border-card-border rounded-xl pl-11 pr-4 py-2.5 text-sm text-foreground focus:outline-none focus:border-accent-gold"
         />
       </div>
+      )}
 
       {showForm && (
       <form
         ref={formRef}
         onSubmit={handleSubmit}
-        className="rounded-2xl glass-panel p-6 flex flex-col md:flex-row items-end gap-3 flex-wrap"
+        className="rounded-2xl glass-panel p-6 flex flex-col gap-4"
       >
+        <div>
+          <p className="font-heading text-sm font-extrabold text-foreground">
+            {editingId ? "Editar categoría" : parentId ? "Nueva subcategoría" : "Nueva categoría principal"}
+          </p>
+          {parentId ? (
+            <p className="text-xs text-text-muted mt-1">
+              Va a quedar: <span className="font-semibold text-foreground">{categoryPath(categories, parentId)}{name.trim() ? ` → ${name.trim()}` : ""}</span>
+            </p>
+          ) : (
+            <p className="text-xs text-text-muted mt-1">
+              Elegí un padre si es una subcategoría (podés buscar “Autos y Motos” o “Otros”).
+            </p>
+          )}
+          {formHint && <p className="text-xs text-accent-gold font-semibold mt-2">{formHint}</p>}
+        </div>
+        <div className="flex flex-col md:flex-row items-end gap-3 flex-wrap">
         <div className="flex-1 w-full">
           <label className="text-sm font-bold text-foreground block mb-1.5">Nombre</label>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
             required
+            placeholder="Ej. Otros, Motorhomes…"
             className="w-full bg-background border border-card-border rounded-xl px-4 py-2.5 text-sm text-foreground focus:outline-none focus:border-accent-gold"
           />
         </div>
-        <div className="flex-1 w-full">
-          <label className="text-sm font-bold text-foreground block mb-1.5">Slug</label>
-          <input
-            value={slug}
-            onChange={(e) => setSlug(e.target.value)}
-            required
-            className="w-full bg-background border border-card-border rounded-xl px-4 py-2.5 text-sm text-foreground focus:outline-none focus:border-accent-gold"
+        <div className="flex-1 w-full min-w-[16rem]">
+          <label className="text-sm font-bold text-foreground block mb-1.5">Va dentro de</label>
+          <CustomDropdown
+            key={`${editingId ?? "new"}-${parentId || "root"}`}
+            name="parentId"
+            defaultValue={parentId}
+            showSearch
+            placeholder="Buscar categoría padre..."
+            options={[
+              { name: "— Categoría principal (arriba de todo) —", value: "" },
+              ...parentOptions.map(({ category, depth }) => ({
+                name: depth === 0 ? category.name : categoryPath(categories, category.id),
+                value: category.id,
+                color: depthColor(depth),
+              })),
+            ]}
+            onChange={(val) => setParentId(val)}
           />
         </div>
         <div className="w-full md:w-24">
@@ -318,24 +399,6 @@ export default function AdminCategoriasPage() {
             onChange={(e) => setIcon(e.target.value)}
             placeholder="🏷️"
             className="w-full bg-background border border-card-border rounded-xl px-4 py-2.5 text-sm text-foreground focus:outline-none focus:border-accent-gold"
-          />
-        </div>
-        <div className="flex-1 w-full">
-          <label className="text-sm font-bold text-foreground block mb-1.5">Categoría padre (opcional)</label>
-          <CustomDropdown
-            name="parentId"
-            defaultValue={parentId}
-            showSearch
-            placeholder="Buscar categoría..."
-            options={[
-              { name: "— Categoría principal —", value: "" },
-              ...parentOptions.map(({ category, depth }) => ({
-                name: `${"— ".repeat(depth)}${category.name}`,
-                value: category.id,
-                color: depthColor(depth),
-              })),
-            ]}
-            onChange={(val) => setParentId(val)}
           />
         </div>
         <div className="flex gap-2 w-full md:w-auto">
@@ -348,20 +411,19 @@ export default function AdminCategoriasPage() {
           </button>
           <button
             type="button"
-            onClick={() => {
-              resetForm()
-              setShowForm(false)
-            }}
+            onClick={requestCloseCategoryForm}
             className="rounded-xl border border-card-border px-4 py-2.5 text-sm font-bold text-text-muted hover:bg-card-bg/25 transition-all cursor-pointer"
           >
-            Cancelar
+            Listo
           </button>
+        </div>
         </div>
       </form>
       )}
 
       {error && <p className="text-sm text-red-500 font-bold">{error}</p>}
 
+      {!showForm && (
       <div className="rounded-2xl glass-panel p-3 sm:p-6">
         {loading ? (
           <p className="text-sm text-text-muted">Cargando...</p>
@@ -382,9 +444,19 @@ export default function AdminCategoriasPage() {
                       {category.icon ? `${category.icon} ` : ""}
                       {category.name}
                     </p>
-                    <p className="text-[11px] text-text-muted break-all mt-0.5">{category.slug}</p>
+                    {depth > 0 && (
+                      <p className="text-[11px] text-text-muted mt-0.5">{categoryPath(categories, category.id)}</p>
+                    )}
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      aria-label="Agregar subcategoría"
+                      onClick={() => handleAddChild(category)}
+                      className="bg-card-bg border border-card-border text-foreground h-9 w-9 rounded-lg flex items-center justify-center cursor-pointer"
+                    >
+                      <span className="text-lg leading-none font-bold">+</span>
+                    </button>
                     <button
                       type="button"
                       aria-label="Editar"
@@ -416,7 +488,6 @@ export default function AdminCategoriasPage() {
               <tr className="border-b border-card-border text-text-muted font-bold select-none">
                 <th className="py-2 pr-3 whitespace-nowrap">Ícono</th>
                 <th className="py-2 px-3 whitespace-nowrap">Nombre</th>
-                <th className="py-2 px-3 whitespace-nowrap">Slug</th>
                 <th className="py-2 pl-3 text-right whitespace-nowrap">Acciones</th>
               </tr>
             </thead>
@@ -453,9 +524,21 @@ export default function AdminCategoriasPage() {
                       <span style={{ color: depthColor(depth) }}>{category.name}</span>
                     )}
                   </td>
-                  <td className="py-2.5 text-text-muted">{category.slug}</td>
                   <td className="py-2.5 text-right">
                     <div className="flex items-center justify-end gap-2">
+                      <div className="relative group">
+                        <button
+                          type="button"
+                          onClick={() => handleAddChild(category)}
+                          className="bg-card-bg border border-card-border text-foreground hover:text-accent-gold hover:border-accent-gold/40 h-8 w-8 rounded-lg flex items-center justify-center transition-all cursor-pointer"
+                        >
+                          <span className="text-base leading-none font-bold">+</span>
+                        </button>
+                        <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max rounded bg-card-bg-solid border border-card-border px-2 py-1 text-[10px] font-bold text-foreground opacity-0 transition-opacity group-hover:opacity-100 shadow-xl z-30">
+                          Agregar subcategoría
+                        </span>
+                      </div>
+
                       <div className="relative group">
                         <button
                           onClick={() => handleEdit(category)}
@@ -493,7 +576,24 @@ export default function AdminCategoriasPage() {
           </>
         )}
       </div>
+      )}
 
+      <ConfirmModal
+        isOpen={askSaveForm}
+        title="¿Guardar los cambios?"
+        description="Hay datos cargados en el formulario. Si salís sin guardar, se pierden."
+        confirmText="Guardar"
+        cancelText="Seguir editando"
+        discardText="Salir sin guardar"
+        type="warning"
+        isLoading={saving}
+        onCancel={() => setAskSaveForm(false)}
+        onDiscard={closeCategoryForm}
+        onConfirm={() => {
+          setAskSaveForm(false)
+          formRef.current?.requestSubmit()
+        }}
+      />
       <ConfirmModal
         isOpen={deleteTarget !== null}
         title="Borrar categoría"

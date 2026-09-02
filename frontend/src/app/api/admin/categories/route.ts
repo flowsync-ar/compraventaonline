@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/admin/guard"
 import { createAdminClient } from "@/lib/supabase/admin"
-import { validateParentId } from "@/lib/admin/categories"
+import { allocateUniqueSlug, validateParentId } from "@/lib/admin/categories"
 
 export async function GET(request: NextRequest) {
   if (!(await requireAdmin(request))) {
@@ -30,12 +30,11 @@ export async function POST(request: NextRequest) {
   }
 
   const name = body.name?.trim()
-  const slug = body.slug?.trim()
   const icon = body.icon?.trim() || null
   const parentId = body.parentId || null
 
-  if (!name || !slug) {
-    return NextResponse.json({ error: "Nombre y slug son obligatorios" }, { status: 400 })
+  if (!name) {
+    return NextResponse.json({ error: "El nombre es obligatorio" }, { status: 400 })
   }
 
   const admin = createAdminClient()
@@ -45,6 +44,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: parentCheck.error }, { status: 400 })
   }
 
+  const slug = body.slug?.trim() || (await allocateUniqueSlug(admin, name, parentId))
+
   const { data, error } = await admin
     .from("categories")
     .insert({ name, slug, icon, parent_id: parentId })
@@ -52,7 +53,10 @@ export async function POST(request: NextRequest) {
     .single()
 
   if (error) {
-    const message = error.code === "23505" ? "Ya existe una categoría con ese nombre o slug." : error.message
+    const message =
+      error.code === "23505"
+        ? "Ya existe una categoría con ese nombre en el mismo nivel, o el enlace interno está ocupado."
+        : error.message
     return NextResponse.json({ error: message }, { status: 400 })
   }
   return NextResponse.json({ category: data })

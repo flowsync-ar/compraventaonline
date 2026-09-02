@@ -210,13 +210,13 @@ export default function SiteChrome({ children }: { children: ReactNode }) {
                 redundante en pantallas como el detalle de una publicación
                 o el dashboard. Se reserva para la home. Desde xl+ (una
                 sola fila, compacto) se muestra siempre, como en desktop. */}
-            <div className={isHomePage ? "flex w-full items-stretch gap-2 xl:block" : "hidden xl:block w-full"}>
+            <div className={isHomePage ? "flex w-full items-center gap-2 xl:block" : "hidden xl:block w-full"}>
               <div className="min-w-0 flex-1">
                 <HomeSearchBar />
               </div>
               <Link
                 href="/dashboard?tab=publish"
-                className="xl:hidden inline-flex shrink-0 items-center justify-center gap-1.5 rounded-full bg-accent-blue px-4 text-xs font-extrabold uppercase tracking-wide text-white"
+                className="xl:hidden inline-flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-full bg-accent-blue px-4 text-xs font-extrabold uppercase tracking-wide text-white"
               >
                 Vender
               </Link>

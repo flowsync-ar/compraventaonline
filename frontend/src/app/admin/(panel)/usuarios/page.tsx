@@ -157,14 +157,16 @@ export default function AdminUsuariosPage() {
           <>
             <div className="flex flex-col gap-3 lg:hidden">
               {filtered.map((user) => (
-                <div key={user.id} className="rounded-xl border border-card-border bg-background/40 p-3 flex flex-col gap-3">
+                <div
+                  key={user.id}
+                  className="rounded-xl border border-card-border bg-background/40 p-3 flex flex-col gap-3 cursor-pointer"
+                  onClick={() => setDetailUserId(user.id)}
+                >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <p className="text-sm font-extrabold text-foreground break-words">{user.name}</p>
-                      <p className="text-[11px] text-text-muted break-all mt-0.5">{user.email ?? "Sin email"}</p>
                       <p className="text-[11px] text-text-muted mt-0.5">
                         {user.type === "BUSINESS_SELLER" ? "Empresa" : "Personal"}
-                        {user.phone ? ` · ${user.phone}` : ""}
                         {user.location ? ` · ${user.location}` : ""}
                       </p>
                     </div>
@@ -178,22 +180,7 @@ export default function AdminUsuariosPage() {
                       {user.status === "ACTIVE" ? "Activo" : "Suspendido"}
                     </span>
                   </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${
-                      user.identity_verified ? "bg-accent-green/10 text-accent-green" : "bg-text-muted/10 text-text-muted"
-                    }`}>
-                      ID {user.identity_verified ? "verificado" : "pendiente"}
-                    </span>
-                    {user.highlight_free && (
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-accent-gold/10 text-accent-gold">
-                        Destacar gratis
-                      </span>
-                    )}
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold text-text-muted">
-                      {new Date(user.created_at).toLocaleDateString("es-AR")}
-                    </span>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-2" onClick={(e) => e.stopPropagation()}>
                     <button
                       type="button"
                       onClick={() => setDetailUserId(user.id)}
@@ -241,53 +228,28 @@ export default function AdminUsuariosPage() {
             </div>
 
             <div className="hidden lg:block overflow-x-auto">
-          <table className="w-full min-w-[720px] text-left text-sm border-collapse">
+          <table className="w-full text-left text-sm border-collapse">
             <thead>
               <tr className="border-b border-card-border text-text-muted font-bold select-none">
                 <th className="py-2 pr-4">Nombre</th>
-                <th className="py-2 px-4">Email</th>
                 <th className="py-2 px-4">Tipo</th>
-                <th className="py-2 px-4">Teléfono</th>
                 <th className="py-2 px-4">Ubicación</th>
-                <th className="py-2 px-4">ID Verificado</th>
-                <th className="py-2 px-4">Destacar gratis</th>
                 <th className="py-2 px-4">Estado</th>
-                <th className="py-2 px-4">Registrado</th>
                 <th className="py-2 pl-4 text-right">Acciones</th>
               </tr>
             </thead>
             <tbody>
               {filtered.map((user) => (
-                <tr key={user.id} className="border-b border-card-border/30 hover:bg-card-bg/30 transition-colors">
-                  <td className="py-2.5 pr-4 font-bold text-foreground whitespace-nowrap">{user.name}</td>
-                  <td className="py-2.5 px-4 text-text-muted">{user.email ?? "—"}</td>
+                <tr
+                  key={user.id}
+                  onClick={() => setDetailUserId(user.id)}
+                  className="border-b border-card-border/30 hover:bg-card-bg/30 transition-colors cursor-pointer"
+                >
+                  <td className="py-2.5 pr-4 font-bold text-foreground">{user.name}</td>
                   <td className="py-2.5 px-4 text-text-muted whitespace-nowrap">
                     {user.type === "BUSINESS_SELLER" ? "Empresa" : "Personal"}
                   </td>
-                  <td className="py-2.5 px-4 text-text-muted whitespace-nowrap">{user.phone ?? "—"}</td>
-                  <td className="py-2.5 px-4 text-text-muted whitespace-nowrap">{user.location ?? "—"}</td>
-                  <td className="py-2.5 px-4">
-                    <span
-                      className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${
-                        user.identity_verified
-                          ? "bg-accent-green/10 text-accent-green"
-                          : "bg-text-muted/10 text-text-muted"
-                      }`}
-                    >
-                      {user.identity_verified ? "Sí" : "No"}
-                    </span>
-                  </td>
-                  <td className="py-2.5 px-4">
-                    <span
-                      className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${
-                        user.highlight_free
-                          ? "bg-accent-gold/10 text-accent-gold"
-                          : "bg-text-muted/10 text-text-muted"
-                      }`}
-                    >
-                      {user.highlight_free ? "Sí" : "No"}
-                    </span>
-                  </td>
+                  <td className="py-2.5 px-4 text-text-muted">{user.location ?? "—"}</td>
                   <td className="py-2.5 px-4">
                     <span
                       className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${
@@ -299,10 +261,7 @@ export default function AdminUsuariosPage() {
                       {user.status === "ACTIVE" ? "Activo" : "Suspendido"}
                     </span>
                   </td>
-                  <td className="py-2.5 px-4 text-text-muted whitespace-nowrap">
-                    {new Date(user.created_at).toLocaleDateString("es-AR")}
-                  </td>
-                  <td className="py-2.5 pl-4 text-right whitespace-nowrap">
+                  <td className="py-2.5 pl-4 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center justify-end gap-2">
                       <div className="relative group">
                         <button
@@ -314,7 +273,7 @@ export default function AdminUsuariosPage() {
                           </svg>
                         </button>
                         <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max rounded bg-card-bg-solid border border-card-border px-2 py-1 text-[10px] font-bold text-foreground opacity-0 transition-opacity group-hover:opacity-100 shadow-xl z-30">
-                          Editar
+                          Ver ficha
                         </span>
                       </div>
 

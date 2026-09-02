@@ -1,6 +1,7 @@
 "use client"
 
-import { FormEvent, useState } from "react"
+import { FormEvent, useRef, useState } from "react"
+import ConfirmModal from "@/components/ConfirmModal"
 import { documentNumberPlaceholder, formatDocumentNumber } from "@/lib/documentNumber"
 import { fieldsFromErrorPayload, type IdentityFieldErrors } from "@/lib/sellerIdentity"
 
@@ -35,6 +36,28 @@ export default function CreateUserModal({ onClose, onCreated }: CreateUserModalP
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<IdentityFieldErrors>({})
+  const [askSave, setAskSave] = useState(false)
+  const formRef = useRef<HTMLFormElement>(null)
+
+  const isDirty =
+    fullName.trim() !== "" ||
+    email.trim() !== "" ||
+    password.trim() !== "" ||
+    username.trim() !== "" ||
+    phone.trim() !== "" ||
+    location.trim() !== "" ||
+    documentNumber.trim() !== "" ||
+    identityVerified ||
+    highlightFree ||
+    sellerType !== "PERSONAL_SELLER"
+
+  const requestClose = () => {
+    if (isDirty) {
+      setAskSave(true)
+      return
+    }
+    onClose()
+  }
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -73,7 +96,6 @@ export default function CreateUserModal({ onClose, onCreated }: CreateUserModalP
   return (
     <div
       className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm"
-      onClick={onClose}
     >
       <div
         className="w-full max-w-lg rounded-2xl glass-panel p-6 max-h-[90vh] overflow-y-auto"
@@ -83,14 +105,14 @@ export default function CreateUserModal({ onClose, onCreated }: CreateUserModalP
           <h2 className="font-heading text-xl font-extrabold text-foreground">Crear usuario</h2>
           <button
             type="button"
-            onClick={onClose}
+            onClick={requestClose}
             className="h-8 w-8 rounded-lg border border-card-border bg-card-bg text-text-muted hover:text-foreground transition-all cursor-pointer"
           >
             ×
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+        <form ref={formRef} onSubmit={handleSubmit} className="flex flex-col gap-3">
           <label className="flex flex-col gap-1">
             <span className="text-[11px] font-bold uppercase tracking-wide text-text-muted">Nombre</span>
             <input required value={fullName} onChange={(e) => setFullName(e.target.value)} className={inputClass} />
@@ -221,7 +243,7 @@ export default function CreateUserModal({ onClose, onCreated }: CreateUserModalP
           <div className="flex justify-end gap-2 mt-2">
             <button
               type="button"
-              onClick={onClose}
+              onClick={requestClose}
               className="h-10 px-4 rounded-xl border border-card-border bg-card-bg text-sm font-bold text-foreground cursor-pointer"
             >
               Cancelar
@@ -236,6 +258,22 @@ export default function CreateUserModal({ onClose, onCreated }: CreateUserModalP
           </div>
         </form>
       </div>
+      <ConfirmModal
+        isOpen={askSave}
+        title="¿Guardar los cambios?"
+        description="Hay datos cargados en el formulario. Si salís sin guardar, se pierden."
+        confirmText="Guardar"
+        cancelText="Seguir editando"
+        discardText="Salir sin guardar"
+        type="warning"
+        isLoading={submitting}
+        onCancel={() => setAskSave(false)}
+        onDiscard={onClose}
+        onConfirm={() => {
+          setAskSave(false)
+          formRef.current?.requestSubmit()
+        }}
+      />
     </div>
   )
 }

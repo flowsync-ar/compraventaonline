@@ -9,8 +9,10 @@ interface ConfirmModalProps {
   description: string;
   confirmText?: string;
   cancelText?: string;
+  discardText?: string;
   onConfirm: () => void | Promise<void>;
   onCancel: () => void;
+  onDiscard?: () => void;
   isLoading?: boolean;
   type?: "danger" | "warning" | "info";
 }
@@ -21,8 +23,10 @@ export default function ConfirmModal({
   description,
   confirmText = "Confirmar",
   cancelText = "Cancelar",
+  discardText,
   onConfirm,
   onCancel,
+  onDiscard,
   isLoading = false,
   type = "info",
 }: ConfirmModalProps) {
@@ -69,15 +73,27 @@ export default function ConfirmModal({
           </div>
         </div>
 
-        <div className="flex justify-end gap-3 mt-6">
+        <div className="flex flex-wrap justify-end gap-2 mt-6">
           <button
+            type="button"
             onClick={onCancel}
             disabled={isLoading}
             className="rounded-xl border border-card-border hover:bg-card-bg/20 px-4 py-2 text-xs font-bold text-foreground transition-all cursor-pointer disabled:opacity-50"
           >
             {cancelText}
           </button>
+          {onDiscard && discardText ? (
+            <button
+              type="button"
+              onClick={onDiscard}
+              disabled={isLoading}
+              className="rounded-xl border border-card-border hover:bg-card-bg/20 px-4 py-2 text-xs font-bold text-text-muted transition-all cursor-pointer disabled:opacity-50"
+            >
+              {discardText}
+            </button>
+          ) : null}
           <button
+            type="button"
             onClick={onConfirm}
             disabled={isLoading}
             className={confirmBtnClass}

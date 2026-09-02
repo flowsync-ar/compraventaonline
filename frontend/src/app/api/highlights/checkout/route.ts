@@ -6,12 +6,22 @@ import { createCheckoutPreference, checkoutUrl } from "@/lib/mercadopago/client"
 
 const PURCHASABLE_STATUSES = ["APPROVED", "ACTIVE"]
 
+/** Destacar de pago — pausado hasta que Mercado Pago esté configurado. */
+const HIGHLIGHT_CHECKOUT_ENABLED = false
+
 // Starts a paid "Destacar publicación" purchase: a flat fee charged to the
 // platform's own Mercado Pago account (not a connected seller's — this is a
 // platform fee, not marketplace escrow between third parties), via Checkout
 // Pro. The webhook at /api/webhooks/mercadopago-highlights confirms payment
 // and actually applies the highlight.
 export async function POST(request: NextRequest) {
+  if (!HIGHLIGHT_CHECKOUT_ENABLED) {
+    return NextResponse.json(
+      { error: "El destacado de publicaciones no está disponible por ahora" },
+      { status: 503 },
+    )
+  }
+
   const supabase = await createServerClient()
   const seller = await requireSeller(supabase)
   if (!seller) {

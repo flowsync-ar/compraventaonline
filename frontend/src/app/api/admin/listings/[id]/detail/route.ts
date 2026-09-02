@@ -13,7 +13,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
   const { data: listing, error } = await admin
     .from("listings")
     .select(
-      "id, price, stock, condition, status, featured_plan, image_url, created_at, updated_at, products(name, description, brand, images, categories(name)), sellers(id, name), currencies(symbol, code)"
+      "id, price, stock, condition, status, featured_plan, image_url, created_at, updated_at, products(id, name, description, brand, images, category_id, categories(id, name, parent_id)), sellers(id, name), currencies(symbol, code)"
     )
     .eq("id", id)
     .single()

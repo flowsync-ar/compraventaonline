@@ -14,6 +14,9 @@ interface UserDetail {
   tier: string
   status: "ACTIVE" | "SUSPENDED"
   created_at: string
+  identity_verified: boolean
+  highlight_free: boolean
+  document_number: string | null
 }
 
 interface UserStats {
@@ -75,7 +78,6 @@ export default function UserDetailModal({ userId, onClose }: { userId: string; o
   return (
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm"
-      onClick={onClose}
     >
       <div
         onClick={(e) => e.stopPropagation()}
@@ -119,16 +121,36 @@ export default function UserDetailModal({ userId, onClose }: { userId: string; o
 
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm text-text-muted">
               <div>
+                <span className="block text-[9px] uppercase text-text-muted/70">Email</span>
+                <span className="break-all text-foreground">{user.email ?? "—"}</span>
+              </div>
+              <div>
                 <span className="block text-[9px] uppercase text-text-muted/70">Teléfono</span>
                 {user.phone ?? "—"}
               </div>
               <div>
-                <span className="block text-[9px] uppercase text-text-muted/70">Ubicación</span>
-                {user.location ?? "—"}
+                <span className="block text-[9px] uppercase text-text-muted/70">DNI / CUIT</span>
+                {user.document_number ?? "—"}
+              </div>
+              <div>
+                <span className="block text-[9px] uppercase text-text-muted/70">ID verificado</span>
+                <span className={user.identity_verified ? "text-accent-green font-bold" : "text-text-muted"}>
+                  {user.identity_verified ? "Sí" : "No"}
+                </span>
+              </div>
+              <div>
+                <span className="block text-[9px] uppercase text-text-muted/70">Destacar gratis</span>
+                <span className={user.highlight_free ? "text-accent-gold font-bold" : "text-text-muted"}>
+                  {user.highlight_free ? "Sí" : "No"}
+                </span>
               </div>
               <div>
                 <span className="block text-[9px] uppercase text-text-muted/70">Registrado</span>
                 {new Date(user.created_at).toLocaleDateString("es-AR")}
+              </div>
+              <div>
+                <span className="block text-[9px] uppercase text-text-muted/70">Ubicación</span>
+                {user.location ?? "—"}
               </div>
               <div>
                 <span className="block text-[9px] uppercase text-text-muted/70">Score</span>

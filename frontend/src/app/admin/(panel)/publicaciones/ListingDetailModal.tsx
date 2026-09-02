@@ -3,7 +3,14 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import ConfirmModal from "@/components/ConfirmModal"
+import CustomDropdown from "@/components/CustomDropdown"
 import RichTextDisplay from "@/components/RichTextDisplay"
+
+interface CategoryOption {
+  id: string
+  name: string
+  parent_id: string | null
+}
 
 interface ListingDetail {
   id: string
@@ -17,11 +24,13 @@ interface ListingDetail {
   updated_at: string
   sellerEmail: string | null
   products: {
+    id: string
     name: string
     description: string | null
     brand: string | null
     images: string[] | null
-    categories: { name: string } | null
+    category_id: string | null
+    categories: { id: string; name: string; parent_id: string | null } | null
   } | null
   sellers: { id: string; name: string } | null
   currencies: { symbol: string; code: string } | null
@@ -53,6 +62,41 @@ const STATUS_LABELS: Record<string, string> = {
   DELETED: "Eliminada",
 }
 
+function flattenTree(categories: CategoryOption[]): { category: CategoryOption; depth: number }[] {
+  const childrenByParentId = new Map<string | null, CategoryOption[]>()
+  for (const c of categories) {
+    const siblings = childrenByParentId.get(c.parent_id) ?? []
+    siblings.push(c)
+    childrenByParentId.set(c.parent_id, siblings)
+  }
+  const result: { category: CategoryOption; depth: number }[] = []
+  const visit = (parentId: string | null, depth: number, seen: Set<string>) => {
+    for (const c of childrenByParentId.get(parentId) ?? []) {
+      if (seen.has(c.id)) continue
+      result.push({ category: c, depth })
+      visit(c.id, depth + 1, new Set(seen).add(c.id))
+    }
+  }
+  visit(null, 0, new Set())
+  return result
+}
+
+function categoryPath(categories: CategoryOption[], id: string): string {
+  const chain: CategoryOption[] = []
+  let current = categories.find((c) => c.id === id)
+  while (current) {
+    chain.unshift(current)
+    current = current.parent_id ? categories.find((c) => c.id === current!.parent_id) : undefined
+  }
+  return chain.map((c) => c.name).join(" → ")
+}
+
+function depthColor(depth: number): string {
+  if (depth === 0) return "#F6843B"
+  if (depth === 1) return "#187cff"
+  return "#000000"
+}
+
 function StatTile({ label, value }: { label: string; value: number }) {
   return (
     <div className="rounded-xl bg-card-bg border border-card-border p-3 flex flex-col items-center text-center">
@@ -67,6 +111,13 @@ export default function ListingDetailModal({ listingId, onClose }: { listingId: 
   const [stats, setStats] = useState<Stats | null>(null)
   const [questions, setQuestions] = useState<QuestionRow[]>([])
   const [loading, setLoading] = useState(true)
+  const [categories, setCategories] = useState<CategoryOption[]>([])
+  const [categoryId, setCategoryId] = useState("")
+  const [savedCategoryId, setSavedCategoryId] = useState("")
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [saveOk, setSaveOk] = useState(false)
+  const [askSave, setAskSave] = useState(false)
   const [moderating, setModerating] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<{
     questionId: string
@@ -75,15 +126,69 @@ export default function ListingDetailModal({ listingId, onClose }: { listingId: 
   } | null>(null)
 
   useEffect(() => {
-    fetch(`/api/admin/listings/${listingId}/detail`)
-      .then((res) => res.json())
-      .then((data) => {
-        setListing(data.listing ?? null)
-        setStats(data.stats ?? null)
-        setQuestions(data.questions ?? [])
+    Promise.all([
+      fetch(`/api/admin/listings/${listingId}/detail`).then((res) => res.json()),
+      fetch("/api/admin/categories").then((res) => res.json()),
+    ])
+      .then(([detail, cats]) => {
+        setListing(detail.listing ?? null)
+        setStats(detail.stats ?? null)
+        setQuestions(detail.questions ?? [])
+        const currentId = detail.listing?.products?.category_id ?? detail.listing?.products?.categories?.id ?? ""
+        setCategoryId(currentId)
+        setSavedCategoryId(currentId)
+        setCategories(cats.categories ?? [])
       })
       .finally(() => setLoading(false))
   }, [listingId])
+
+  const isDirty = categoryId !== savedCategoryId
+
+  const requestClose = () => {
+    if (isDirty) {
+      setAskSave(true)
+      return
+    }
+    onClose()
+  }
+
+  const saveCategory = async () => {
+    setSaving(true)
+    setSaveError(null)
+    setSaveOk(false)
+    try {
+      const res = await fetch(`/api/admin/listings/${listingId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ categoryId: categoryId || null }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setSaveError(data.error ?? "No se pudo guardar la categoría.")
+        return false
+      }
+      setSavedCategoryId(categoryId)
+      setSaveOk(true)
+      setListing((prev) => {
+        if (!prev?.products) return prev
+        const cat = categories.find((c) => c.id === categoryId) ?? null
+        return {
+          ...prev,
+          products: {
+            ...prev.products,
+            category_id: categoryId || null,
+            categories: cat ? { id: cat.id, name: cat.name, parent_id: cat.parent_id } : null,
+          },
+        }
+      })
+      return true
+    } catch {
+      setSaveError("No se pudo guardar la categoría.")
+      return false
+    } finally {
+      setSaving(false)
+    }
+  }
 
   const handleDeleteContent = async () => {
     if (!deleteTarget) return
@@ -122,13 +227,12 @@ export default function ListingDetailModal({ listingId, onClose }: { listingId: 
     <>
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm"
-      onClick={onClose}
     >
       <div
         onClick={(e) => e.stopPropagation()}
         className="w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-2xl sm:rounded-3xl bg-card-bg border border-card-border p-4 sm:p-8 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200"
       >
-        <button onClick={onClose} className="absolute top-4 right-4 text-text-muted hover:text-foreground text-lg cursor-pointer">
+        <button onClick={requestClose} className="absolute top-4 right-4 text-text-muted hover:text-foreground text-lg cursor-pointer">
           ✕
         </button>
 
@@ -156,7 +260,8 @@ export default function ListingDetailModal({ listingId, onClose }: { listingId: 
                   {listing.products?.name ?? "Sin nombre"}
                 </Link>
                 <p className="text-sm text-text-muted mt-0.5">
-                  {listing.products?.brand ?? "Sin marca"} · {listing.products?.categories?.name ?? "Sin categoría"}
+                  {listing.products?.brand ?? "Sin marca"}
+                  {listing.products?.categories?.name ? ` · ${listing.products.categories.name}` : " · Sin categoría"}
                 </p>
                 <div className="flex flex-wrap gap-2 mt-2">
                   <span
@@ -175,6 +280,38 @@ export default function ListingDetailModal({ listingId, onClose }: { listingId: 
                   </span>
                 </div>
               </div>
+            </div>
+
+            <div className="rounded-xl border border-card-border bg-background/40 p-4 flex flex-col gap-3">
+              <label className="text-xs font-extrabold text-foreground uppercase tracking-wide">Categoría</label>
+              <CustomDropdown
+                name="categoryId"
+                defaultValue={categoryId}
+                showSearch
+                placeholder="Buscar categoría..."
+                options={[
+                  { name: "— Sin categoría —", value: "" },
+                  ...flattenTree(categories).map(({ category, depth }) => ({
+                    name: depth === 0 ? category.name : categoryPath(categories, category.id),
+                    value: category.id,
+                    color: depthColor(depth),
+                  })),
+                ]}
+                onChange={(val) => {
+                  setCategoryId(val)
+                  setSaveOk(false)
+                }}
+              />
+              {saveError && <p className="text-xs text-red-500 font-bold">{saveError}</p>}
+              {saveOk && <p className="text-xs text-accent-green font-bold">Categoría actualizada.</p>}
+              <button
+                type="button"
+                disabled={saving || !isDirty}
+                onClick={() => void saveCategory()}
+                className="self-start rounded-xl bg-accent-gold px-4 py-2 text-xs font-extrabold text-background disabled:opacity-50 cursor-pointer"
+              >
+                {saving ? "Guardando…" : "Guardar categoría"}
+              </button>
             </div>
 
             {listing.products?.description && (
@@ -301,9 +438,28 @@ export default function ListingDetailModal({ listingId, onClose }: { listingId: 
       </div>
     </div>
 
-    {/* Rendered outside the backdrop's onClick={onClose} div — otherwise a
+    {/* Rendered outside the listing modal — otherwise a
         click on ConfirmModal's own backdrop (which doesn't stopPropagation)
         would bubble up and close this whole listing modal underneath it. */}
+    <ConfirmModal
+      isOpen={askSave}
+      title="¿Guardar los cambios?"
+      description="Cambiaste la categoría. Si salís sin guardar, se pierde."
+      confirmText="Guardar"
+      cancelText="Seguir editando"
+      discardText="Salir sin guardar"
+      type="warning"
+      isLoading={saving}
+      onCancel={() => setAskSave(false)}
+      onDiscard={onClose}
+      onConfirm={async () => {
+        const ok = await saveCategory()
+        if (ok) {
+          setAskSave(false)
+          onClose()
+        }
+      }}
+    />
     <ConfirmModal
       isOpen={deleteTarget !== null}
       title={

@@ -189,7 +189,12 @@ function DashboardPageContent() {
   // Modal shown right after successfully creating a NEW listing (not on
   // edit) — confirms what got published and asks whether to keep
   // publishing more or go see the result in "Mis Publicaciones".
-  const [publishSuccessInfo, setPublishSuccessInfo] = useState<{ name: string; price: number; symbol: string } | null>(null);
+  const [publishSuccessInfo, setPublishSuccessInfo] = useState<{
+    name: string
+    price: number
+    symbol: string
+    sharedToCvoInstagram?: boolean
+  } | null>(null);
   const [categoryPickerEpoch, setCategoryPickerEpoch] = useState(0);
   const [focusCategoryPicker, setFocusCategoryPicker] = useState(false);
   const publishFormScrollRef = useRef<HTMLDivElement>(null);
@@ -420,11 +425,12 @@ function DashboardPageContent() {
   // activeTab === "publish" regardless of how they got there. Skipped
   // while editing an existing listing — that seller already cleared this
   // the first time they published.
-  useEffect(() => {
-    if (activeTab === "publish" && !selectedListingToEdit && sellerProfile && !sellerProfile.identity_verified) {
-      router.push("/verificar-identidad?next=" + encodeURIComponent("/dashboard?tab=publish"));
-    }
-  }, [activeTab, selectedListingToEdit, sellerProfile, router]);
+  // Identity verification temporarily disabled.
+  // useEffect(() => {
+  //   if (activeTab === "publish" && !selectedListingToEdit && sellerProfile && !sellerProfile.identity_verified) {
+  //     router.push("/verificar-identidad?next=" + encodeURIComponent("/dashboard?tab=publish"));
+  //   }
+  // }, [activeTab, selectedListingToEdit, sellerProfile, router]);
 
   // Load profile and dashboard data once userId is available
   useEffect(() => {
@@ -1148,6 +1154,7 @@ function DashboardPageContent() {
             currency_id: currencyId || null,
             image_url: imageList[0] ?? null,
             status: "APPROVED",
+            share_to_social: shareConsent ? ["INSTAGRAM"] : null,
           })
           .select(`
             id, price, condition, stock, status, featured_plan, currency_id, image_url,
@@ -1167,13 +1174,13 @@ function DashboardPageContent() {
           name: productName,
           price: parseFloat(price),
           symbol: currencies.find((c) => c.id === currencyId)?.symbol ?? "$",
+          sharedToCvoInstagram: shareConsent,
         });
 
-        // Si tildó compartir en redes, generamos ya la imagen con sello +
-        // texto listo para pegar (ver comentario en handlePublishAndShare
-        // más abajo sobre por qué esto no es un auto-posteo real todavía).
-        if (shareConsent && shareToSocial.length > 0) {
-          handleGenerateSocialShareAssets(listingData.id, shareToSocial);
+        if (shareConsent) {
+          fetch(`/api/listings/${listingData.id}/cvo-instagram`, { method: "POST" }).catch((err) => {
+            console.error("Error al avisar a Instagram CVO:", err);
+          });
         }
 
         // Reset product fields but keep category (+ its specific attributes)
@@ -2132,6 +2139,11 @@ function DashboardPageContent() {
                   {publishSuccessInfo.symbol}{publishSuccessInfo.price.toLocaleString("es-AR")}
                 </span>
               </p>
+              {publishSuccessInfo.sharedToCvoInstagram ? (
+                <p className="text-xs text-foreground mt-2 rounded-xl border border-accent-blue/30 bg-accent-blue/10 px-3 py-2 leading-relaxed">
+                  La foto de portada de tu artículo va a usarse como imagen destacada en las redes oficiales de CompraVentaOnline (Instagram).
+                </p>
+              ) : null}
             </div>
 
             <p className="text-xs text-text-muted">¿Querés publicar otro producto de la misma categoría?</p>
@@ -2455,7 +2467,22 @@ function DashboardPageContent() {
             {publishMode === "direct" ? (
               <form onSubmit={handlePublish} className="flex min-h-0 flex-1 flex-col">
                 <div ref={publishFormScrollRef} className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-5 py-4 md:px-6">
-                
+
+                {!selectedListingToEdit && (
+                  <label className="flex items-start gap-2.5 rounded-xl border border-card-border bg-card-bg/40 p-4 text-xs text-foreground cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={shareConsent}
+                      onChange={(e) => setShareConsent(e.target.checked)}
+                      className="h-4 w-4 mt-0.5 rounded border-card-border text-accent-gold focus:ring-accent-gold cursor-pointer shrink-0"
+                    />
+                    <span>
+                      <span className="font-bold">Publicar en Instagram de CompraVentaOnline</span>
+                      {" "}(@compraventaonline.lp). Autorizo usar la foto de portada, el título y la descripción de este artículo en las redes oficiales.
+                    </span>
+                  </label>
+                )}
+
                 {/* 1. Categoría primero — Categoría + Subcategoría en cascada:
                     elegir una categoría con hijos (p.ej. "Computación")
                     muestra un segundo dropdown para elegir entre sus
@@ -2835,32 +2862,6 @@ function DashboardPageContent() {
                     </div>
                   )}
                 </div>
-
-                {/* Compartir en redes sociales — solo al crear (no al
-                    editar). Comparte en la cuenta OFICIAL de
-                    CompraVentaOnline, no en una cuenta propia del
-                    vendedor — por eso no depende de socialAccounts. */}
-                {!selectedListingToEdit && (
-                  <div className="rounded-xl border border-card-border bg-card-bg/40 p-4 flex flex-col gap-3 mt-2">
-                    
-                    <label className="flex items-center gap-2 text-xs font-semibold text-foreground cursor-pointer select-none">
-                      
-                      📷 Instagram de CompraVentaOnline (@compraventaonline.lp)
-                    </label>
-                    
-                      <label className="flex items-start gap-2 text-[11px] text-text-muted cursor-pointer select-none">
-                        <input
-                          type="checkbox"
-                          checked={shareConsent}
-                          onChange={(e) => setShareConsent(e.target.checked)}
-                          className="h-4 w-4 mt-0.5 rounded border-card-border text-accent-gold focus:ring-accent-gold cursor-pointer shrink-0"
-                        />
-                        Autorizo publicar la descripción de este artículo y el link a esta
-                        publicación en el Instagram oficial de CompraVentaOnline
-                        (@compraventaonline.lp).
-                      </label>
-                  </div>
-                )}
 
                 </div>
 
@@ -4594,6 +4595,7 @@ function DashboardPageContent() {
               </div>
             </form>
 
+            {/* Identity verification temporarily disabled.
             {!sellerProfile.identity_verified && (
               <div className="border-t border-card-border/50 mt-8 pt-6 flex flex-col gap-3">
                 <span className="text-xs font-bold text-foreground">Verificación de Identidad</span>
@@ -4609,6 +4611,7 @@ function DashboardPageContent() {
                 </p>
               </div>
             )}
+            */}
 
             <div className="border-t border-card-border/50 mt-8 pt-6 flex flex-col gap-3">
               <span className="text-xs font-bold text-foreground">Mercado Pago</span>

@@ -1027,8 +1027,9 @@ export default function ListingDetailPage() {
                     onClick={() => {
                       if (!userId) {
                         router.push("/login?redirect=" + encodeURIComponent(`/listings/${id}?buy=1`));
-                      } else if (!identityVerified) {
-                        router.push("/verificar-identidad?next=" + encodeURIComponent(`/listings/${id}?buy=1`));
+                      // Identity verification temporarily disabled.
+                      // } else if (!identityVerified) {
+                      //   router.push("/verificar-identidad?next=" + encodeURIComponent(`/listings/${id}?buy=1`));
                       } else {
                         setShowCheckoutModal(true);
                       }

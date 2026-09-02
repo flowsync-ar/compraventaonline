@@ -125,10 +125,11 @@ export default function CartCheckoutPage() {
 
   const handleConfirm = async () => {
     if (!acceptedTerms || purchasableItems.length === 0) return;
-    if (!identityVerified) {
-      router.push("/verificar-identidad?next=" + encodeURIComponent("/carrito"));
-      return;
-    }
+    // Identity verification temporarily disabled.
+    // if (!identityVerified) {
+    //   router.push("/verificar-identidad?next=" + encodeURIComponent("/carrito"));
+    //   return;
+    // }
     setSubmitting(true);
     const outcomes: OrderResult[] = [];
 

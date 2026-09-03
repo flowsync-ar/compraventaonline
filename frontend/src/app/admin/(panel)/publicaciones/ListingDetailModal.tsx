@@ -19,6 +19,7 @@ interface ListingDetail {
   condition: string
   status: string
   featured_plan: string
+  share_to_social: string[] | null
   image_url: string | null
   created_at: string
   updated_at: string
@@ -326,6 +327,10 @@ export default function ListingDetailModal({ listingId, onClose }: { listingId: 
               <div>
                 <span className="block text-[9px] uppercase text-text-muted/70">Email del vendedor</span>
                 {listing.sellerEmail ?? "—"}
+              </div>
+              <div>
+                <span className="block text-[9px] uppercase text-text-muted/70">Instagram CVO</span>
+                {listing.share_to_social?.includes("INSTAGRAM") ? "Aceptó publicar" : "No aceptó"}
               </div>
               <div>
                 <span className="block text-[9px] uppercase text-text-muted/70">Precio</span>

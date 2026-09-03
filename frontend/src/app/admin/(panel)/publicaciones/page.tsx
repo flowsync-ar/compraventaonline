@@ -11,8 +11,13 @@ interface AdminListing {
   status: string
   image_url: string | null
   created_at: string
+  share_to_social: string[] | null
   products: { name: string; images: string[] | null } | null
   sellers: { id: string; name: string } | null
+}
+
+function acceptedInstagram(listing: AdminListing) {
+  return listing.share_to_social?.includes("INSTAGRAM") ?? false
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -141,6 +146,13 @@ export default function AdminPublicacionesPage() {
                         <p className="text-sm font-bold text-foreground mt-1">
                           ${Number(listing.price).toLocaleString("es-AR")}
                         </p>
+                        <p className="text-[11px] mt-1">
+                          {acceptedInstagram(listing) ? (
+                            <span className="font-bold text-accent-blue">Instagram: sí</span>
+                          ) : (
+                            <span className="text-text-muted">Instagram: no</span>
+                          )}
+                        </p>
                       </div>
                       <span
                         className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${
@@ -193,6 +205,7 @@ export default function AdminPublicacionesPage() {
                 <th className="py-2">Vendedor</th>
                 <th className="py-2">Precio</th>
                 <th className="py-2">Estado</th>
+                <th className="py-2">Instagram</th>
                 <th className="py-2">Publicado</th>
                 <th className="py-2 text-right">Acciones</th>
               </tr>
@@ -238,6 +251,17 @@ export default function AdminPublicacionesPage() {
                       >
                         {STATUS_LABELS[listing.status] ?? listing.status}
                       </span>
+                    </td>
+                    <td className="py-2.5 whitespace-nowrap">
+                      {acceptedInstagram(listing) ? (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-accent-blue/10 text-accent-blue">
+                          Sí
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-card-border/30 text-text-muted">
+                          No
+                        </span>
+                      )}
                     </td>
                     <td className="py-2.5 text-text-muted whitespace-nowrap">
                       {new Date(listing.created_at).toLocaleDateString("es-AR")}

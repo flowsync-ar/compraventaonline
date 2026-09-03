@@ -155,25 +155,17 @@ export default function ListingDetailModal({ listingId, onClose }: { listingId: 
   const [photos, setPhotos] = useState<string[]>([])
   const [savedPhotos, setSavedPhotos] = useState<string[]>([])
   const [uploadingPhotos, setUploadingPhotos] = useState(false)
-  const [savingPhotos, setSavingPhotos] = useState(false)
   const [photoError, setPhotoError] = useState<string | null>(null)
-  const [photoOk, setPhotoOk] = useState(false)
   const [draggingPhoto, setDraggingPhoto] = useState<number | null>(null)
   const [priceDraft, setPriceDraft] = useState("")
   const [savedPrice, setSavedPrice] = useState(0)
-  const [savingPrice, setSavingPrice] = useState(false)
   const [priceError, setPriceError] = useState<string | null>(null)
-  const [priceOk, setPriceOk] = useState(false)
   const [description, setDescription] = useState("")
   const [savedDescription, setSavedDescription] = useState("")
-  const [savingDescription, setSavingDescription] = useState(false)
   const [descriptionError, setDescriptionError] = useState<string | null>(null)
-  const [descriptionOk, setDescriptionOk] = useState(false)
   const [titleDraft, setTitleDraft] = useState("")
   const [savedTitle, setSavedTitle] = useState("")
-  const [savingTitle, setSavingTitle] = useState(false)
   const [titleError, setTitleError] = useState<string | null>(null)
-  const [titleOk, setTitleOk] = useState(false)
   const [moderating, setModerating] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<{
     questionId: string
@@ -225,44 +217,6 @@ export default function ListingDetailModal({ listingId, onClose }: { listingId: 
     onClose()
   }
 
-  const saveCategory = async () => {
-    setSaving(true)
-    setSaveError(null)
-    setSaveOk(false)
-    try {
-      const res = await fetch(`/api/admin/listings/${listingId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ categoryId: categoryId || null }),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        setSaveError(data.error ?? "No se pudo guardar la categoría.")
-        return false
-      }
-      setSavedCategoryId(categoryId)
-      setSaveOk(true)
-      setListing((prev) => {
-        if (!prev?.products) return prev
-        const cat = categories.find((c) => c.id === categoryId) ?? null
-        return {
-          ...prev,
-          products: {
-            ...prev.products,
-            category_id: categoryId || null,
-            categories: cat ? { id: cat.id, name: cat.name, parent_id: cat.parent_id } : null,
-          },
-        }
-      })
-      return true
-    } catch {
-      setSaveError("No se pudo guardar la categoría.")
-      return false
-    } finally {
-      setSaving(false)
-    }
-  }
-
   const applyPhotoState = (images: string[], imageUrl: string | null) => {
     setPhotos(images)
     setSavedPhotos(images)
@@ -276,130 +230,105 @@ export default function ListingDetailModal({ listingId, onClose }: { listingId: 
     })
   }
 
-  const savePhotos = async () => {
-    setSavingPhotos(true)
+  const saveAll = async () => {
+    setTitleError(null)
+    setPriceError(null)
+    setDescriptionError(null)
     setPhotoError(null)
-    setPhotoOk(false)
-    try {
-      const res = await fetch(`/api/admin/listings/${listingId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ images: photos }),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        setPhotoError(data.error ?? "No se pudieron guardar las fotos.")
+    setSaveError(null)
+    setSaveOk(false)
+
+    if (titleDirty) {
+      const nextTitle = normalizeListingTitle(titleDraft)
+      if (nextTitle.length < 2 || nextTitle.length > 80) {
+        setTitleError("El título debe tener entre 2 y 80 caracteres.")
         return false
       }
-      const next = Array.isArray(data.product?.images) ? data.product.images : photos
-      applyPhotoState(next, data.image_url ?? next[0] ?? null)
-      setPhotoOk(true)
-      return true
-    } catch {
-      setPhotoError("No se pudieron guardar las fotos.")
-      return false
-    } finally {
-      setSavingPhotos(false)
     }
-  }
-
-  const savePrice = async () => {
-    const next = parsePriceInput(priceDraft)
-    if (next === null) {
+    if (priceDraft.trim() !== "" && parsedPrice === null) {
       setPriceError("El precio tiene que ser un número mayor a 0.")
       return false
     }
-    setSavingPrice(true)
-    setPriceError(null)
-    setPriceOk(false)
-    try {
-      const res = await fetch(`/api/admin/listings/${listingId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ price: next }),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        setPriceError(data.error ?? "No se pudo guardar el precio.")
-        return false
-      }
-      setSavedPrice(next)
-      setPriceDraft(formatStoredPrice(next))
-      setListing((prev) => (prev ? { ...prev, price: next } : prev))
-      setPriceOk(true)
-      return true
-    } catch {
-      setPriceError("No se pudo guardar el precio.")
-      return false
-    } finally {
-      setSavingPrice(false)
-    }
-  }
 
-  const saveDescription = async () => {
-    setSavingDescription(true)
-    setDescriptionError(null)
-    setDescriptionOk(false)
-    try {
-      const res = await fetch(`/api/admin/listings/${listingId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ description }),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        setDescriptionError(data.error ?? "No se pudo guardar la descripción.")
-        return false
-      }
-      const next = typeof data.product?.description === "string" ? data.product.description : description
-      setDescription(next)
-      setSavedDescription(next)
-      setListing((prev) =>
-        prev?.products ? { ...prev, products: { ...prev.products, description: next } } : prev,
-      )
-      setDescriptionOk(true)
-      return true
-    } catch {
-      setDescriptionError("No se pudo guardar la descripción.")
-      return false
-    } finally {
-      setSavingDescription(false)
-    }
-  }
+    const body: {
+      name?: string
+      categoryId?: string | null
+      price?: number
+      description?: string
+      images?: string[]
+    } = {}
+    if (titleDirty) body.name = normalizeListingTitle(titleDraft)
+    if (categoryId !== savedCategoryId) body.categoryId = categoryId || null
+    if (priceDirty && parsedPrice !== null) body.price = parsedPrice
+    if (descriptionDirty) body.description = description
+    if (photosDirty) body.images = photos
 
-  const saveTitle = async () => {
-    const next = normalizeListingTitle(titleDraft)
-    if (next.length < 2 || next.length > 80) {
-      setTitleError("El título debe tener entre 2 y 80 caracteres.")
-      return false
-    }
-    setSavingTitle(true)
-    setTitleError(null)
-    setTitleOk(false)
+    if (Object.keys(body).length === 0) return true
+
+    setSaving(true)
     try {
       const res = await fetch(`/api/admin/listings/${listingId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: next }),
+        body: JSON.stringify(body),
       })
       const data = await res.json()
       if (!res.ok) {
-        setTitleError(data.error ?? "No se pudo guardar el título.")
+        setSaveError(data.error ?? "No se pudieron guardar los cambios.")
         return false
       }
-      const saved = typeof data.product?.name === "string" ? data.product.name : next
-      setTitleDraft(saved)
-      setSavedTitle(saved)
-      setListing((prev) =>
-        prev?.products ? { ...prev, products: { ...prev.products, name: saved } } : prev,
-      )
-      setTitleOk(true)
+
+      if (body.name !== undefined) {
+        const saved = typeof data.product?.name === "string" ? data.product.name : body.name
+        setTitleDraft(saved)
+        setSavedTitle(saved)
+      }
+      if (body.categoryId !== undefined) setSavedCategoryId(categoryId)
+      if (body.price !== undefined) {
+        setSavedPrice(body.price)
+        setPriceDraft(formatStoredPrice(body.price))
+      }
+      if (body.description !== undefined) {
+        const next = typeof data.product?.description === "string" ? data.product.description : description
+        setDescription(next)
+        setSavedDescription(next)
+      }
+      if (body.images !== undefined) {
+        const next = Array.isArray(data.product?.images) ? data.product.images : photos
+        applyPhotoState(next, data.image_url ?? next[0] ?? null)
+      }
+
+      setListing((prev) => {
+        if (!prev) return prev
+        const cat = categories.find((c) => c.id === categoryId) ?? null
+        const nextPrice = body.price ?? prev.price
+        const nextImages = Array.isArray(data.product?.images) ? data.product.images : prev.products?.images ?? photos
+        const nextName = typeof data.product?.name === "string" ? data.product.name : prev.products?.name ?? titleDraft
+        const nextDesc =
+          typeof data.product?.description === "string" ? data.product.description : prev.products?.description ?? description
+        return {
+          ...prev,
+          price: nextPrice,
+          image_url: data.image_url ?? nextImages?.[0] ?? prev.image_url,
+          products: prev.products
+            ? {
+                ...prev.products,
+                name: nextName,
+                description: nextDesc,
+                images: nextImages,
+                category_id: categoryId || null,
+                categories: cat ? { id: cat.id, name: cat.name, parent_id: cat.parent_id } : null,
+              }
+            : prev.products,
+        }
+      })
+      setSaveOk(true)
       return true
     } catch {
-      setTitleError("No se pudo guardar el título.")
+      setSaveError("No se pudieron guardar los cambios.")
       return false
     } finally {
-      setSavingTitle(false)
+      setSaving(false)
     }
   }
 
@@ -407,7 +336,6 @@ export default function ListingDetailModal({ listingId, onClose }: { listingId: 
     if (!fileList || fileList.length === 0) return
     setUploadingPhotos(true)
     setPhotoError(null)
-    setPhotoOk(false)
     try {
       const webp = await imagesToWebp(Array.from(fileList).filter((f) => f.type.startsWith("image/")))
       if (webp.length === 0) return
@@ -421,7 +349,6 @@ export default function ListingDetailModal({ listingId, onClose }: { listingId: 
       }
       const next = Array.isArray(data.images) ? data.images : []
       applyPhotoState(next, data.image_url ?? next[0] ?? null)
-      setPhotoOk(true)
     } catch {
       setPhotoError("No se pudieron subir las fotos.")
     } finally {
@@ -465,22 +392,29 @@ export default function ListingDetailModal({ listingId, onClose }: { listingId: 
   return (
     <>
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6 bg-background/80 backdrop-blur-sm"
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-2xl sm:rounded-3xl bg-card-bg border border-card-border p-4 sm:p-8 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200"
+        className="w-full max-w-6xl h-[92vh] flex flex-col overflow-hidden rounded-2xl sm:rounded-3xl bg-card-bg border border-card-border shadow-2xl relative animate-in fade-in zoom-in-95 duration-200"
       >
-        <button onClick={requestClose} className="absolute top-4 right-4 text-text-muted hover:text-foreground text-lg cursor-pointer">
-          ✕
-        </button>
+        <div className="flex items-center justify-between gap-3 px-4 sm:px-8 pt-4 sm:pt-6 pb-3 border-b border-card-border shrink-0">
+          <h2 className="font-heading text-base sm:text-lg font-extrabold text-foreground truncate">
+            Editar publicación
+          </h2>
+          <button onClick={requestClose} className="text-text-muted hover:text-foreground text-lg cursor-pointer shrink-0" aria-label="Cerrar">
+            ✕
+          </button>
+        </div>
 
         {loading ? (
           <p className="text-sm text-text-muted py-10 text-center">Cargando detalle...</p>
         ) : !listing ? (
           <p className="text-sm text-red-500 py-10 text-center">No se pudo cargar la publicación.</p>
         ) : (
-          <div className="flex flex-col gap-6">
+          <>
+          <div className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-8 py-5">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="flex gap-4">
               <div className="h-20 w-20 rounded-xl overflow-hidden border border-card-border bg-card-bg-solid shrink-0">
                 {thumbnail ? (
@@ -498,22 +432,13 @@ export default function ListingDetailModal({ listingId, onClose }: { listingId: 
                   maxLength={80}
                   onChange={(e) => {
                     setTitleDraft(e.target.value)
-                    setTitleOk(false)
+                    setSaveOk(false)
                   }}
                   onBlur={() => setTitleDraft(normalizeListingTitle(titleDraft))}
                   className="mt-1 w-full bg-background border border-card-border rounded-xl px-3 py-2 text-sm font-bold text-foreground focus:outline-none focus:border-accent-gold"
                 />
                 {titleError && <p className="text-xs text-red-500 font-bold mt-1">{titleError}</p>}
-                {titleOk && <p className="text-xs text-accent-green font-bold mt-1">Título actualizado.</p>}
                 <div className="flex flex-wrap items-center gap-2 mt-2">
-                  <button
-                    type="button"
-                    disabled={savingTitle || !titleDirty}
-                    onClick={() => void saveTitle()}
-                    className="rounded-lg bg-accent-gold px-3 py-1.5 text-[10px] font-extrabold text-background disabled:opacity-50 cursor-pointer"
-                  >
-                    {savingTitle ? "Guardando…" : "Guardar título"}
-                  </button>
                   <Link
                     href={`/listings/${listing.id}`}
                     target="_blank"
@@ -565,16 +490,6 @@ export default function ListingDetailModal({ listingId, onClose }: { listingId: 
                   setSaveOk(false)
                 }}
               />
-              {saveError && <p className="text-xs text-red-500 font-bold">{saveError}</p>}
-              {saveOk && <p className="text-xs text-accent-green font-bold">Categoría actualizada.</p>}
-              <button
-                type="button"
-                disabled={saving || categoryId === savedCategoryId}
-                onClick={() => void saveCategory()}
-                className="self-start rounded-xl bg-accent-gold px-4 py-2 text-xs font-extrabold text-background disabled:opacity-50 cursor-pointer"
-              >
-                {saving ? "Guardando…" : "Guardar categoría"}
-              </button>
             </div>
 
             <div className="rounded-xl border border-card-border bg-background/40 p-4 flex flex-col gap-3">
@@ -587,21 +502,12 @@ export default function ListingDetailModal({ listingId, onClose }: { listingId: 
                   value={priceDraft}
                   onChange={(e) => {
                     setPriceDraft(formatPriceDraft(e.target.value))
-                    setPriceOk(false)
+                    setSaveOk(false)
                   }}
                   className="flex-1 bg-background border border-card-border rounded-xl px-4 py-2.5 text-sm text-foreground focus:outline-none focus:border-accent-gold"
                 />
               </div>
               {priceError && <p className="text-xs text-red-500 font-bold">{priceError}</p>}
-              {priceOk && <p className="text-xs text-accent-green font-bold">Precio actualizado.</p>}
-              <button
-                type="button"
-                disabled={savingPrice || !priceDirty}
-                onClick={() => void savePrice()}
-                className="self-start rounded-xl bg-accent-gold px-4 py-2 text-xs font-extrabold text-background disabled:opacity-50 cursor-pointer"
-              >
-                {savingPrice ? "Guardando…" : "Guardar precio"}
-              </button>
             </div>
 
             <div className="rounded-xl border border-card-border bg-background/40 p-4 flex flex-col gap-3">
@@ -626,7 +532,7 @@ export default function ListingDetailModal({ listingId, onClose }: { listingId: 
                           return next
                         })
                         setDraggingPhoto(null)
-                        setPhotoOk(false)
+                        setSaveOk(false)
                       }}
                       onDragEnd={() => setDraggingPhoto(null)}
                       className={`relative aspect-square rounded-xl overflow-hidden border bg-background cursor-grab active:cursor-grabbing ${
@@ -644,7 +550,7 @@ export default function ListingDetailModal({ listingId, onClose }: { listingId: 
                         type="button"
                         onClick={() => {
                           setPhotos((prev) => prev.filter((_, i) => i !== index))
-                          setPhotoOk(false)
+                          setSaveOk(false)
                         }}
                         className="absolute top-1 right-1 h-6 w-6 rounded-lg bg-black/60 text-white text-xs font-bold cursor-pointer"
                         aria-label="Quitar foto"
@@ -661,7 +567,7 @@ export default function ListingDetailModal({ listingId, onClose }: { listingId: 
                               next.unshift(moved)
                               return next
                             })
-                            setPhotoOk(false)
+                            setSaveOk(false)
                           }}
                           className="absolute bottom-1 right-1 rounded bg-black/60 text-white text-[8px] font-bold px-1 py-0.5 cursor-pointer"
                         >
@@ -687,15 +593,6 @@ export default function ListingDetailModal({ listingId, onClose }: { listingId: 
                 />
               </label>
               {photoError && <p className="text-xs text-red-500 font-bold">{photoError}</p>}
-              {photoOk && <p className="text-xs text-accent-green font-bold">Fotos actualizadas.</p>}
-              <button
-                type="button"
-                disabled={savingPhotos || uploadingPhotos || !photosDirty}
-                onClick={() => void savePhotos()}
-                className="self-start rounded-xl bg-accent-gold px-4 py-2 text-xs font-extrabold text-background disabled:opacity-50 cursor-pointer"
-              >
-                {savingPhotos ? "Guardando…" : "Guardar orden de fotos"}
-              </button>
             </div>
 
             <div className="rounded-xl border border-card-border bg-background/40 p-4 flex flex-col gap-3">
@@ -705,20 +602,11 @@ export default function ListingDetailModal({ listingId, onClose }: { listingId: 
                 value={savedDescription}
                 onChange={(html) => {
                   setDescription(html)
-                  setDescriptionOk(false)
+                  setSaveOk(false)
                 }}
                 placeholder="Descripción del artículo..."
               />
               {descriptionError && <p className="text-xs text-red-500 font-bold">{descriptionError}</p>}
-              {descriptionOk && <p className="text-xs text-accent-green font-bold">Descripción actualizada.</p>}
-              <button
-                type="button"
-                disabled={savingDescription || !descriptionDirty}
-                onClick={() => void saveDescription()}
-                className="self-start rounded-xl bg-accent-gold px-4 py-2 text-xs font-extrabold text-background disabled:opacity-50 cursor-pointer"
-              >
-                {savingDescription ? "Guardando…" : "Guardar descripción"}
-              </button>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm text-text-muted">
@@ -836,6 +724,20 @@ export default function ListingDetailModal({ listingId, onClose }: { listingId: 
               )}
             </div>
           </div>
+          </div>
+          <div className="shrink-0 border-t border-card-border px-4 sm:px-8 py-3 flex flex-wrap items-center justify-end gap-3 bg-card-bg">
+            {saveError && <p className="text-xs text-red-500 font-bold mr-auto">{saveError}</p>}
+            {saveOk && !isDirty && <p className="text-xs text-accent-green font-bold mr-auto">Cambios guardados.</p>}
+            <button
+              type="button"
+              disabled={saving || uploadingPhotos || !isDirty}
+              onClick={() => void saveAll()}
+              className="rounded-xl bg-accent-gold px-5 py-2.5 text-xs font-extrabold text-background disabled:opacity-50 cursor-pointer"
+            >
+              {saving ? "Guardando…" : "Guardar"}
+            </button>
+          </div>
+          </>
         )}
       </div>
     </div>
@@ -851,16 +753,11 @@ export default function ListingDetailModal({ listingId, onClose }: { listingId: 
       cancelText="Seguir editando"
       discardText="Salir sin guardar"
       type="warning"
-      isLoading={saving || savingPhotos || savingPrice || savingDescription || savingTitle}
+      isLoading={saving}
       onCancel={() => setAskSave(false)}
       onDiscard={onClose}
       onConfirm={async () => {
-        const titleOkSave = titleDirty ? await saveTitle() : true
-        const catOk = categoryId !== savedCategoryId ? await saveCategory() : true
-        const priceOkSave = priceDirty ? await savePrice() : true
-        const descOk = descriptionDirty ? await saveDescription() : true
-        const photoOkSave = photosDirty ? await savePhotos() : true
-        if (titleOkSave && catOk && priceOkSave && descOk && photoOkSave) {
+        if (await saveAll()) {
           setAskSave(false)
           onClose()
         }

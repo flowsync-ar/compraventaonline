@@ -209,29 +209,43 @@ export default function AdminEmpresasPage() {
       ) : (
         <div className="flex flex-col gap-2">
           {companies.map((company) => (
-            <Link
+            <div
               key={company.id}
-              href={`/admin/empresas/${company.id}`}
-              className="flex items-center gap-4 rounded-2xl border border-card-border bg-card-bg p-4 hover:border-accent-gold transition-colors"
+              className="flex items-center gap-4 rounded-2xl border border-card-border bg-card-bg p-4"
             >
-              <div className="h-12 w-12 rounded-xl overflow-hidden bg-background border border-card-border shrink-0">
-                {company.avatar_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={company.avatar_url} alt="" className="h-full w-full object-contain" />
-                ) : (
-                  <span className="flex h-full items-center justify-center text-lg">🏢</span>
-                )}
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="font-bold text-foreground truncate">{company.name}</p>
-                <p className="text-[11px] text-text-muted truncate">
-                  {company.phone}
-                  {company.location ? ` · ${company.location}` : ""}
-                  {company.address ? ` · ${company.address}` : ""}
-                </p>
-              </div>
-              <span className="text-[10px] font-extrabold text-accent-gold uppercase">Abrir</span>
-            </Link>
+              <Link
+                href={`/admin/empresas/${company.id}`}
+                className="flex min-w-0 flex-1 items-center gap-4 hover:opacity-90"
+              >
+                <div className="h-12 w-12 rounded-xl overflow-hidden bg-background border border-card-border shrink-0">
+                  {company.avatar_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={company.avatar_url} alt="" className="h-full w-full object-contain" />
+                  ) : (
+                    <span className="flex h-full items-center justify-center text-lg">🏢</span>
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="font-bold text-foreground truncate">{company.name}</p>
+                  <p className="text-[11px] text-text-muted truncate">
+                    {company.phone}
+                    {company.location ? ` · ${company.location}` : ""}
+                    {company.address ? ` · ${company.address}` : ""}
+                  </p>
+                </div>
+                <span className="text-[10px] font-extrabold text-accent-gold uppercase">Abrir</span>
+              </Link>
+              <Link
+                href={`/admin/empresas/${company.id}?panel=data`}
+                title="Editar datos de la empresa"
+                aria-label={`Editar ${company.name}`}
+                className="h-9 w-9 shrink-0 rounded-lg border border-card-border flex items-center justify-center text-foreground hover:text-accent-gold hover:border-accent-gold/40 transition-all"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-4 h-4">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
+                </svg>
+              </Link>
+            </div>
           ))}
         </div>
       )}

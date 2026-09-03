@@ -45,8 +45,12 @@ const PROFILE_COMPLETE_GATED_ROUTES = ["/dashboard", "/favoritos", "/ventas", "/
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // /admin has its own session (not Supabase Auth) — handled separately so
-  // it never runs updateSession, and the admin never touches `sellers`.
+  // /admin and /api/admin use the admin cookie, not Supabase Auth.
+  // Running updateSession on large bulk uploads rewrites sb-* cookies and
+  // can drop admin_session from the Cookie header (401 "No autorizado").
+  if (pathname.startsWith("/api/admin")) {
+    return NextResponse.next()
+  }
   if (pathname.startsWith("/admin")) {
     if (pathname === "/admin/login") {
       return NextResponse.next()

@@ -1054,7 +1054,20 @@ export default function ListingDetailPage() {
                         : "bg-gradient-to-r from-accent-gold to-accent-gold-hover text-white"
                     }`}
                   >
-                    {addedToCart ? <><span>✓</span> ¡Agregado!</> : <><span>🛒</span> Agregar al Carrito</>}
+                    {addedToCart ? (
+                      <>
+                        <span>✓</span> ¡Agregado!
+                      </>
+                    ) : (
+                      <>
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0 text-white" aria-hidden>
+                          <circle cx="8" cy="20" r="1.4" fill="currentColor" />
+                          <circle cx="19" cy="20" r="1.4" fill="currentColor" />
+                          <path d="M2 3h2.2l2.1 11.2a2 2 0 0 0 2 1.6h9.6a2 2 0 0 0 2-1.5L22 7H6.2" />
+                        </svg>
+                        Agregar al Carrito
+                      </>
+                    )}
                   </button>
                   <button
                     onClick={() => {

@@ -2,11 +2,13 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
-import { useParams } from "next/navigation"
+import { useParams, useSearchParams } from "next/navigation"
 import CompanyLogoPicker from "@/components/CompanyLogoPicker"
 import CategorySubcategoryPicker from "@/components/CategorySubcategoryPicker"
 import CustomDropdown from "@/components/CustomDropdown"
 import { normalizeListingTitle } from "@/lib/listingTitle"
+import ListingDetailModal from "../../publicaciones/ListingDetailModal"
+import CompanyBulkUpload from "@/components/admin/CompanyBulkUpload"
 
 function formatPriceDraft(raw: string): string {
   const cleaned = raw.replace(/[^\d.,]/g, "")
@@ -40,8 +42,15 @@ interface ListingRow {
   stock: number
   status: string
   image_url: string | null
-  products: { name: string } | null
+  products: { name: string; categories: { name: string } | null } | null
   currencies: { symbol: string } | null
+}
+
+const STATUS_LABELS: Record<string, string> = {
+  ACTIVE: "Activa",
+  APPROVED: "Activa",
+  PAUSED: "Pausada",
+  SOLD: "Vendida",
 }
 
 const inputClass =
@@ -49,6 +58,8 @@ const inputClass =
 
 export default function AdminEmpresaDetailPage() {
   const { id } = useParams<{ id: string }>()
+  const searchParams = useSearchParams()
+  const initialPanel = searchParams.get("panel")
   const [company, setCompany] = useState<Company | null>(null)
   const [listings, setListings] = useState<ListingRow[]>([])
   const [categories, setCategories] = useState<{ id: string; name: string; parent_id: string | null }[]>([])
@@ -79,6 +90,10 @@ export default function AdminEmpresaDetailPage() {
   const [photoDrafts, setPhotoDrafts] = useState<{ id: string; file: File; preview: string }[]>([])
   const [draggingPhoto, setDraggingPhoto] = useState<number | null>(null)
   const [photosDropActive, setPhotosDropActive] = useState(false)
+  const [editListingId, setEditListingId] = useState<string | null>(null)
+  const [panel, setPanel] = useState<"catalog" | "data" | "upload" | "bulk">(
+    initialPanel === "data" || initialPanel === "upload" || initialPanel === "bulk" ? initialPanel : "catalog",
+  )
 
   const load = async () => {
     const res = await fetch(`/api/admin/empresas/${id}`)
@@ -201,6 +216,7 @@ export default function AdminEmpresaDetailPage() {
         return []
       })
       setOk("Producto publicado con los datos de la empresa.")
+      setPanel("catalog")
       await load()
     } finally {
       setPublishing(false)
@@ -235,7 +251,7 @@ export default function AdminEmpresaDetailPage() {
   }
 
   return (
-    <div className="p-6 max-w-5xl mx-auto flex flex-col gap-8">
+    <div className="p-6 max-w-6xl mx-auto flex flex-col gap-8">
       <div className="flex items-center justify-between gap-4">
         <div>
           <Link href="/admin/empresas" className="text-[11px] font-bold text-accent-gold hover:underline">
@@ -244,12 +260,50 @@ export default function AdminEmpresaDetailPage() {
           <h1 className="font-heading text-xl font-extrabold text-foreground mt-1">{company?.name ?? "Empresa"}</h1>
         </div>
         {company && (
-          <Link
-            href={`/admin/precios?sellerId=${company.id}`}
-            className="rounded-xl border border-card-border px-3 py-2 text-[11px] font-extrabold text-foreground hover:border-accent-gold"
-          >
-            Actualizar precios
-          </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setPanel("catalog")}
+              className={`rounded-xl px-3 py-2 text-[11px] font-extrabold cursor-pointer ${
+                panel === "catalog" ? "bg-accent-gold text-background" : "border border-card-border text-foreground hover:border-accent-gold"
+              }`}
+            >
+              Catálogo
+            </button>
+            <button
+              type="button"
+              onClick={() => setPanel("upload")}
+              className={`rounded-xl px-3 py-2 text-[11px] font-extrabold cursor-pointer ${
+                panel === "upload" ? "bg-accent-gold text-background" : "border border-card-border text-foreground hover:border-accent-gold"
+              }`}
+            >
+              Cargar producto
+            </button>
+            <button
+              type="button"
+              onClick={() => setPanel("bulk")}
+              className={`rounded-xl px-3 py-2 text-[11px] font-extrabold cursor-pointer ${
+                panel === "bulk" ? "bg-accent-gold text-background" : "border border-card-border text-foreground hover:border-accent-gold"
+              }`}
+            >
+              Carga masiva
+            </button>
+            <button
+              type="button"
+              onClick={() => setPanel("data")}
+              className={`rounded-xl px-3 py-2 text-[11px] font-extrabold cursor-pointer ${
+                panel === "data" ? "bg-accent-gold text-background" : "border border-card-border text-foreground hover:border-accent-gold"
+              }`}
+            >
+              Datos de la empresa
+            </button>
+            <Link
+              href={`/admin/precios?sellerId=${company.id}`}
+              className="rounded-xl border border-card-border px-3 py-2 text-[11px] font-extrabold text-foreground hover:border-accent-gold"
+            >
+              Actualizar precios
+            </Link>
+          </div>
         )}
       </div>
 
@@ -258,6 +312,77 @@ export default function AdminEmpresaDetailPage() {
 
       {company && (
         <>
+          {panel === "catalog" && (
+          <div>
+            <h2 className="font-heading text-sm font-extrabold mb-3">Productos publicados ({listings.length})</h2>
+            {listings.length === 0 ? (
+              <p className="text-sm text-text-muted">Todavía no hay productos. Usá “Cargar producto” para publicar el primero.</p>
+            ) : (
+              <div className="overflow-x-auto rounded-2xl border border-card-border bg-card-bg">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-[10px] uppercase text-text-muted border-b border-card-border">
+                      <th className="px-4 py-3 font-extrabold">Producto</th>
+                      <th className="px-4 py-3 font-extrabold">Categoría</th>
+                      <th className="px-4 py-3 font-extrabold">Precio</th>
+                      <th className="px-4 py-3 font-extrabold">Estado</th>
+                      <th className="px-4 py-3 font-extrabold text-right">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {listings.map((listing) => (
+                      <tr key={listing.id} className="border-b border-card-border/60 last:border-0">
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="h-12 w-12 shrink-0 rounded-lg overflow-hidden bg-background border border-card-border">
+                              {listing.image_url ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={listing.image_url} alt="" className="h-full w-full object-contain" />
+                              ) : (
+                                <span className="flex h-full items-center justify-center">📦</span>
+                              )}
+                            </div>
+                            <span className="font-bold truncate">{listing.products?.name ?? "Sin nombre"}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-text-muted whitespace-nowrap">
+                          {listing.products?.categories?.name ?? "Sin categoría"}
+                        </td>
+                        <td className="px-4 py-3 font-extrabold whitespace-nowrap">
+                          {listing.currencies?.symbol ?? "$"}
+                          {Number(listing.price).toLocaleString("es-AR")}
+                        </td>
+                        <td className="px-4 py-3 text-[11px] font-bold text-text-muted whitespace-nowrap">
+                          {STATUS_LABELS[listing.status] ?? listing.status}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setEditListingId(listing.id)}
+                              className="rounded-lg bg-accent-gold px-3 py-1.5 text-[10px] font-extrabold text-background cursor-pointer"
+                            >
+                              Editar
+                            </button>
+                            <Link
+                              href={`/listings/${listing.id}`}
+                              target="_blank"
+                              className="text-[11px] font-bold text-accent-gold hover:underline"
+                            >
+                              Ver
+                            </Link>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+          )}
+
+          {panel === "data" && (
           <form onSubmit={saveProfile} className="rounded-2xl border border-card-border bg-card-bg p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="md:col-span-2">
               <CompanyLogoPicker
@@ -312,7 +437,9 @@ export default function AdminEmpresaDetailPage() {
               </button>
             </div>
           </form>
+          )}
 
+          {panel === "upload" && (
           <form onSubmit={publishProduct} className="rounded-2xl border border-card-border bg-card-bg p-5 flex flex-col gap-4">
             <h2 className="font-heading text-sm font-extrabold">Cargar producto de esta empresa</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -471,30 +598,29 @@ export default function AdminEmpresaDetailPage() {
               {publishing ? "Publicando…" : "Publicar producto"}
             </button>
           </form>
+          )}
 
-          <div>
-            <h2 className="font-heading text-sm font-extrabold mb-3">Catálogo ({listings.length})</h2>
-            {listings.length === 0 ? (
-              <p className="text-sm text-text-muted">Todavía no hay productos.</p>
-            ) : (
-              <div className="flex flex-col gap-2">
-                {listings.map((listing) => (
-                  <Link
-                    key={listing.id}
-                    href={`/listings/${listing.id}`}
-                    className="flex items-center gap-3 rounded-xl border border-card-border bg-card-bg px-4 py-3 text-sm hover:border-accent-gold"
-                  >
-                    <span className="font-bold flex-1 truncate">{listing.products?.name ?? "Sin nombre"}</span>
-                    <span className="text-xs font-extrabold">
-                      {listing.currencies?.symbol ?? "$"}
-                      {Number(listing.price).toLocaleString("es-AR")}
-                    </span>
-                  </Link>
-                ))}
-              </div>
-            )}
-          </div>
+          {panel === "bulk" && (
+            <CompanyBulkUpload
+              sellerId={company.id}
+              categories={categories}
+              onPublished={() => {
+                setPanel("catalog")
+                void load()
+              }}
+            />
+          )}
         </>
+      )}
+
+      {editListingId && (
+        <ListingDetailModal
+          listingId={editListingId}
+          onClose={() => {
+            setEditListingId(null)
+            void load()
+          }}
+        />
       )}
     </div>
   )

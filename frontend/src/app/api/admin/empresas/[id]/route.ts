@@ -19,7 +19,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
 
   const { data: listings } = await admin
     .from("listings")
-    .select("id, price, stock, status, image_url, created_at, products(name, images), currencies(symbol)")
+    .select("id, price, stock, status, image_url, created_at, products(name, images, categories(name)), currencies(symbol)")
     .eq("seller_id", id)
     .order("created_at", { ascending: false })
 

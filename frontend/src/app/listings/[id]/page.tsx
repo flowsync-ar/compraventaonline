@@ -14,6 +14,7 @@ import RichTextDisplay from "@/components/RichTextDisplay";
 import { communityLanguageRejection, flaggedLanguageTerms } from "@/lib/communityLanguage";
 import LanguageHighlightField from "@/components/LanguageHighlightField";
 import { trackEvent } from "@/lib/analytics";
+import CompanyLogoBadge, { instagramHref, websiteHref } from "@/components/CompanyLogoBadge";
 
 interface Listing {
   id: string;
@@ -40,6 +41,11 @@ interface Listing {
     type: string;
     bio: string | null;
     location: string | null;
+    phone: string | null;
+    partner: boolean;
+    address: string | null;
+    instagram: string | null;
+    website: string | null;
     mercadopago_connected: boolean;
     bank_cbu: string | null;
     bank_alias: string | null;
@@ -90,7 +96,7 @@ export default function ListingDetailPage() {
   const [showSellerModal, setShowSellerModal] = useState(false);
 
   // Contact Form States
-  const [contactMsg, setContactMsg] = useState("Hola! Estoy interesado en tu publicación. ¿Sigue disponible?");
+  const [contactMsg, setContactMsg] = useState("");
   const [contactSuccess, setContactSuccess] = useState(false);
   const [contactError, setContactError] = useState("");
 
@@ -127,6 +133,7 @@ export default function ListingDetailPage() {
 
   // Seller phone — only fetched (and only fetchable, per RLS) for logged-in users
   const [sellerPhone, setSellerPhone] = useState<string | null>(null);
+  const [directWhatsAppUrl, setDirectWhatsAppUrl] = useState<string | null>(null);
 
   // The logged-in buyer's own contact info — shown back to them in the
   // order-confirmed modal so they know exactly what the seller now sees.
@@ -231,6 +238,11 @@ export default function ListingDetailPage() {
               type,
               bio,
               location,
+              phone,
+              partner,
+              address,
+              instagram,
+              website,
               mercadopago_connected,
               bank_cbu,
               bank_alias
@@ -420,6 +432,16 @@ export default function ListingDetailPage() {
 
     fetchSellerPhone();
   }, [userId, listing?.sellers?.id]);
+
+  useEffect(() => {
+    if (!id) return;
+    fetch(`/api/listings/${id}/whatsapp`)
+      .then((res) => res.json())
+      .then((data: { url?: string | null }) => {
+        setDirectWhatsAppUrl(typeof data.url === "string" && data.url ? data.url : null);
+      })
+      .catch(() => setDirectWhatsAppUrl(null));
+  }, [id]);
 
   // Keyboard navigation for the image carousel modal
   useEffect(() => {
@@ -748,7 +770,7 @@ export default function ListingDetailPage() {
         <span className="text-foreground font-semibold truncate max-w-[200px] sm:max-w-xs">{product?.name}</span>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 min-w-0">
 
         {/* Left Column: Image and Info */}
         <div className="lg:col-span-7 flex flex-col gap-8">
@@ -759,10 +781,15 @@ export default function ListingDetailPage() {
             className="rounded-3xl overflow-hidden bg-card-bg border border-card-border p-3 shadow-xl relative aspect-[4/3] flex items-center justify-center group cursor-zoom-in"
           >
             {(listing.featured_plan === "FEATURED" || listing.featured_plan === "PREMIUM") && (
-              <span className="absolute top-6 left-6 z-10 rounded-full bg-accent-blue px-3 py-1 text-[10px] font-extrabold tracking-wider text-white shadow-md uppercase">
+              <span className={`absolute z-10 rounded-full bg-accent-blue px-3 py-1 text-[10px] font-extrabold tracking-wider text-white shadow-md uppercase ${
+                seller?.partner && seller?.avatar_url ? "top-6 right-6" : "top-6 left-6"
+              }`}>
                 ⚡ PRODUCTO DESTACADO
               </span>
             )}
+            {seller?.partner ? (
+              <CompanyLogoBadge src={seller.avatar_url} name={seller.name} />
+            ) : null}
             {images.length > 1 && (
               <span className="absolute bottom-6 right-6 z-10 rounded-lg bg-background/80 backdrop-blur-sm px-2.5 py-1 text-[10px] font-bold text-foreground shadow-md flex items-center gap-1">
                 🔍 Ver {images.length} fotos
@@ -847,6 +874,12 @@ export default function ListingDetailPage() {
                         📍 {seller.location}
                       </span>
                     )}
+                    {seller?.partner && seller.address && (
+                      <span className="text-[10px] text-text-muted mt-0.5 block">{seller.address}</span>
+                    )}
+                    {seller?.partner && seller.phone && (
+                      <span className="text-[10px] text-text-muted mt-0.5 block">📞 {seller.phone}</span>
+                    )}
                   </div>
                   {showReputation ? (
                     <span className={`px-2.5 py-0.5 rounded-full border text-[10px] font-extrabold uppercase tracking-wider ${getTierBadge(seller?.tier ?? "")}`}>
@@ -909,10 +942,10 @@ export default function ListingDetailPage() {
         </div>
 
         {/* Right Column: Transaction Panel */}
-        <div className="lg:col-span-5 flex flex-col gap-6">
+        <div className="lg:col-span-5 min-w-0 flex flex-col gap-6">
 
           {/* Main Transaction Glass Card */}
-          <div className="rounded-3xl bg-card-bg border border-card-border p-8 shadow-xl flex flex-col gap-6">
+          <div className="rounded-3xl bg-card-bg border border-card-border p-8 shadow-xl flex flex-col gap-6 overflow-hidden">
             <div className="flex items-center justify-between text-[10px] font-bold text-text-muted uppercase">
               <span className={`px-2 py-0.5 rounded ${listing.condition === "NEW" ? "bg-accent-green/15 text-accent-green" : "bg-text-muted/15 text-text-muted"}`}>
                 {listing.condition === "NEW" ? "Producto Nuevo" : "Producto Usado"}
@@ -920,8 +953,8 @@ export default function ListingDetailPage() {
               <span>Stock: {listing.stock} unidades</span>
             </div>
 
-            <div className="flex items-start justify-between gap-4">
-              <h1 className="font-heading text-2xl font-extrabold text-foreground leading-tight flex-1">
+            <div className="flex items-start justify-between gap-4 min-w-0">
+              <h1 className="font-heading text-2xl font-extrabold text-foreground leading-tight flex-1 min-w-0 break-words [overflow-wrap:anywhere]">
                 {product?.name}
               </h1>
               <button
@@ -1042,18 +1075,32 @@ export default function ListingDetailPage() {
               )}
 
               {!isOwnListing && (
-                <button
-                  onClick={() => {
-                    if (!userId) {
-                      router.push("/login?redirect=" + encodeURIComponent(`/listings/${id}`));
-                    } else {
-                      setShowContactModal(true);
-                    }
-                  }}
-                  className="w-full rounded-xl bg-card-bg border border-card-border px-6 py-4 text-xs font-bold text-foreground text-center shadow-sm hover:scale-[1.01] transition-all cursor-pointer"
-                >
-                  Preguntar al Vendedor
-                </button>
+                directWhatsAppUrl ? (
+                  <a
+                    href={directWhatsAppUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full rounded-xl bg-[#25D366] px-6 py-4 text-xs font-extrabold text-white text-center shadow-md hover:scale-[1.01] transition-all flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden>
+                      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.435 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+                    </svg>
+                    Consulta directa
+                  </a>
+                ) : (
+                  <button
+                    onClick={() => {
+                      if (!userId) {
+                        router.push("/login?redirect=" + encodeURIComponent(`/listings/${id}`));
+                      } else {
+                        setShowContactModal(true);
+                      }
+                    }}
+                    className="w-full rounded-xl bg-card-bg border border-card-border px-6 py-4 text-xs font-bold text-foreground text-center shadow-sm hover:scale-[1.01] transition-all cursor-pointer"
+                  >
+                    Preguntar al Vendedor
+                  </button>
+                )
               )}
             </div>
 
@@ -1126,6 +1173,23 @@ export default function ListingDetailPage() {
                   Más artículos de este vendedor →
                 </Link>
               )}
+              {seller?.partner && (
+                <div className="border-t border-card-border pt-3 flex flex-col gap-1 text-xs text-foreground">
+                  {seller.phone && <span>Teléfono: {seller.phone}</span>}
+                  {seller.address && <span>Dirección: {seller.address}</span>}
+                  {seller.location && <span>Ciudad: {seller.location}</span>}
+                  {instagramHref(seller.instagram) && (
+                    <a href={instagramHref(seller.instagram)!} target="_blank" rel="noopener noreferrer" className="text-accent-gold font-bold hover:underline">
+                      Instagram
+                    </a>
+                  )}
+                  {websiteHref(seller.website) && (
+                    <a href={websiteHref(seller.website)!} target="_blank" rel="noopener noreferrer" className="text-accent-gold font-bold hover:underline">
+                      Sitio web
+                    </a>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
@@ -1153,6 +1217,12 @@ export default function ListingDetailPage() {
                 </span>
                 {seller?.location && (
                   <span className="text-[10px] text-text-muted block mt-0.5">📍 {seller.location}</span>
+                )}
+                {seller?.partner && seller.address && (
+                  <span className="text-[10px] text-text-muted block mt-0.5">{seller.address}</span>
+                )}
+                {seller?.partner && seller.phone && (
+                  <span className="text-[10px] text-text-muted block mt-0.5">📞 {seller.phone}</span>
                 )}
               </div>
               <p className="text-xs text-text-muted leading-relaxed">
@@ -1433,13 +1503,17 @@ export default function ListingDetailPage() {
             </button>
           )}
 
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={images[modalImageIndex] ?? mainImage}
-            alt={`${product?.name ?? "Producto"} — foto ${modalImageIndex + 1}`}
-            onClick={(e) => e.stopPropagation()}
-            className="max-h-[85vh] max-w-[90vw] object-contain rounded-xl shadow-2xl animate-in zoom-in-95 duration-200"
-          />
+          <div className="relative max-h-[85vh] max-w-[90vw]" onClick={(e) => e.stopPropagation()}>
+            {seller?.partner ? (
+              <CompanyLogoBadge src={seller.avatar_url} name={seller.name} />
+            ) : null}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={images[modalImageIndex] ?? mainImage}
+              alt={`${product?.name ?? "Producto"} — foto ${modalImageIndex + 1}`}
+              className="max-h-[85vh] max-w-[90vw] object-contain rounded-xl shadow-2xl animate-in zoom-in-95 duration-200"
+            />
+          </div>
 
           {images.length > 1 && (
             <button

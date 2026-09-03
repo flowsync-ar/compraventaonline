@@ -10,10 +10,17 @@ export async function GET(request: NextRequest) {
   }
 
   const admin = createAdminClient()
-  const { data, error } = await admin
-    .from("sellers")
-    .select("id, user_id, name, type, phone, location, status, created_at, identity_verified, highlight_free")
-    .order("created_at", { ascending: false })
+  const withFantasma =
+    "id, user_id, name, type, phone, location, status, created_at, identity_verified, highlight_free, fantasma"
+  const withoutFantasma =
+    "id, user_id, name, type, phone, location, status, created_at, identity_verified, highlight_free"
+
+  let { data, error } = await admin.from("sellers").select(withFantasma).order("created_at", { ascending: false })
+  if (error && /fantasma/i.test(error.message)) {
+    const retry = await admin.from("sellers").select(withoutFantasma).order("created_at", { ascending: false })
+    data = retry.data
+    error = retry.error
+  }
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })

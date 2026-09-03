@@ -3,6 +3,7 @@ import Link from "next/link";
 import Image from "next/image";
 import CategorySubcategoryFilter from "../../components/CategorySubcategoryFilter";
 import CustomDropdown from "../../components/CustomDropdown";
+import CompanyLogoBadge from "@/components/CompanyLogoBadge";
 import FavoriteButton from "../../components/FavoriteButton";
 import FiltersAccordion from "../../components/FiltersAccordion";
 import { LA_PAMPA_CITIES } from "@/lib/constants/laPampaCities";
@@ -64,6 +65,8 @@ type ListingRow = {
     score: number;
     tier: string;
     location: string | null;
+    partner?: boolean;
+    avatar_url?: string | null;
   } | null;
   currencies: { symbol: string } | null;
 };
@@ -166,7 +169,9 @@ async function searchListings(params: {
           username,
           score,
           tier,
-          location
+          location,
+          partner,
+          avatar_url
         ),
         currencies ( symbol )
       `,
@@ -531,10 +536,15 @@ export default async function SearchPage({
                 return (
                   <Link key={listing.id} href={`/listings/${listing.id}`} prefetch={false} className="group flex flex-col rounded-2xl glass-card overflow-hidden relative cursor-pointer">
                     {listing.featured_plan !== "FREE" && (
-                      <span className="absolute top-3 left-3 z-10 rounded-lg bg-accent-gold px-2 py-0.5 text-[10px] font-extrabold tracking-wider text-white shadow-md uppercase">
+                      <span className={`absolute z-10 rounded-lg bg-accent-gold px-2 py-0.5 text-[10px] font-extrabold tracking-wider text-white shadow-md uppercase ${
+                        listing.sellers?.partner && listing.sellers.avatar_url ? "top-3 right-3" : "top-3 left-3"
+                      }`}>
                         💎 PREMIUM
                       </span>
                     )}
+                    {listing.sellers?.partner ? (
+                      <CompanyLogoBadge src={listing.sellers.avatar_url} name={listing.sellers.name} size="sm" />
+                    ) : null}
                     <FavoriteButton listingId={listing.id} />
                     <div className="h-44 w-full bg-card-bg overflow-hidden relative">
                       <Image
@@ -553,7 +563,7 @@ export default async function SearchPage({
                         </span>
                       </div>
 
-                      <h3 className="font-heading font-bold text-sm text-foreground group-hover:text-accent-gold transition-colors line-clamp-1">
+                      <h3 className="font-heading font-bold text-sm text-foreground group-hover:text-accent-gold transition-colors line-clamp-1 break-words [overflow-wrap:anywhere]">
                         {product?.name ?? "Sin nombre"}
                       </h3>
                       {descriptionPreview && (

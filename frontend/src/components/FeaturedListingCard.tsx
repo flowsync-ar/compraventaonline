@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
-import FavoriteButton from "@/components/FavoriteButton";
+import CompanyLogoBadge from "@/components/CompanyLogoBadge";
 import type { FeaturedListingCard as FeaturedListingCardData } from "@/lib/featuredListings";
 
 export default function FeaturedListingCard({
@@ -22,9 +22,14 @@ export default function FeaturedListingCard({
     >
       <div className="relative">
         <FavoriteButton listingId={listing.id} />
-        <span className="absolute top-3 left-3 z-10 rounded-lg bg-accent-gold px-2 py-0.5 text-[10px] font-extrabold tracking-wider text-white shadow-md uppercase">
+        <span className={`absolute z-10 rounded-lg bg-accent-gold px-2 py-0.5 text-[10px] font-extrabold tracking-wider text-white shadow-md uppercase ${
+          listing.sellers?.partner && listing.sellers.avatar_url ? "top-3 right-3" : "top-3 left-3"
+        }`}>
           ⚡ DESTACADO
         </span>
+        {listing.sellers?.partner ? (
+          <CompanyLogoBadge src={listing.sellers.avatar_url} name={listing.sellers.name} size="sm" />
+        ) : null}
         <div className="relative h-36 w-full overflow-hidden bg-card-bg">
           <Image
             src={image}
@@ -50,7 +55,7 @@ export default function FeaturedListingCard({
           </span>
         </div>
 
-        <h3 className="font-heading line-clamp-1 text-sm font-bold text-foreground transition-colors group-hover:text-accent-gold">
+        <h3 className="font-heading line-clamp-1 break-words [overflow-wrap:anywhere] text-sm font-bold text-foreground transition-colors group-hover:text-accent-gold">
           {product?.name ?? "Sin nombre"}
         </h3>
 

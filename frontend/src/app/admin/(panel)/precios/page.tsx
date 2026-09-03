@@ -48,6 +48,8 @@ export default function AdminPreciosPage() {
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
 
   useEffect(() => {
+    const fromUrl = new URLSearchParams(window.location.search).get("sellerId")
+    if (fromUrl) setSelectedSellerId(fromUrl)
     const loadSellers = async () => {
       const res = await fetch("/api/admin/pricing/sellers")
       const data = await res.json()

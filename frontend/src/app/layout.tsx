@@ -40,7 +40,10 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className="flex min-h-screen flex-col font-sans bg-background text-foreground antialiased selection:bg-accent-gold selection:text-white">
+      <body
+        className="flex min-h-screen flex-col font-sans bg-background text-foreground antialiased selection:bg-accent-gold selection:text-white"
+        suppressHydrationWarning
+      >
         <Script
           src="https://cloud.umami.is/script.js"
           data-website-id="f7038b2c-d579-41cc-9a2f-7fad22cde88d"

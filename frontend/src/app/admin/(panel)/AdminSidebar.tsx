@@ -10,6 +10,7 @@ const LINKS = [
   { href: "/admin/slides", label: "Carousel", icon: "🖼️" },
   { href: "/admin/categorias", label: "Categorías", icon: "🏷️" },
   { href: "/admin/usuarios", label: "Usuarios", icon: "👥" },
+  { href: "/admin/empresas", label: "Empresas", icon: "🏢" },
   { href: "/admin/publicaciones", label: "Publicaciones", icon: "📦" },
   { href: "/admin/reclamos", label: "Reclamos", icon: "🚩" },
   { href: "/admin/consultas", label: "Consultas", icon: "💬" },
@@ -67,7 +68,8 @@ export default function AdminSidebar({
 
       <nav className="flex-1 flex flex-col gap-1 p-3 overflow-y-auto">
         {LINKS.map((link) => {
-          const isActive = pathname === link.href
+          const isActive =
+            pathname === link.href || (link.href !== "/admin" && pathname.startsWith(`${link.href}/`))
           return (
             <Link
               key={link.href}

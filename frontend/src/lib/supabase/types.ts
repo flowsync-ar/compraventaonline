@@ -862,6 +862,11 @@ export type Database = {
           user_id: string
           username: string | null
           price_integrity_level: number
+          fantasma: boolean
+          partner: boolean
+          address: string | null
+          instagram: string | null
+          website: string | null
         }
         Insert: {
           avatar_url?: string | null
@@ -874,6 +879,11 @@ export type Database = {
           id?: string
           identity_verified?: boolean
           highlight_free?: boolean
+          fantasma?: boolean
+          partner?: boolean
+          address?: string | null
+          instagram?: string | null
+          website?: string | null
           location?: string | null
           mercadopago_connected?: boolean
           name: string
@@ -900,6 +910,11 @@ export type Database = {
           id?: string
           identity_verified?: boolean
           highlight_free?: boolean
+          fantasma?: boolean
+          partner?: boolean
+          address?: string | null
+          instagram?: string | null
+          website?: string | null
           location?: string | null
           mercadopago_connected?: boolean
           name?: string

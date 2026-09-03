@@ -21,6 +21,8 @@ export type FeaturedListingCard = {
       username: string | null;
       score: number;
       tier: string;
+      partner?: boolean;
+      avatar_url?: string | null;
     } | null;
     currencies: { symbol: string } | null;
   } | null;
@@ -44,7 +46,9 @@ const LISTING_SELECT = `
     name,
     username,
     score,
-    tier
+    tier,
+    partner,
+    avatar_url
   ),
   currencies ( symbol )
 `;

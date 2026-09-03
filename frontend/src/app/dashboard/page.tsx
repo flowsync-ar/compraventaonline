@@ -16,6 +16,7 @@ import { imageToWebp, imagesToWebp } from "@/lib/imageToWebp";
 import dynamic from "next/dynamic";
 import { isRichHtmlEmpty, sanitizeRichHtml, stripRichText } from "@/lib/richText";
 import { communityLanguageRejection, flaggedLanguageTerms } from "@/lib/communityLanguage";
+import { normalizeListingTitle } from "@/lib/listingTitle";
 import { documentNumberPlaceholder, formatDocumentNumber } from "@/lib/documentNumber";
 import { fieldErrorClass, fieldNormalClass, fieldsFromErrorPayload, type IdentityFieldErrors } from "@/lib/sellerIdentity";
 import LanguageHighlightField from "@/components/LanguageHighlightField";
@@ -1015,7 +1016,15 @@ function DashboardPageContent() {
       return;
     }
 
-    const languageError = communityLanguageRejection(productName, brand, stripRichText(description));
+    const listingTitle = normalizeListingTitle(productName)
+    setProductName(listingTitle)
+    if (listingTitle.length > 80) {
+      setErrorMsg("El título no puede superar los 80 caracteres.");
+      setLoading(false);
+      return;
+    }
+
+    const languageError = communityLanguageRejection(listingTitle, brand, stripRichText(description));
     if (languageError) {
       setErrorMsg(languageError);
       setLoading(false);
@@ -1072,7 +1081,7 @@ function DashboardPageContent() {
           const { error: productError } = await supabase
             .from("products")
             .update({
-              name: productName,
+              name: listingTitle,
               brand: brand.trim() || null,
               description: descriptionHtml,
               category_id: categoryId || null,
@@ -1131,7 +1140,7 @@ function DashboardPageContent() {
         const { data: productData, error: productError } = await supabase
           .from("products")
           .insert({
-            name: productName,
+            name: listingTitle,
             brand: brand.trim() || null,
             description: descriptionHtml,
             category_id: categoryId || null,
@@ -1174,7 +1183,7 @@ function DashboardPageContent() {
         setMyListings([listingData as unknown as Listing, ...myListings]);
         setSuccessMsg("¡Publicación creada con éxito! Ya se encuentra activa.");
         setPublishSuccessInfo({
-          name: productName,
+          name: listingTitle,
           price: parseFloat(price),
           symbol: currencies.find((c) => c.id === currencyId)?.symbol ?? "$",
           listingId: listingData.id,
@@ -2584,12 +2593,15 @@ function DashboardPageContent() {
                     <label className="text-xs font-bold text-foreground">Nombre del Producto</label>
                     <LanguageHighlightField
                       required
+                      maxLength={80}
                       value={productName}
                       onChange={setProductName}
+                      onBlur={() => setProductName(normalizeListingTitle(productName))}
                       terms={listingLanguageTerms}
                       placeholder="Ej. Miel de Caldén o Amoladora Industrial"
                       className="w-full bg-background border border-card-border rounded-xl px-4 py-3 text-xs text-foreground"
                     />
+                    <p className="text-[10px] text-text-muted">{productName.length}/80</p>
                   </div>
                   <div className="flex flex-col gap-2">
                     <label className="text-xs font-bold text-foreground">Marca (opcional)</label>

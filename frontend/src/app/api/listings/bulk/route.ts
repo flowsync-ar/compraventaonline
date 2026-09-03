@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import type { TablesInsert } from '@/lib/supabase/types'
 import { validateBulkRowFields, validateCategoryId, type BulkRowInput } from '@/lib/bulk/validateRow'
 import { communityLanguageRejection } from '@/lib/communityLanguage'
+import { normalizeListingTitle } from '@/lib/listingTitle'
 import { analyzePrice } from '@/lib/priceIntegrity/analyzePrice'
 import { PRICE_INTEGRITY_EVENT, PRICE_RISK } from '@/lib/priceIntegrity/types'
 
@@ -112,7 +113,7 @@ export async function POST(req: NextRequest) {
       : []
 
     const product: NewProduct = {
-      name: fields.name,
+      name: normalizeListingTitle(fields.name),
       brand: fields.brand,
       description: fields.description,
       category_id: category.categoryId,

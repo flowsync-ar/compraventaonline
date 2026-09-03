@@ -16,6 +16,7 @@ interface UserDetail {
   created_at: string
   identity_verified: boolean
   highlight_free: boolean
+  fantasma?: boolean
   document_number: string | null
 }
 
@@ -142,6 +143,12 @@ export default function UserDetailModal({ userId, onClose }: { userId: string; o
                 <span className="block text-[9px] uppercase text-text-muted/70">Destacar gratis</span>
                 <span className={user.highlight_free ? "text-accent-gold font-bold" : "text-text-muted"}>
                   {user.highlight_free ? "Sí" : "No"}
+                </span>
+              </div>
+              <div>
+                <span className="block text-[9px] uppercase text-text-muted/70">Fantasma</span>
+                <span className={user.fantasma ? "text-accent-blue font-bold" : "text-text-muted"}>
+                  {user.fantasma ? "Sí" : "No"}
                 </span>
               </div>
               <div>

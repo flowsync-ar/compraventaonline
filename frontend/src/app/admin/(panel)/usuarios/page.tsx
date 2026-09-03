@@ -17,6 +17,7 @@ interface AdminUser {
   created_at: string
   identity_verified: boolean
   highlight_free: boolean
+  fantasma?: boolean
 }
 
 export default function AdminUsuariosPage() {
@@ -32,11 +33,18 @@ export default function AdminUsuariosPage() {
   const [highlightTarget, setHighlightTarget] = useState<AdminUser | null>(null)
   const [togglingHighlight, setTogglingHighlight] = useState(false)
   const [showCreate, setShowCreate] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   const loadUsers = async () => {
     const res = await fetch("/api/admin/users")
     const data = await res.json()
-    if (res.ok) setUsers(data.users)
+    if (res.ok) {
+      setUsers(data.users ?? [])
+      setLoadError(null)
+    } else {
+      setUsers([])
+      setLoadError(data.error ?? "No se pudo cargar la lista de usuarios.")
+    }
     setLoading(false)
   }
 
@@ -153,6 +161,10 @@ export default function AdminUsuariosPage() {
       <div className="rounded-2xl glass-panel p-3 sm:p-6">
         {loading ? (
           <p className="text-sm text-text-muted">Cargando...</p>
+        ) : loadError ? (
+          <p className="text-sm text-red-500">{loadError}</p>
+        ) : filtered.length === 0 ? (
+          <p className="text-sm text-text-muted text-center py-6">No se encontraron usuarios.</p>
         ) : (
           <>
             <div className="flex flex-col gap-3 lg:hidden">
@@ -168,6 +180,7 @@ export default function AdminUsuariosPage() {
                       <p className="text-[11px] text-text-muted mt-0.5">
                         {user.type === "BUSINESS_SELLER" ? "Empresa" : "Personal"}
                         {user.location ? ` · ${user.location}` : ""}
+                        {user.fantasma ? " · Fantasma" : ""}
                       </p>
                     </div>
                     <span
@@ -234,6 +247,7 @@ export default function AdminUsuariosPage() {
                 <th className="py-2 pr-4">Nombre</th>
                 <th className="py-2 px-4">Tipo</th>
                 <th className="py-2 px-4">Ubicación</th>
+                <th className="py-2 px-4">Fantasma</th>
                 <th className="py-2 px-4">Estado</th>
                 <th className="py-2 pl-4 text-right">Acciones</th>
               </tr>
@@ -250,6 +264,15 @@ export default function AdminUsuariosPage() {
                     {user.type === "BUSINESS_SELLER" ? "Empresa" : "Personal"}
                   </td>
                   <td className="py-2.5 px-4 text-text-muted">{user.location ?? "—"}</td>
+                  <td className="py-2.5 px-4">
+                    {user.fantasma ? (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-accent-blue/10 text-accent-blue">
+                        Sí
+                      </span>
+                    ) : (
+                      <span className="text-text-muted">—</span>
+                    )}
+                  </td>
                   <td className="py-2.5 px-4">
                     <span
                       className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${

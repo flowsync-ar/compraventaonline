@@ -23,7 +23,7 @@ function documentVariants(value: string): string[] {
   ])
 }
 
-function phoneVariants(value: string): string[] {
+export function phoneVariants(value: string): string[] {
   const digits = digitsOnly(value)
   if (!digits) return []
   const withoutCountry = digits.startsWith("54") && digits.length > 10 ? digits.slice(2) : digits
@@ -80,4 +80,40 @@ export async function findIdentityConflicts(
   }
 
   return { documentTaken, phoneTaken }
+}
+
+export async function findSellerForCompanyConversion(
+  admin: AdminClient,
+  params: { email: string; phone: string },
+): Promise<{ id: string; user_id: string; name: string; email: string; partner: boolean } | null> {
+  const email = params.email.trim().toLowerCase()
+  if (email) {
+    const { data: byEmail } = await admin
+      .from("sellers")
+      .select("id, user_id, name, email, partner")
+      .eq("email", email)
+      .maybeSingle()
+    if (byEmail) return byEmail
+  }
+
+  const digits = digitsOnly(params.phone)
+  const variants = phoneVariants(params.phone)
+  if (variants.length > 0) {
+    const { data: phones } = await admin
+      .from("sellers")
+      .select("id, user_id, name, email, partner, phone")
+      .in("phone", variants)
+      .limit(5)
+    if (phones?.[0]) return phones[0]
+  }
+
+  const tail = digits.slice(-8)
+  if (tail.length < 6) return null
+  const { data: fuzzy } = await admin
+    .from("sellers")
+    .select("id, user_id, name, email, partner, phone")
+    .ilike("phone", `%${tail}%`)
+    .limit(20)
+  const match = (fuzzy ?? []).find((row) => digitsOnly(row.phone) === digits || digitsOnly(row.phone).endsWith(tail))
+  return match ?? null
 }

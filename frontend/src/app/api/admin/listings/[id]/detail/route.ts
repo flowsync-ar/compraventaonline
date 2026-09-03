@@ -55,7 +55,11 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
       .select(questionSelectSafe)
       .eq("listing_id", id)
       .order("created_at", { ascending: false })
-    questions = (fallback.data ?? []).map((row) => ({ ...row, from_admin: false }))
+    questions = (fallback.data ?? []).map((row) => ({
+      ...row,
+      from_admin: false,
+      buyer: row.buyer ? { ...row.buyer, fantasma: false } : row.buyer,
+    }))
   }
 
   let ghostBuyers = ghosts.data ?? []

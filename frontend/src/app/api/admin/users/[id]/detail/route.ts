@@ -64,7 +64,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
   let asked = questionsAskedRows.data ?? []
   if (questionsAskedRows.error && /from_admin/i.test(questionsAskedRows.error.message)) {
     const retry = await admin.from("questions").select(questionSelectFallback).eq("buyer_id", id).order("created_at", { ascending: false })
-    asked = retry.data ?? []
+    asked = (retry.data ?? []).map((row) => ({ ...row, from_admin: false })) as typeof asked
   }
 
   let received = questionsReceivedRows.data ?? []
@@ -74,7 +74,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
       .select(questionSelectFallback)
       .in("listing_id", listingIds)
       .order("created_at", { ascending: false })
-    received = retry.data ?? []
+    received = (retry.data ?? []).map((row) => ({ ...row, from_admin: false })) as typeof received
   }
 
   return NextResponse.json({

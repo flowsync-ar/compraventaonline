@@ -39,19 +39,43 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
     else if (l.status === "DELETED") counts.deleted++
   }
 
-  const [reportsReceived, favoritesSaved, questionsAsked, questionsReceived, paidOrders] = await Promise.all([
+  const questionSelect =
+    "id, question, answer, created_at, updated_at, from_admin, listing_id, buyer:sellers!questions_buyer_id_fkey(name), listing:listings!questions_listing_id_fkey(id, products(name))"
+  const questionSelectFallback =
+    "id, question, answer, created_at, updated_at, listing_id, buyer:sellers!questions_buyer_id_fkey(name), listing:listings!questions_listing_id_fkey(id, products(name))"
+
+  const fetchAsked = () =>
+    admin.from("questions").select(questionSelect).eq("buyer_id", id).order("created_at", { ascending: false })
+  const fetchReceived = () =>
+    listingIds.length > 0
+      ? admin.from("questions").select(questionSelect).in("listing_id", listingIds).order("created_at", { ascending: false })
+      : Promise.resolve({ data: [] as never[], error: null })
+
+  const [reportsReceived, favoritesSaved, questionsAskedRows, questionsReceivedRows, paidOrders] = await Promise.all([
     listingIds.length > 0
       ? admin.from("product_reports").select("id", { count: "exact", head: true }).in("listing_id", listingIds)
       : Promise.resolve({ count: 0 }),
     admin.from("favorites").select("id", { count: "exact", head: true }).eq("seller_id", id),
-    admin.from("questions").select("id", { count: "exact", head: true }).eq("buyer_id", id),
-    listingIds.length > 0
-      ? admin.from("questions").select("id", { count: "exact", head: true }).in("listing_id", listingIds)
-      : Promise.resolve({ count: 0 }),
-    // Whether this seller ever completed a sale — score/tier default to
-    // 80/BRONCE at signup, which would otherwise read as a real reputation.
+    fetchAsked(),
+    fetchReceived(),
     admin.from("orders").select("id", { count: "exact", head: true }).eq("seller_id", id).eq("status", "PAID"),
   ])
+
+  let asked = questionsAskedRows.data ?? []
+  if (questionsAskedRows.error && /from_admin/i.test(questionsAskedRows.error.message)) {
+    const retry = await admin.from("questions").select(questionSelectFallback).eq("buyer_id", id).order("created_at", { ascending: false })
+    asked = retry.data ?? []
+  }
+
+  let received = questionsReceivedRows.data ?? []
+  if (questionsReceivedRows.error && /from_admin/i.test(questionsReceivedRows.error.message) && listingIds.length > 0) {
+    const retry = await admin
+      .from("questions")
+      .select(questionSelectFallback)
+      .in("listing_id", listingIds)
+      .order("created_at", { ascending: false })
+    received = retry.data ?? []
+  }
 
   return NextResponse.json({
     user: { ...seller, email: authUser?.user?.email ?? null },
@@ -64,9 +88,11 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
       deletedListings: counts.deleted,
       reportsReceived: reportsReceived.count ?? 0,
       favoritesSaved: favoritesSaved.count ?? 0,
-      questionsAsked: questionsAsked.count ?? 0,
-      questionsReceived: questionsReceived.count ?? 0,
+      questionsAsked: asked.length,
+      questionsReceived: received.length,
     },
     listings: listingRows,
+    questionsReceived: received,
+    questionsAsked: asked,
   })
 }

@@ -176,12 +176,18 @@ export default function AdminUsuariosPage() {
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="text-sm font-extrabold text-foreground break-words">{user.name}</p>
+                      <p className={`text-sm font-extrabold break-words ${user.fantasma ? "text-red-500" : "text-foreground"}`}>
+                        {user.name}
+                      </p>
                       <p className="text-[11px] text-text-muted mt-0.5">
                         {user.type === "BUSINESS_SELLER" ? "Empresa" : "Personal"}
                         {user.location ? ` · ${user.location}` : ""}
-                        {user.fantasma ? " · Fantasma" : ""}
                       </p>
+                      {user.fantasma && (
+                        <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-red-500/10 text-red-500">
+                          Usuario bot
+                        </span>
+                      )}
                     </div>
                     <span
                       className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${
@@ -247,7 +253,7 @@ export default function AdminUsuariosPage() {
                 <th className="py-2 pr-4">Nombre</th>
                 <th className="py-2 px-4">Tipo</th>
                 <th className="py-2 px-4">Ubicación</th>
-                <th className="py-2 px-4">Fantasma</th>
+                <th className="py-2 px-4">Bot</th>
                 <th className="py-2 px-4">Estado</th>
                 <th className="py-2 pl-4 text-right">Acciones</th>
               </tr>
@@ -257,17 +263,21 @@ export default function AdminUsuariosPage() {
                 <tr
                   key={user.id}
                   onClick={() => setDetailUserId(user.id)}
-                  className="border-b border-card-border/30 hover:bg-card-bg/30 transition-colors cursor-pointer"
+                  className={`border-b border-card-border/30 hover:bg-card-bg/30 transition-colors cursor-pointer ${
+                    user.fantasma ? "bg-red-500/5" : ""
+                  }`}
                 >
-                  <td className="py-2.5 pr-4 font-bold text-foreground">{user.name}</td>
+                  <td className={`py-2.5 pr-4 font-bold ${user.fantasma ? "text-red-500" : "text-foreground"}`}>
+                    {user.name}
+                  </td>
                   <td className="py-2.5 px-4 text-text-muted whitespace-nowrap">
                     {user.type === "BUSINESS_SELLER" ? "Empresa" : "Personal"}
                   </td>
                   <td className="py-2.5 px-4 text-text-muted">{user.location ?? "—"}</td>
                   <td className="py-2.5 px-4">
                     {user.fantasma ? (
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-accent-blue/10 text-accent-blue">
-                        Sí
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-red-500/10 text-red-500">
+                        Usuario bot
                       </span>
                     ) : (
                       <span className="text-text-muted">—</span>

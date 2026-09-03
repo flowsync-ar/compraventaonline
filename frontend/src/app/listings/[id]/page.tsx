@@ -730,9 +730,13 @@ export default function ListingDetailPage() {
       : `549${sellerPhoneDigits.replace(/^54/, "")}`
     : null;
 
+  const listingPublicUrl =
+    typeof window !== "undefined"
+      ? `${window.location.origin}/listings/${id}`
+      : `https://www.compraventaonline.com.ar/listings/${id}`;
   const formattedWhatsAppUrl = sellerWhatsAppNumber
     ? `https://wa.me/${sellerWhatsAppNumber}?text=${encodeURIComponent(
-        `Hola! Te contacto desde CompraVentaOnline.com.ar por el artículo "${product?.name}" (${currencySymbol}${Number(listing.price).toLocaleString("es-AR")}). Sigue disponible?`
+        `Hola! Te contacto desde CompraVentaOnline.com.ar por el artículo "${product?.name}" (${currencySymbol}${Number(listing.price).toLocaleString("es-AR")}). Sigue disponible? —> ${listingPublicUrl}`
       )}`
     : null;
 

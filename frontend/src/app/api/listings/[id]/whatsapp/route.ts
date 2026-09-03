@@ -29,7 +29,9 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   }
 
   const title = product?.name?.trim() || "esta publicación"
-  const text = `Te contacto desde CompraVentaOnline y me interesa esta publicación: ${title}`
+  const site = (process.env.NEXT_PUBLIC_SITE_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "https://www.compraventaonline.com.ar").replace(/\/$/, "")
+  const listingUrl = `${site}/listings/${id}`
+  const text = `Te contacto desde CompraVentaOnline y me interesa esta publicación: ${title} —> ${listingUrl}`
   return NextResponse.json({
     url: `https://wa.me/${number}?text=${encodeURIComponent(text)}`,
   })

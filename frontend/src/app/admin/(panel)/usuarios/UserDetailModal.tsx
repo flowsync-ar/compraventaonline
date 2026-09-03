@@ -40,6 +40,18 @@ interface ListingRow {
   products: { name: string } | null
 }
 
+interface QuestionThread {
+  id: string
+  question: string
+  answer: string | null
+  created_at: string
+  updated_at: string
+  from_admin?: boolean
+  listing_id: string
+  buyer: { name: string } | null
+  listing: { id: string; products: { name: string } | null } | null
+}
+
 const STATUS_LABELS: Record<string, string> = {
   ACTIVE: "Activa",
   APPROVED: "Activa",
@@ -61,6 +73,8 @@ export default function UserDetailModal({ userId, onClose }: { userId: string; o
   const [user, setUser] = useState<UserDetail | null>(null)
   const [stats, setStats] = useState<UserStats | null>(null)
   const [listings, setListings] = useState<ListingRow[]>([])
+  const [questionsReceived, setQuestionsReceived] = useState<QuestionThread[]>([])
+  const [questionsAsked, setQuestionsAsked] = useState<QuestionThread[]>([])
   const [hasSales, setHasSales] = useState(false)
   const [loading, setLoading] = useState(true)
 
@@ -71,6 +85,8 @@ export default function UserDetailModal({ userId, onClose }: { userId: string; o
         setUser(data.user ?? null)
         setStats(data.stats ?? null)
         setListings(data.listings ?? [])
+        setQuestionsReceived(data.questionsReceived ?? [])
+        setQuestionsAsked(data.questionsAsked ?? [])
         setHasSales(!!data.hasSales)
       })
       .finally(() => setLoading(false))
@@ -82,7 +98,7 @@ export default function UserDetailModal({ userId, onClose }: { userId: string; o
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-3xl bg-card-bg border border-card-border p-8 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200"
+        className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-3xl bg-card-bg border border-card-border p-8 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200"
       >
         <button onClick={onClose} className="absolute top-4 right-4 text-text-muted hover:text-foreground text-lg cursor-pointer">
           ✕
@@ -95,9 +111,16 @@ export default function UserDetailModal({ userId, onClose }: { userId: string; o
         ) : (
           <div className="flex flex-col gap-6">
             <div>
-              <h3 className="font-heading text-lg font-bold text-foreground">{user.name}</h3>
+              <h3 className={`font-heading text-lg font-bold ${user.fantasma ? "text-red-500" : "text-foreground"}`}>
+                {user.name}
+              </h3>
               <p className="text-sm text-text-muted mt-0.5">{user.email ?? "Sin email registrado"}</p>
               <div className="flex flex-wrap gap-2 mt-3">
+                {user.fantasma && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-red-500/10 text-red-500">
+                    Usuario bot
+                  </span>
+                )}
                 <span
                   className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${
                     user.status === "ACTIVE" ? "bg-accent-green/10 text-accent-green" : "bg-red-500/10 text-red-500"
@@ -146,8 +169,8 @@ export default function UserDetailModal({ userId, onClose }: { userId: string; o
                 </span>
               </div>
               <div>
-                <span className="block text-[9px] uppercase text-text-muted/70">Fantasma</span>
-                <span className={user.fantasma ? "text-accent-blue font-bold" : "text-text-muted"}>
+                <span className="block text-[9px] uppercase text-text-muted/70">Usuario bot</span>
+                <span className={user.fantasma ? "text-red-500 font-extrabold" : "text-text-muted"}>
                   {user.fantasma ? "Sí" : "No"}
                 </span>
               </div>
@@ -177,6 +200,85 @@ export default function UserDetailModal({ userId, onClose }: { userId: string; o
                 <StatTile label="Preguntas recibidas" value={stats.questionsReceived} />
               </div>
             )}
+
+            <div>
+              <h4 className="text-sm font-extrabold text-foreground uppercase tracking-wider mb-3">
+                Preguntas recibidas ({questionsReceived.length})
+              </h4>
+              {questionsReceived.length === 0 ? (
+                <p className="text-sm text-text-muted">Todavía no le preguntaron en sus avisos.</p>
+              ) : (
+                <div className="flex flex-col gap-2 max-h-72 overflow-y-auto pr-1">
+                  {questionsReceived.map((q) => (
+                    <div key={q.id} className="rounded-xl border border-card-border bg-background/40 p-3 text-xs flex flex-col gap-1.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <Link
+                          href={`/listings/${q.listing?.id ?? q.listing_id}`}
+                          target="_blank"
+                          className="font-bold text-accent-gold hover:underline truncate"
+                        >
+                          {q.listing?.products?.name ?? "Publicación"}
+                        </Link>
+                        <span className="text-[10px] text-text-muted whitespace-nowrap">
+                          {new Date(q.created_at).toLocaleDateString("es-AR")}
+                          {q.from_admin ? " · Fantasma" : ""}
+                        </span>
+                      </div>
+                      <p className="text-foreground">
+                        <span className="text-[10px] font-extrabold uppercase text-text-muted">{q.buyer?.name ?? "Comprador"}: </span>
+                        {q.question}
+                      </p>
+                      {q.answer ? (
+                        <p className="text-foreground border-t border-card-border/60 pt-1.5">
+                          <span className="text-[10px] font-extrabold uppercase text-accent-gold">Respondió: </span>
+                          {q.answer}
+                        </p>
+                      ) : (
+                        <p className="text-[11px] text-yellow-600 font-bold">Sin responder</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <h4 className="text-sm font-extrabold text-foreground uppercase tracking-wider mb-3">
+                Preguntas hechas ({questionsAsked.length})
+              </h4>
+              {questionsAsked.length === 0 ? (
+                <p className="text-sm text-text-muted">No preguntó en avisos de otros.</p>
+              ) : (
+                <div className="flex flex-col gap-2 max-h-56 overflow-y-auto pr-1">
+                  {questionsAsked.map((q) => (
+                    <div key={q.id} className="rounded-xl border border-card-border bg-background/40 p-3 text-xs flex flex-col gap-1.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <Link
+                          href={`/listings/${q.listing?.id ?? q.listing_id}`}
+                          target="_blank"
+                          className="font-bold text-accent-gold hover:underline truncate"
+                        >
+                          {q.listing?.products?.name ?? "Publicación"}
+                        </Link>
+                        <span className="text-[10px] text-text-muted whitespace-nowrap">
+                          {new Date(q.created_at).toLocaleDateString("es-AR")}
+                          {q.from_admin ? " · Fantasma" : ""}
+                        </span>
+                      </div>
+                      <p className="text-foreground">{q.question}</p>
+                      {q.answer ? (
+                        <p className="text-foreground border-t border-card-border/60 pt-1.5">
+                          <span className="text-[10px] font-extrabold uppercase text-accent-gold">Respuesta del vendedor: </span>
+                          {q.answer}
+                        </p>
+                      ) : (
+                        <p className="text-[11px] text-yellow-600 font-bold">El vendedor aún no respondió</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
 
             <div>
               <h4 className="text-sm font-extrabold text-foreground uppercase tracking-wider mb-3">

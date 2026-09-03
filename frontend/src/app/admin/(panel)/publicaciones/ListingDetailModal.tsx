@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import dynamic from "next/dynamic"
 import Link from "next/link"
 import ConfirmModal from "@/components/ConfirmModal"
@@ -57,9 +57,10 @@ interface QuestionRow {
   question_deleted: boolean
   answer_deleted: boolean
   hidden_by_seller: boolean
+  from_admin?: boolean
   created_at: string
   updated_at: string
-  buyer: { name: string } | null
+  buyer: { id?: string; name: string; email?: string | null; phone?: string | null; fantasma?: boolean } | null
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -131,9 +132,28 @@ function formatStoredPrice(value: number): string {
   return value.toLocaleString("es-AR", { maximumFractionDigits: 2 })
 }
 
-function StatTile({ label, value }: { label: string; value: number }) {
+function StatTile({
+  label,
+  value,
+  onClick,
+}: {
+  label: string
+  value: number
+  onClick?: () => void
+}) {
+  const className = `rounded-xl bg-card-bg border border-card-border p-3 flex flex-col items-center text-center ${
+    onClick ? "cursor-pointer hover:border-accent-gold transition-colors" : ""
+  }`
+  if (onClick) {
+    return (
+      <button type="button" onClick={onClick} className={className}>
+        <span className="text-xl font-extrabold text-foreground">{value}</span>
+        <span className="text-[9px] text-text-muted uppercase tracking-wide mt-0.5">{label}</span>
+      </button>
+    )
+  }
   return (
-    <div className="rounded-xl bg-card-bg border border-card-border p-3 flex flex-col items-center text-center">
+    <div className={className}>
       <span className="text-xl font-extrabold text-foreground">{value}</span>
       <span className="text-[9px] text-text-muted uppercase tracking-wide mt-0.5">{label}</span>
     </div>
@@ -172,6 +192,18 @@ export default function ListingDetailModal({ listingId, onClose }: { listingId: 
     target: "question" | "answer"
     mode: "hide" | "delete"
   } | null>(null)
+  const [ghostBuyers, setGhostBuyers] = useState<{ id: string; name: string }[]>([])
+  const [ghostBuyerId, setGhostBuyerId] = useState("")
+  const [ghostQuestion, setGhostQuestion] = useState("Hola, ¿sigue disponible?")
+  const [sendingGhost, setSendingGhost] = useState(false)
+  const [ghostError, setGhostError] = useState<string | null>(null)
+  const questionsRef = useRef<HTMLDivElement>(null)
+  const [focusQuestions, setFocusQuestions] = useState(false)
+
+  const openQuestions = () => {
+    setFocusQuestions(true)
+    questionsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+  }
 
   useEffect(() => {
     Promise.all([
@@ -182,6 +214,8 @@ export default function ListingDetailModal({ listingId, onClose }: { listingId: 
         setListing(detail.listing ?? null)
         setStats(detail.stats ?? null)
         setQuestions(detail.questions ?? [])
+        setGhostBuyers(detail.ghostBuyers ?? [])
+        setGhostBuyerId((current) => current || detail.ghostBuyers?.[0]?.id || "")
         const currentId = detail.listing?.products?.category_id ?? detail.listing?.products?.categories?.id ?? ""
         setCategoryId(currentId)
         setSavedCategoryId(currentId)
@@ -414,7 +448,7 @@ export default function ListingDetailModal({ listingId, onClose }: { listingId: 
         ) : (
           <>
           <div className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-8 py-5">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
             <div className="flex gap-4">
               <div className="h-20 w-20 rounded-xl overflow-hidden border border-card-border bg-card-bg-solid shrink-0">
                 {thumbnail ? (
@@ -470,44 +504,45 @@ export default function ListingDetailModal({ listingId, onClose }: { listingId: 
               </div>
             </div>
 
-            <div className="rounded-xl border border-card-border bg-background/40 p-4 flex flex-col gap-3">
-              <label className="text-xs font-extrabold text-foreground uppercase tracking-wide">Categoría</label>
-              <CustomDropdown
-                name="categoryId"
-                defaultValue={categoryId}
-                showSearch
-                placeholder="Buscar categoría..."
-                options={[
-                  { name: "— Sin categoría —", value: "" },
-                  ...flattenTree(categories).map(({ category, depth }) => ({
-                    name: depth === 0 ? category.name : categoryPath(categories, category.id),
-                    value: category.id,
-                    color: depthColor(depth),
-                  })),
-                ]}
-                onChange={(val) => {
-                  setCategoryId(val)
-                  setSaveOk(false)
-                }}
-              />
-            </div>
-
-            <div className="rounded-xl border border-card-border bg-background/40 p-4 flex flex-col gap-3">
-              <label className="text-xs font-extrabold text-foreground uppercase tracking-wide">Precio</label>
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-bold text-text-muted">{listing.currencies?.symbol ?? "$"}</span>
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  value={priceDraft}
-                  onChange={(e) => {
-                    setPriceDraft(formatPriceDraft(e.target.value))
+            <div className="rounded-xl border border-card-border bg-background/40 p-4 grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-4 items-end">
+              <div className="flex flex-col gap-3 min-w-0">
+                <label className="text-xs font-extrabold text-foreground uppercase tracking-wide">Categoría</label>
+                <CustomDropdown
+                  name="categoryId"
+                  defaultValue={categoryId}
+                  showSearch
+                  placeholder="Buscar categoría..."
+                  options={[
+                    { name: "— Sin categoría —", value: "" },
+                    ...flattenTree(categories).map(({ category, depth }) => ({
+                      name: depth === 0 ? category.name : categoryPath(categories, category.id),
+                      value: category.id,
+                      color: depthColor(depth),
+                    })),
+                  ]}
+                  onChange={(val) => {
+                    setCategoryId(val)
                     setSaveOk(false)
                   }}
-                  className="flex-1 bg-background border border-card-border rounded-xl px-4 py-2.5 text-sm text-foreground focus:outline-none focus:border-accent-gold"
                 />
               </div>
-              {priceError && <p className="text-xs text-red-500 font-bold">{priceError}</p>}
+              <div className="flex flex-col gap-3 w-full sm:w-44">
+                <label className="text-xs font-extrabold text-foreground uppercase tracking-wide">Precio</label>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-bold text-text-muted">{listing.currencies?.symbol ?? "$"}</span>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={priceDraft}
+                    onChange={(e) => {
+                      setPriceDraft(formatPriceDraft(e.target.value))
+                      setSaveOk(false)
+                    }}
+                    className="w-full bg-background border border-card-border rounded-xl px-4 py-2.5 text-sm text-foreground focus:outline-none focus:border-accent-gold"
+                  />
+                </div>
+                {priceError && <p className="text-xs text-red-500 font-bold">{priceError}</p>}
+              </div>
             </div>
 
             <div className="rounded-xl border border-card-border bg-background/40 p-4 flex flex-col gap-3">
@@ -609,37 +644,37 @@ export default function ListingDetailModal({ listingId, onClose }: { listingId: 
               {descriptionError && <p className="text-xs text-red-500 font-bold">{descriptionError}</p>}
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm text-text-muted">
-              <div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3 text-sm text-text-muted lg:col-span-2">
+              <div className="min-w-0">
                 <span className="block text-[9px] uppercase text-text-muted/70">Creado por</span>
-                {listing.sellers?.name ?? "—"}
+                <p className="truncate">{listing.sellers?.name ?? "—"}</p>
               </div>
-              <div>
+              <div className="min-w-0">
                 <span className="block text-[9px] uppercase text-text-muted/70">Email del vendedor</span>
-                {listing.sellerEmail ?? "—"}
+                <p className="break-all">{listing.sellerEmail ?? "—"}</p>
               </div>
-              <div>
+              <div className="min-w-0">
                 <span className="block text-[9px] uppercase text-text-muted/70">Instagram CVO</span>
-                {listing.share_to_social?.includes("INSTAGRAM") ? "Aceptó publicar" : "No aceptó"}
+                <p>{listing.share_to_social?.includes("INSTAGRAM") ? "Aceptó publicar" : "No aceptó"}</p>
               </div>
-              <div>
+              <div className="min-w-0">
                 <span className="block text-[9px] uppercase text-text-muted/70">Stock</span>
-                {listing.stock}
+                <p>{listing.stock}</p>
               </div>
-              <div>
+              <div className="min-w-0">
                 <span className="block text-[9px] uppercase text-text-muted/70">Publicada desde</span>
-                {new Date(listing.created_at).toLocaleDateString("es-AR")}
+                <p>{new Date(listing.created_at).toLocaleDateString("es-AR")}</p>
               </div>
-              <div>
+              <div className="min-w-0">
                 <span className="block text-[9px] uppercase text-text-muted/70">Última actualización</span>
-                {new Date(listing.updated_at).toLocaleDateString("es-AR")}
+                <p>{new Date(listing.updated_at).toLocaleDateString("es-AR")}</p>
               </div>
             </div>
 
             {stats && (
               <div className="grid grid-cols-3 gap-2.5">
                 <StatTile label="Favoritos guardados" value={stats.favoritesSaved} />
-                <StatTile label="Preguntas recibidas" value={stats.questionsReceived} />
+                <StatTile label="Preguntas recibidas" value={stats.questionsReceived} onClick={openQuestions} />
                 <StatTile label="Reclamos recibidos" value={stats.reportsReceived} />
               </div>
             )}
@@ -648,8 +683,72 @@ export default function ListingDetailModal({ listingId, onClose }: { listingId: 
               La cantidad de visitas no se muestra porque el sitio todavía no registra vistas de publicaciones.
             </p>
 
-            <div className="flex flex-col gap-3 border-t border-card-border pt-5">
+            <div
+              ref={questionsRef}
+              className={`flex flex-col gap-3 border-t pt-5 ${
+                focusQuestions ? "border-accent-gold" : "border-card-border"
+              }`}
+            >
               <h3 className="text-xs font-extrabold text-foreground uppercase tracking-wide">Preguntas y Respuestas</h3>
+              <p className="text-[11px] text-text-muted -mt-1">
+                Las consultas reales las mandan compradores. Las fantasmas solo se disparan desde acá, con una cuenta marcada en Usuarios.
+              </p>
+
+              <div className="rounded-xl border border-dashed border-accent-gold/40 bg-accent-gold/5 p-3 flex flex-col gap-2">
+                <span className="text-[10px] font-extrabold uppercase text-accent-gold">Enviar pregunta fantasma</span>
+                {ghostBuyers.length === 0 ? (
+                  <p className="text-[11px] text-text-muted">
+                    No hay cuentas fantasma. Marcá una en Usuarios y volvé a abrir este aviso.
+                  </p>
+                ) : (
+                  <>
+                    <CustomDropdown
+                      name="ghost-buyer"
+                      defaultValue={ghostBuyerId}
+                      onChange={setGhostBuyerId}
+                      options={ghostBuyers.map((g) => ({ name: g.name, value: g.id }))}
+                    />
+                    <textarea
+                      value={ghostQuestion}
+                      onChange={(e) => setGhostQuestion(e.target.value)}
+                      rows={2}
+                      className="w-full bg-background border border-card-border rounded-xl px-3 py-2 text-xs text-foreground focus:outline-none focus:border-accent-gold"
+                    />
+                    {ghostError && <p className="text-xs text-red-500 font-bold">{ghostError}</p>}
+                    <button
+                      type="button"
+                      disabled={sendingGhost || !ghostBuyerId || ghostQuestion.trim().length < 4}
+                      onClick={() => {
+                        void (async () => {
+                          setSendingGhost(true)
+                          setGhostError(null)
+                          try {
+                            const res = await fetch(`/api/admin/listings/${listingId}/questions`, {
+                              method: "POST",
+                              credentials: "include",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ question: ghostQuestion, buyerId: ghostBuyerId }),
+                            })
+                            const data = await res.json()
+                            if (!res.ok) throw new Error(data.error ?? "No se pudo enviar.")
+                            setQuestions((prev) => [data.question, ...prev])
+                            setStats((prev) =>
+                              prev ? { ...prev, questionsReceived: prev.questionsReceived + 1 } : prev,
+                            )
+                          } catch (err) {
+                            setGhostError(err instanceof Error ? err.message : "No se pudo enviar.")
+                          } finally {
+                            setSendingGhost(false)
+                          }
+                        })()
+                      }}
+                      className="self-start rounded-lg bg-accent-gold px-3 py-1.5 text-[10px] font-extrabold text-background disabled:opacity-50 cursor-pointer"
+                    >
+                      {sendingGhost ? "Enviando…" : "Disparar pregunta"}
+                    </button>
+                  </>
+                )}
+              </div>
 
               {questions.length === 0 ? (
                 <p className="text-xs text-text-muted">Sin consultas registradas.</p>
@@ -661,8 +760,15 @@ export default function ListingDetailModal({ listingId, onClose }: { listingId: 
                         <div className="flex-1 min-w-0">
                           <span className="text-[9px] font-bold text-text-muted block uppercase">
                             {q.buyer?.name ?? "Comprador"} · {new Date(q.created_at).toLocaleDateString("es-AR")}
+                            {q.from_admin || q.buyer?.fantasma ? " · Usuario bot" : ""}
                           </span>
+                          {(q.buyer?.phone || q.buyer?.email) && (
+                            <p className="text-[10px] text-text-muted mt-0.5">
+                              {[q.buyer.phone, q.buyer.email].filter(Boolean).join(" · ")}
+                            </p>
+                          )}
                           <p className={q.question_deleted ? "text-text-muted italic mt-1" : "text-foreground mt-1"}>
+                            <span className="font-extrabold text-text-muted uppercase text-[9px] mr-1">Pregunta:</span>
                             {q.question}
                           </p>
                         </div>
@@ -692,7 +798,7 @@ export default function ListingDetailModal({ listingId, onClose }: { listingId: 
                         )}
                       </div>
 
-                      {q.answer && (
+                      {q.answer ? (
                         <div className="flex items-start justify-between gap-3 border-t border-card-border/50 pt-2">
                           <div className="flex-1 min-w-0">
                             <span className="text-[9px] font-bold text-accent-gold block uppercase">Respuesta del vendedor</span>
@@ -717,6 +823,10 @@ export default function ListingDetailModal({ listingId, onClose }: { listingId: 
                             </button>
                           </div>
                         </div>
+                      ) : (
+                        <p className="text-[11px] text-yellow-600 font-bold border-t border-card-border/50 pt-2">
+                          El vendedor aún no respondió
+                        </p>
                       )}
                     </div>
                   ))}

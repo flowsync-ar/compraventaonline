@@ -644,6 +644,7 @@ export type Database = {
           answer_deleted: boolean
           buyer_id: string
           created_at: string
+          from_admin: boolean
           hidden_by_seller: boolean
           id: string
           is_read_by_buyer: boolean
@@ -659,6 +660,7 @@ export type Database = {
           answer_deleted?: boolean
           buyer_id: string
           created_at?: string
+          from_admin?: boolean
           hidden_by_seller?: boolean
           id?: string
           is_read_by_buyer?: boolean
@@ -674,6 +676,7 @@ export type Database = {
           answer_deleted?: boolean
           buyer_id?: string
           created_at?: string
+          from_admin?: boolean
           hidden_by_seller?: boolean
           id?: string
           is_read_by_buyer?: boolean

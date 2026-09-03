@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import CompanyLogoBadge from "@/components/CompanyLogoBadge";
+import FavoriteButton from "@/components/FavoriteButton";
 import type { FeaturedListingCard as FeaturedListingCardData } from "@/lib/featuredListings";
 
 export default function FeaturedListingCard({

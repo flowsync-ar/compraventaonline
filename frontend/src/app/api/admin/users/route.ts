@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
   let { data, error } = await admin.from("sellers").select(withFantasma).order("created_at", { ascending: false })
   if (error && /fantasma/i.test(error.message)) {
     const retry = await admin.from("sellers").select(withoutFantasma).order("created_at", { ascending: false })
-    data = retry.data
+    data = (retry.data ?? []).map((row) => ({ ...row, fantasma: false }))
     error = retry.error
   }
 
@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
     console.warn("Could not load auth emails:", authError.message)
   }
 
-  const users = data.map((seller) => ({
+  const users = (data ?? []).map((seller) => ({
     ...seller,
     email: emailByUserId.get(seller.user_id) ?? null,
   }))

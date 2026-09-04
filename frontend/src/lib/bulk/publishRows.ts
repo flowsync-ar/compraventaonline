@@ -2,6 +2,7 @@ import type { TablesInsert } from "@/lib/supabase/types"
 import type { createAdminClient } from "@/lib/supabase/admin"
 import { validateBulkRowFields, validateCategoryId, type BulkRowInput } from "@/lib/bulk/validateRow"
 import { communityLanguageRejection } from "@/lib/communityLanguage"
+import { capListingImages } from "@/lib/listingImages"
 import { normalizeListingTitle } from "@/lib/listingTitle"
 import { analyzePrice } from "@/lib/priceIntegrity/analyzePrice"
 import { PRICE_INTEGRITY_EVENT, PRICE_RISK } from "@/lib/priceIntegrity/types"
@@ -60,9 +61,11 @@ export async function publishBulkRows(
       continue
     }
 
-    const images = Array.isArray(rows[i].images)
-      ? rows[i].images!.filter((u): u is string => typeof u === "string" && u.trim().length > 0)
-      : []
+    const images = capListingImages(
+      Array.isArray(rows[i].images)
+        ? rows[i].images!.filter((u): u is string => typeof u === "string" && u.trim().length > 0)
+        : [],
+    )
 
     const product: NewProduct = {
       name: normalizeListingTitle(fields.name),

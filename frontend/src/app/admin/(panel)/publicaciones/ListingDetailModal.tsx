@@ -6,6 +6,7 @@ import Link from "next/link"
 import ConfirmModal from "@/components/ConfirmModal"
 import CustomDropdown from "@/components/CustomDropdown"
 import { imagesToWebp } from "@/lib/imageToWebp"
+import { MAX_LISTING_IMAGES, MIN_LISTING_IMAGE_PX, prepareListingImageFiles } from "@/lib/listingImages"
 import { normalizeListingTitle } from "@/lib/listingTitle"
 
 const RichTextEditor = dynamic(() => import("@/components/RichTextEditor"), {
@@ -368,10 +369,13 @@ export default function ListingDetailModal({ listingId, onClose }: { listingId: 
 
   const handleAddPhotos = async (fileList: FileList | null) => {
     if (!fileList || fileList.length === 0) return
+    const { accepted, message } = await prepareListingImageFiles(fileList, photos.length)
+    if (message) setPhotoError(message)
+    if (accepted.length === 0) return
     setUploadingPhotos(true)
-    setPhotoError(null)
+    if (!message) setPhotoError(null)
     try {
-      const webp = await imagesToWebp(Array.from(fileList).filter((f) => f.type.startsWith("image/")))
+      const webp = await imagesToWebp(accepted)
       if (webp.length === 0) return
       const form = new FormData()
       for (const file of webp) form.append("files", file)
@@ -548,7 +552,7 @@ export default function ListingDetailModal({ listingId, onClose }: { listingId: 
             <div className="rounded-xl border border-card-border bg-background/40 p-4 flex flex-col gap-3">
               <label className="text-xs font-extrabold text-foreground uppercase tracking-wide">Fotos</label>
               <p className="text-[11px] text-text-muted -mt-1">
-                La primera es la portada. Podés subir, borrar o arrastrar para reordenar.
+                La primera es la portada. Máximo {MAX_LISTING_IMAGES} fotos, mínimo {MIN_LISTING_IMAGE_PX}×{MIN_LISTING_IMAGE_PX} px. Podés subir, borrar o arrastrar para reordenar.
               </p>
               {photos.length > 0 && (
                 <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
@@ -613,6 +617,7 @@ export default function ListingDetailModal({ listingId, onClose }: { listingId: 
                   ))}
                 </div>
               )}
+              {photos.length < MAX_LISTING_IMAGES && (
               <label className="self-start inline-flex items-center rounded-xl border border-card-border bg-card-bg px-4 py-2 text-xs font-bold text-foreground cursor-pointer">
                 {uploadingPhotos ? "Subiendo…" : "Agregar fotos"}
                 <input
@@ -627,6 +632,7 @@ export default function ListingDetailModal({ listingId, onClose }: { listingId: 
                   }}
                 />
               </label>
+              )}
               {photoError && <p className="text-xs text-red-500 font-bold">{photoError}</p>}
             </div>
 

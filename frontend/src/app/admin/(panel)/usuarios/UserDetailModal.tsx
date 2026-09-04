@@ -176,7 +176,7 @@ export default function UserDetailModal({ userId, onClose }: { userId: string; o
               </div>
               <div>
                 <span className="block text-[9px] uppercase text-text-muted/70">Registrado</span>
-                {new Date(user.created_at).toLocaleDateString("es-AR")}
+                {new Date(user.created_at).toLocaleString("es-AR", { hour12: false })}
               </div>
               <div>
                 <span className="block text-[9px] uppercase text-text-muted/70">Ubicación</span>

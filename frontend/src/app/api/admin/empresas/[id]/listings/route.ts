@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/admin/guard"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { normalizeListingTitle } from "@/lib/listingTitle"
+import { MAX_LISTING_IMAGES } from "@/lib/listingImages"
 
 function escapeHtml(value: string) {
   return value
@@ -26,7 +27,10 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
   const currencyId = String(form.get("currencyId") ?? "").trim() || null
   const brand = String(form.get("brand") ?? "").trim() || null
   const description = String(form.get("description") ?? "").trim()
-  const files = form.getAll("files").filter((item): item is File => item instanceof File && item.size > 0)
+  const files = form
+    .getAll("files")
+    .filter((item): item is File => item instanceof File && item.size > 0)
+    .slice(0, MAX_LISTING_IMAGES)
 
   if (name.length < 2 || name.length > 80) {
     return NextResponse.json({ error: "El título debe tener entre 2 y 80 caracteres." }, { status: 400 })

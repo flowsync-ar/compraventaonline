@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/admin/guard"
 import { createAdminClient } from "@/lib/supabase/admin"
+import { listingImagesLimitMessage, remainingListingImageSlots } from "@/lib/listingImages"
 
 export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   if (!(await requireAdmin(request))) {
@@ -25,8 +26,18 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     return NextResponse.json({ error: "Publicación no encontrada" }, { status: 404 })
   }
 
+  const currentImages = Array.isArray(listing.products)
+    ? listing.products[0]?.images
+    : listing.products?.images
+  const current = Array.isArray(currentImages) ? currentImages.filter((u): u is string => typeof u === "string") : []
+  const slots = remainingListingImageSlots(current.length)
+  if (slots === 0) {
+    return NextResponse.json({ error: listingImagesLimitMessage() }, { status: 400 })
+  }
+  const filesToUpload = files.slice(0, slots)
+
   const uploaded: string[] = []
-  for (const file of files) {
+  for (const file of filesToUpload) {
     const safeName = file.name.replace(/[^\w.-]+/g, "-") || "foto.webp"
     const path = `${listing.seller_id}/${id}/${Date.now()}-${Math.random().toString(36).slice(2)}-${safeName}`
     const { error: uploadError } = await admin.storage.from("listings").upload(path, file, {
@@ -42,10 +53,6 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     if (urlData?.publicUrl) uploaded.push(urlData.publicUrl)
   }
 
-  const currentImages = Array.isArray(listing.products)
-    ? listing.products[0]?.images
-    : listing.products?.images
-  const current = Array.isArray(currentImages) ? currentImages.filter((u): u is string => typeof u === "string") : []
   const images = [...current, ...uploaded]
   const { error: productError } = await admin.from("products").update({ images }).eq("id", listing.product_id)
   if (productError) {

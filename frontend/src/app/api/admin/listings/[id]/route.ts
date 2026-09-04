@@ -3,6 +3,7 @@ import { requireAdmin } from "@/lib/admin/guard"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { isRichHtmlEmpty, sanitizeRichHtml } from "@/lib/richText"
 import { normalizeListingTitle } from "@/lib/listingTitle"
+import { listingImagesLimitMessage, MAX_LISTING_IMAGES } from "@/lib/listingImages"
 
 export async function PATCH(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   if (!(await requireAdmin(request))) {
@@ -70,6 +71,9 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
       return NextResponse.json({ error: "Las fotos no son válidas." }, { status: 400 })
     }
     const images = body.images.map((u) => u.trim()).filter(Boolean)
+    if (images.length > MAX_LISTING_IMAGES) {
+      return NextResponse.json({ error: listingImagesLimitMessage() }, { status: 400 })
+    }
     const { data, error: imagesError } = await admin
       .from("products")
       .update({ images })

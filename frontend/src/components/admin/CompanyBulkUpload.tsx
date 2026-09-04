@@ -4,6 +4,7 @@ import { Fragment, useMemo, useState } from "react"
 import ExcelJS from "exceljs"
 import CustomDropdown from "@/components/CustomDropdown"
 import { imagesToWebp } from "@/lib/imageToWebp"
+import { MAX_LISTING_IMAGES, prepareListingImageFiles } from "@/lib/listingImages"
 
 type Category = { id: string; name: string; parent_id: string | null }
 
@@ -154,11 +155,13 @@ export default function CompanyBulkUpload({
   }
 
   const handleRowImages = async (rowNumber: number, files: FileList) => {
-    const fileArray = Array.from(files).filter((file) => file.type.startsWith("image/"))
-    if (fileArray.length === 0) return
+    const currentCount = previewRows?.find((r) => r.rowNumber === rowNumber)?.images.length ?? 0
+    const { accepted, message } = await prepareListingImageFiles(files, currentCount)
+    if (message) setError(message)
+    if (accepted.length === 0) return
     setUploadingRow(rowNumber)
     try {
-      const webp = await imagesToWebp(fileArray)
+      const webp = await imagesToWebp(accepted)
       const form = new FormData()
       form.append("rowNumber", String(rowNumber))
       for (const file of webp) form.append("files", file)
@@ -544,7 +547,11 @@ export default function CompanyBulkUpload({
                                   if (e.dataTransfer.files?.length) void handleRowImages(row.rowNumber, e.dataTransfer.files)
                                 }}
                               >
-                                {uploadingRow === row.rowNumber ? "Subiendo fotos…" : "Arrastrá fotos de este producto"}
+                                {uploadingRow === row.rowNumber
+                                  ? "Subiendo fotos…"
+                                  : row.images.length >= MAX_LISTING_IMAGES
+                                    ? `Máximo ${MAX_LISTING_IMAGES} fotos`
+                                    : "Arrastrá fotos de este producto"}
                               </div>
                               {row.images.length > 0 && (
                                 <div className="grid grid-cols-4 gap-2">

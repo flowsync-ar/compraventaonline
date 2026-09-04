@@ -7,6 +7,7 @@ import CompanyLogoPicker from "@/components/CompanyLogoPicker"
 import CategorySubcategoryPicker from "@/components/CategorySubcategoryPicker"
 import CustomDropdown from "@/components/CustomDropdown"
 import { normalizeListingTitle } from "@/lib/listingTitle"
+import { MAX_LISTING_IMAGES, MIN_LISTING_IMAGE_PX, prepareListingImageFiles } from "@/lib/listingImages"
 import ListingDetailModal from "../../publicaciones/ListingDetailModal"
 import CompanyBulkUpload from "@/components/admin/CompanyBulkUpload"
 
@@ -223,12 +224,13 @@ export default function AdminEmpresaDetailPage() {
     }
   }
 
-  const addPhotoFiles = (list: FileList | File[]) => {
-    const incoming = Array.from(list).filter((file) => file.type.startsWith("image/"))
-    if (incoming.length === 0) return
+  const addPhotoFiles = async (list: FileList | File[]) => {
+    const { accepted, message } = await prepareListingImageFiles(list, photoDrafts.length)
+    if (message) setError(message)
+    if (accepted.length === 0) return
     setPhotoDrafts((prev) => [
       ...prev,
-      ...incoming.map((file) => ({
+      ...accepted.map((file) => ({
         id: `${file.name}-${file.size}-${Math.random().toString(36).slice(2)}`,
         file,
         preview: URL.createObjectURL(file),
@@ -499,7 +501,7 @@ export default function AdminEmpresaDetailPage() {
               <div className="md:col-span-2 flex flex-col gap-2">
                 <span className="text-xs font-bold">Fotos</span>
                 <p className="text-[11px] text-text-muted -mt-1">
-                  La primera es la portada. Arrastrá para reordenar o tocá “Portada” en otra miniatura.
+                  La primera es la portada. Máximo {MAX_LISTING_IMAGES} fotos, mínimo {MIN_LISTING_IMAGE_PX}×{MIN_LISTING_IMAGE_PX} px. Arrastrá para reordenar o tocá “Portada” en otra miniatura.
                 </p>
                 <div
                   className={`border-2 border-dashed rounded-2xl p-6 text-center flex flex-col items-center justify-center gap-2 transition-all ${
@@ -515,11 +517,16 @@ export default function AdminEmpresaDetailPage() {
                   onDrop={(e) => {
                     e.preventDefault()
                     setPhotosDropActive(false)
-                    if (e.dataTransfer.files.length > 0) addPhotoFiles(e.dataTransfer.files)
+                    if (e.dataTransfer.files.length > 0) void addPhotoFiles(e.dataTransfer.files)
                   }}
                 >
                   <span className="text-2xl">📸</span>
-                  <p className="text-xs font-bold text-foreground">Arrastrá las fotos acá o elegí archivos</p>
+                  <p className="text-xs font-bold text-foreground">
+                    {photoDrafts.length >= MAX_LISTING_IMAGES
+                      ? `Ya cargaste el máximo de ${MAX_LISTING_IMAGES} fotos`
+                      : "Arrastrá las fotos acá o elegí archivos"}
+                  </p>
+                  {photoDrafts.length < MAX_LISTING_IMAGES && (
                   <label className="inline-flex items-center rounded-xl border border-card-border bg-card-bg px-4 py-2 text-[11px] font-bold text-foreground cursor-pointer hover:border-accent-gold">
                     Seleccionar imágenes
                     <input
@@ -528,11 +535,12 @@ export default function AdminEmpresaDetailPage() {
                       multiple
                       className="sr-only"
                       onChange={(e) => {
-                        if (e.target.files?.length) addPhotoFiles(e.target.files)
+                        if (e.target.files?.length) void addPhotoFiles(e.target.files)
                         e.target.value = ""
                       }}
                     />
                   </label>
+                  )}
                 </div>
                 {photoDrafts.length > 0 && (
                   <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">

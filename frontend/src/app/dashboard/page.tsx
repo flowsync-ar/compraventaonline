@@ -13,6 +13,13 @@ import { createClient } from "@/lib/supabase/client";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { QuestionWithBuyer } from "@/lib/supabase/types";
 import { imageToWebp, imagesToWebp } from "@/lib/imageToWebp";
+import {
+  MAX_LISTING_IMAGES,
+  MIN_LISTING_IMAGE_PX,
+  capListingImages,
+  listingImagesLimitMessage,
+  prepareListingImageFiles,
+} from "@/lib/listingImages";
 import dynamic from "next/dynamic";
 import { isRichHtmlEmpty, sanitizeRichHtml, stripRichText } from "@/lib/richText";
 import { communityLanguageRejection, flaggedLanguageTerms } from "@/lib/communityLanguage";
@@ -668,14 +675,16 @@ function DashboardPageContent() {
   // own image array instead of the shared productImages state.
   const handleBulkRowImageFiles = async (rowNumber: number, files: FileList) => {
     const supabase = getSupabase();
-    const fileArray = Array.from(files).filter((file) => file.type.startsWith("image/"));
-    if (fileArray.length === 0) return;
+    const currentCount = bulkPreviewRows?.find((r) => r.rowNumber === rowNumber)?.images.length ?? 0;
+    const { accepted, message } = await prepareListingImageFiles(files, currentCount);
+    if (message) setErrorMsg(message);
+    if (accepted.length === 0) return;
 
     const sellerId = sellerProfile?.id ?? userId ?? "unknown";
     setBulkUploadingRow(rowNumber);
     try {
       const uploadedUrls: string[] = [];
-      const webpFiles = await imagesToWebp(fileArray);
+      const webpFiles = await imagesToWebp(accepted);
       for (const file of webpFiles) {
         const ext = file.name.split(".").pop() ?? "jpg";
         const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
@@ -869,9 +878,9 @@ function DashboardPageContent() {
   // Uploads files to Supabase Storage bucket "listings" and stores public URLs
   const handleImageFiles = async (files: FileList) => {
     const supabase = getSupabase();
-    const fileArray = Array.from(files).filter((file) => file.type.startsWith("image/"));
-
-    if (fileArray.length === 0) return;
+    const { accepted, message } = await prepareListingImageFiles(files, productImages.length);
+    if (message) setErrorMsg(message);
+    if (accepted.length === 0) return;
 
     const sellerId = sellerProfile?.id ?? userId ?? "unknown";
     // Use a temporary listing ID placeholder during creation; will be replaced on publish
@@ -880,7 +889,7 @@ function DashboardPageContent() {
     setIsUploadingImages(true);
     try {
       const uploadedUrls: string[] = [];
-      const webpFiles = await imagesToWebp(fileArray);
+      const webpFiles = await imagesToWebp(accepted);
 
       for (const file of webpFiles) {
         const ext = file.name.split(".").pop() ?? "jpg";
@@ -1070,7 +1079,7 @@ function DashboardPageContent() {
 
       const supabase = getSupabase();
       const defaultImage = "/sinimagen.webp";
-      const imageList = productImages.length > 0 ? productImages : [defaultImage];
+      const imageList = productImages.length > 0 ? capListingImages(productImages) : [defaultImage];
       const descriptionHtml = isRichHtmlEmpty(description) ? "" : sanitizeRichHtml(description);
 
       if (selectedListingToEdit) {
@@ -2746,15 +2755,24 @@ function DashboardPageContent() {
                   {/* Zona de Drop para Fotos */}
                   <div 
                     className={`border-2 border-dashed rounded-2xl p-8 text-center flex flex-col items-center justify-center gap-3 transition-all ${
-                      isImagesDragging 
+                      productImages.length >= MAX_LISTING_IMAGES
+                        ? "border-card-border bg-card-bg/20 opacity-80"
+                        : isImagesDragging 
                         ? "border-accent-gold bg-accent-gold/5 shadow-inner scale-[0.99]" 
                         : "border-card-border hover:border-accent-gold/50 bg-card-bg/25"
                     }`}
-                    onDragOver={(e) => { e.preventDefault(); setIsImagesDragging(true); }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      if (productImages.length < MAX_LISTING_IMAGES) setIsImagesDragging(true);
+                    }}
                     onDragLeave={() => setIsImagesDragging(false)}
                     onDrop={(e) => {
                       e.preventDefault();
                       setIsImagesDragging(false);
+                      if (productImages.length >= MAX_LISTING_IMAGES) {
+                        setErrorMsg(listingImagesLimitMessage());
+                        return;
+                      }
                       if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
                         handleImageFiles(e.dataTransfer.files);
                       }
@@ -2769,8 +2787,17 @@ function DashboardPageContent() {
                       <>
                         <span className="text-3xl animate-bounce duration-1000">📸</span>
                         <div>
-                          <p className="text-xs font-bold text-foreground">Arrastrá tus imágenes aquí o hacé clic para buscar</p>
-                          <p className="text-[10px] text-text-muted mt-1">Podés subir múltiples archivos (.png, .jpg, .webp). La primera foto será la portada.</p>
+                          <p className="text-xs font-bold text-foreground">
+                            {productImages.length >= MAX_LISTING_IMAGES
+                              ? `Ya cargaste el máximo de ${MAX_LISTING_IMAGES} fotos`
+                              : "Arrastrá tus imágenes aquí o hacé clic para buscar"}
+                          </p>
+                          <p className="text-[10px] text-text-muted mt-1">
+                            Máximo {MAX_LISTING_IMAGES} fotos, mínimo {MIN_LISTING_IMAGE_PX}×{MIN_LISTING_IMAGE_PX} px. La primera es la portada.
+                            {productImages.length > 0 && productImages.length < MAX_LISTING_IMAGES
+                              ? ` Te quedan ${MAX_LISTING_IMAGES - productImages.length}.`
+                              : ""}
+                          </p>
                         </div>
                       </>
                     )}
@@ -2778,7 +2805,7 @@ function DashboardPageContent() {
                       type="file"
                       accept="image/*"
                       multiple
-                      disabled={isUploadingImages}
+                      disabled={isUploadingImages || productImages.length >= MAX_LISTING_IMAGES}
                       onChange={(e) => {
                         if (e.target.files && e.target.files.length > 0) {
                           handleImageFiles(e.target.files);
@@ -2787,12 +2814,14 @@ function DashboardPageContent() {
                       className="hidden"
                       id="product-images-input"
                     />
+                    {productImages.length < MAX_LISTING_IMAGES && (
                     <label
                       htmlFor="product-images-input"
                       className="inline-flex items-center rounded-lg bg-card-bg border border-card-border hover:border-accent-gold px-4 py-2 text-[11px] font-bold text-foreground cursor-pointer transition-all mt-1 shadow-sm active:scale-95"
                     >
                       Seleccionar Imágenes
                     </label>
+                    )}
                   </div>
 
                   {/* Acciones Masivas y Miniaturas */}
@@ -3175,7 +3204,13 @@ function DashboardPageContent() {
                                 {row.valid ? (
                                   <label
                                     htmlFor={`row-photo-${row.rowNumber}`}
-                                    title={row.images.length > 0 ? `${row.images.length} foto(s) — clic para agregar más` : "Sin foto — clic o arrastrá para subir"}
+                                    title={
+                                      row.images.length >= MAX_LISTING_IMAGES
+                                        ? `Máximo ${MAX_LISTING_IMAGES} fotos`
+                                        : row.images.length > 0
+                                          ? `${row.images.length} foto(s) — clic para agregar más (máx. ${MAX_LISTING_IMAGES})`
+                                          : `Sin foto — clic o arrastrá para subir (máx. ${MAX_LISTING_IMAGES})`
+                                    }
                                     className={`relative inline-flex h-10 w-10 items-center justify-center rounded-lg border overflow-hidden cursor-pointer transition-colors ${
                                       photoColumnDragOver === row.rowNumber
                                         ? "border-accent-gold bg-accent-gold/10"
@@ -3209,7 +3244,7 @@ function DashboardPageContent() {
                                       multiple
                                       className="hidden"
                                       id={`row-photo-${row.rowNumber}`}
-                                      disabled={bulkUploadingRow === row.rowNumber}
+                                      disabled={bulkUploadingRow === row.rowNumber || row.images.length >= MAX_LISTING_IMAGES}
                                       onChange={(e) => {
                                         if (e.target.files?.length) handleBulkRowImageFiles(row.rowNumber, e.target.files);
                                       }}
@@ -3288,7 +3323,13 @@ function DashboardPageContent() {
                                       ) : (
                                         <>
                                           <span className="text-lg">📸</span>
-                                          <p className="text-[11px] font-bold text-foreground">Arrastrá las fotos de este producto acá</p>
+                                          <p className="text-[11px] font-bold text-foreground">
+                                            {row.images.length >= MAX_LISTING_IMAGES
+                                              ? `Máximo ${MAX_LISTING_IMAGES} fotos`
+                                              : "Arrastrá las fotos de este producto acá"}
+                                          </p>
+                                          {row.images.length < MAX_LISTING_IMAGES && (
+                                          <>
                                           <input
                                             type="file"
                                             accept="image/*"
@@ -3305,6 +3346,8 @@ function DashboardPageContent() {
                                           >
                                             o hacé clic para elegirlas
                                           </label>
+                                          </>
+                                          )}
                                         </>
                                       )}
                                     </div>
